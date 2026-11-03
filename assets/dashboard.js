@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team',
   };
-  const SCANNER_URL = 'https://github.com/midouff030-blip/HeRo-Shield/releases/latest/download/HeRoShieldScanner.exe';
+  const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/latest/download/HeRoShieldScanner.exe';
   const ERRORS = {
     state: 'Session expired, try again.', token: 'Discord refused the login.',
     user: 'Could not read your Discord profile.', server: 'Server error, try again.',
