@@ -391,6 +391,15 @@
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>View a result by PIN</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Paste the PIN you gave the player to open its scan result.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="pin-lookup" class="input" style="flex:1;min-width:180px;text-transform:uppercase;letter-spacing:2px"
+                 placeholder="e.g. ABCD1234" maxlength="8">
+          <button class="btn btn-primary" data-lookuppin>View result</button>
+        </div>
+      </div>
       <div class="card panel"><h3>Recent PINs</h3>
         ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
           <tbody>${pins.map((p) => `<tr>
@@ -804,6 +813,14 @@
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
     if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
+    if (t.dataset.lookuppin !== undefined) {
+      const code = ($('#pin-lookup').value || '').trim().toUpperCase();
+      if (!code) return toast('Enter a PIN', true);
+      const found = (state.pins || []).find((p) => p.pin === code);
+      if (!found) return toast('No PIN like that on this server', true);
+      if (!(found.used && found.report)) return toast('No result yet for ' + code + ' — the player has not finished the scan', true);
+      return renderPinReport($('#view'), code);
+    }
     if (t.dataset.ptab) return renderPinReport($('#view'), state.pinView, t.dataset.ptab);
     if (t.dataset.copypin) {
       try { await navigator.clipboard.writeText(t.dataset.copypin); toast('PIN copied'); } catch { toast('Copy failed', true); }
