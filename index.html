@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HeRo Shield - Free FiveM Anti-Cheat</title>
+<meta name="description" content="HeRo Shield: 100% free FiveM anti-cheat. ESX, QBCore, Qbox and standalone. Web dashboard, HWID bans, Discord logs.">
+<meta property="og:title" content="HeRo Shield - Free FiveM Anti-Cheat">
+<meta property="og:description" content="Protect your FiveM server for free: advanced detections, HWID bans, live dashboard.">
+<meta name="theme-color" content="#05070f">
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* HeRo Shield — design system */
+[hidden] { display: none !important; }
+:root {
+  --bg: #05070f;
+  --bg-2: #0a0e1c;
+  --card: rgba(16, 22, 42, 0.72);
+  --card-solid: #10162a;
+  --line: rgba(120, 150, 255, 0.12);
+  --line-strong: rgba(120, 150, 255, 0.25);
+  --text: #e8ecff;
+  --muted: #8b94b8;
+  --dim: #5b6488;
+  --blue: #3b82f6;
+  --cyan: #22d3ee;
+  --violet: #8b5cf6;
+  --grad: linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%);
+  --red: #f43f5e;
+  --orange: #f59e0b;
+  --green: #10b981;
+  --radius: 16px;
+  --font: 'Inter', system-ui, sans-serif;
+  --display: 'Sora', 'Inter', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+input { font: inherit; color: inherit; }
+img, svg { display: block; }
+
+.container { width: min(1180px, 100% - 32px); margin-inline: auto; }
+
+/* ---------- fond ---------- */
+.bg-glow {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 15% 0%, rgba(59, 130, 246, 0.18), transparent 60%),
+    radial-gradient(50% 40% at 90% 10%, rgba(34, 211, 238, 0.12), transparent 60%),
+    radial-gradient(40% 40% at 50% 100%, rgba(139, 92, 246, 0.08), transparent 70%);
+}
+.bg-grid {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.35;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 20%, transparent 70%);
+}
+
+/* ---------- boutons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 22px; border-radius: 12px; font-weight: 600; font-size: 15px;
+  transition: transform .15s, box-shadow .2s, background .2s, border-color .2s;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary {
+  background: var(--grad); color: #04101f;
+  box-shadow: 0 8px 30px -8px rgba(34, 211, 238, 0.55);
+}
+.btn-primary:hover { box-shadow: 0 10px 40px -6px rgba(34, 211, 238, 0.75); transform: translateY(-1px); }
+.btn-ghost { border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.03); }
+.btn-ghost:hover { border-color: var(--cyan); background: rgba(34, 211, 238, 0.06); }
+.btn-danger { border: 1px solid rgba(244, 63, 94, .35); color: var(--red); }
+.btn-danger:hover { background: rgba(244, 63, 94, .1); }
+.btn-sm { padding: 7px 12px; font-size: 13px; border-radius: 9px; }
+.btn[disabled] { opacity: .5; pointer-events: none; }
+
+/* ---------- nav ---------- */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: rgba(5, 7, 15, 0.7); border-bottom: 1px solid var(--line);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 19px; }
+.brand svg { width: 32px; height: 32px; filter: drop-shadow(0 0 12px rgba(34, 211, 238, .5)); }
+.brand b { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nav-links { display: flex; gap: 28px; color: var(--muted); font-size: 15px; font-weight: 500; }
+.nav-links a:hover { color: var(--text); }
+.nav-cta { display: flex; gap: 10px; }
+@media (max-width: 860px) { .nav-links { display: none; } }
+@media (max-width: 480px) { .nav-cta .btn-ghost { display: none; } }
+
+/* ---------- hero ---------- */
+.hero { position: relative; padding: 96px 0 40px; text-align: center; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(59, 130, 246, .08);
+  font-size: 13px; color: var(--muted); margin-bottom: 26px;
+}
+.pill span { background: var(--grad); color: #04101f; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+.hero h1 {
+  font-family: var(--display); font-size: clamp(38px, 6.5vw, 76px); line-height: 1.05;
+  letter-spacing: -0.03em; font-weight: 800; max-width: 900px; margin-inline: auto;
+}
+.grad-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p { color: var(--muted); font-size: clamp(16px, 2vw, 19px); max-width: 640px; margin: 22px auto 34px; }
+.hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.hero-meta { display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; margin-top: 34px; color: var(--muted); font-size: 14px; }
+.hero-meta div { display: flex; align-items: center; gap: 8px; }
+.hero-meta svg { width: 18px; height: 18px; color: var(--cyan); }
+
+/* waves */
+.waves { position: relative; height: 160px; margin-top: 30px; overflow: hidden; }
+.waves svg { position: absolute; left: 0; width: 200%; height: 100%; }
+.waves .w1 { animation: wave 14s linear infinite; opacity: .55; }
+.waves .w2 { animation: wave 22s linear infinite reverse; opacity: .35; }
+.waves .w3 { animation: wave 30s linear infinite; opacity: .2; }
+@keyframes wave { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .waves svg { animation: none !important; } }
+
+/* preview dashboard */
+.preview {
+  margin: -60px auto 0; position: relative; z-index: 2; width: min(1000px, 100%);
+  border: 1px solid var(--line-strong); border-radius: 20px; background: var(--card-solid);
+  box-shadow: 0 40px 120px -30px rgba(34, 211, 238, .35), 0 0 0 1px rgba(255, 255, 255, .02) inset;
+  overflow: hidden;
+}
+.preview-bar { display: flex; gap: 7px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.preview-bar i { width: 11px; height: 11px; border-radius: 50%; background: #2a3150; }
+.preview-body { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 20px; }
+.preview-chart { grid-column: span 3; height: 170px; }
+.preview-list { grid-column: span 1; display: flex; flex-direction: column; gap: 8px; }
+.preview-list div { height: 30px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+@media (max-width: 700px) {
+  .preview-body { grid-template-columns: 1fr 1fr; }
+  .preview-chart { grid-column: span 2; }
+  .preview-list { display: none; }
+}
+
+/* ---------- sections ---------- */
+section { padding: 100px 0; }
+.section-head { text-align: center; max-width: 680px; margin: 0 auto 56px; }
+.eyebrow { color: var(--cyan); font-weight: 600; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.section-head h2 { font-family: var(--display); font-size: clamp(30px, 4.5vw, 46px); letter-spacing: -0.02em; line-height: 1.12; margin: 12px 0 14px; }
+.section-head p { color: var(--muted); font-size: 17px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.stat { padding: 26px; text-align: center; }
+.stat strong { display: block; font-family: var(--display); font-size: 38px; font-weight: 800; }
+.stat span { color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) { .stats { grid-template-columns: 1fr 1fr; } }
+
+/* features */
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.feature { padding: 28px; transition: border-color .2s, transform .2s; }
+.feature:hover { border-color: var(--line-strong); transform: translateY(-3px); }
+.feature-icon {
+  width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, .2), rgba(34, 211, 238, .12));
+  border: 1px solid var(--line-strong); color: var(--cyan);
+}
+.feature-icon svg { width: 22px; height: 22px; }
+.feature h3 { font-family: var(--display); font-size: 18px; margin-bottom: 8px; }
+.feature p { color: var(--muted); font-size: 15px; }
+@media (max-width: 960px) { .features { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .features { grid-template-columns: 1fr; } }
+
+/* detections chips */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 900px; margin: 0 auto; }
+.chip {
+  padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  border: 1px solid var(--line-strong); background: rgba(59, 130, 246, .06);
+}
+
+/* steps */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: s; }
+.step { padding: 30px; position: relative; }
+.step::before {
+  counter-increment: s; content: '0' counter(s);
+  font-family: var(--display); font-weight: 800; font-size: 44px;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  display: block; margin-bottom: 10px; line-height: 1;
+}
+.step h3 { font-family: var(--display); margin-bottom: 8px; }
+.step p { color: var(--muted); font-size: 15px; }
+.step code {
+  display: block; margin-top: 14px; padding: 10px 12px; border-radius: 9px; font-size: 13px;
+  background: #060914; border: 1px solid var(--line); color: var(--cyan); font-family: ui-monospace, Consolas, monospace;
+  overflow-x: auto; white-space: pre;
+}
+@media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+
+/* pricing */
+.price-card { max-width: 520px; margin: 0 auto; padding: 40px; text-align: center; position: relative; overflow: hidden; }
+.price-card::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px;
+  background: var(--grad); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+}
+.price { font-family: var(--display); font-size: 64px; font-weight: 800; line-height: 1; margin: 14px 0 6px; }
+.price small { font-size: 18px; color: var(--muted); font-weight: 500; }
+.price-list { list-style: none; text-align: left; margin: 28px 0; display: grid; gap: 12px; }
+.price-list li { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); }
+.price-list svg { width: 20px; height: 20px; color: var(--green); flex-shrink: 0; margin-top: 2px; }
+
+/* faq */
+.faq { max-width: 760px; margin: 0 auto; display: grid; gap: 12px; }
+.faq details { padding: 0 22px; }
+.faq summary {
+  cursor: pointer; list-style: none; padding: 20px 0; font-weight: 600; font-size: 16px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: '+'; font-size: 22px; color: var(--cyan); transition: transform .2s; }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { color: var(--muted); padding-bottom: 20px; }
+
+/* cta + footer */
+.cta-box { padding: 56px 32px; text-align: center; position: relative; overflow: hidden; }
+.cta-box h2 { font-family: var(--display); font-size: clamp(28px, 4vw, 40px); margin-bottom: 12px; }
+.cta-box p { color: var(--muted); margin-bottom: 26px; }
+footer { border-top: 1px solid var(--line); padding: 36px 0; color: var(--dim); font-size: 14px; }
+.footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; }
+.reveal.in { opacity: 1; transform: none; }
+
+/* =================== DASHBOARD =================== */
+.dash { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.side {
+  border-right: 1px solid var(--line); background: rgba(8, 11, 22, .85); padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh;
+}
+.side .brand { padding: 6px 10px 22px; }
+.side-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 14px 12px 6px; }
+.side-link {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  color: var(--muted); font-weight: 500; font-size: 15px; width: 100%; text-align: left;
+}
+.side-link svg { width: 19px; height: 19px; }
+.side-link:hover { background: rgba(255, 255, 255, .04); color: var(--text); }
+.side-link.active { background: linear-gradient(90deg, rgba(59, 130, 246, .2), rgba(34, 211, 238, .05)); color: var(--text); box-shadow: inset 2px 0 0 var(--cyan); }
+.side-user { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px; border-top: 1px solid var(--line); }
+.side-user img, .avatar-fallback { width: 36px; height: 36px; border-radius: 50%; background: var(--grad); }
+.side-user div { flex: 1; min-width: 0; }
+.side-user strong { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-user a { font-size: 12px; color: var(--muted); }
+.side-user a:hover { color: var(--red); }
+
+.main { padding: 26px 32px 60px; min-width: 0; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
+.topbar h1 { font-family: var(--display); font-size: 26px; }
+.topbar-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+select.input, .input {
+  background: var(--card-solid); border: 1px solid var(--line-strong); border-radius: 10px;
+  padding: 10px 14px; color: var(--text); font-size: 14px; outline: none; min-width: 0;
+}
+.input:focus { border-color: var(--cyan); }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 18px; }
+.kpi { padding: 20px; }
+.kpi span { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.kpi strong { display: block; font-family: var(--display); font-size: 32px; margin-top: 6px; }
+.kpi .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 18px; }
+.panel { padding: 22px; min-width: 0; }
+.panel h3 { font-family: var(--display); font-size: 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.bars { display: flex; align-items: flex-end; gap: 10px; height: 180px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; }
+.bar { width: 100%; max-width: 44px; border-radius: 8px 8px 3px 3px; background: var(--grad); min-height: 3px; transition: height .5s; position: relative; }
+.bar-col small { color: var(--dim); font-size: 11px; }
+.bar-col b { font-size: 12px; color: var(--muted); font-weight: 600; }
+.top-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.top-row:last-child { border: 0; }
+.top-row b { color: var(--cyan); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--muted); }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.badge.ban { background: rgba(244, 63, 94, .12); color: var(--red); }
+.badge.kick { background: rgba(245, 158, 11, .12); color: var(--orange); }
+.badge.log { background: rgba(59, 130, 246, .12); color: var(--blue); }
+.badge.on { background: rgba(16, 185, 129, .12); color: var(--green); }
+.badge.off { background: rgba(255, 255, 255, .05); color: var(--dim); }
+.empty { padding: 40px; text-align: center; color: var(--dim); }
+
+.server-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.server-card { padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.server-card h4 { font-family: var(--display); font-size: 17px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.license-box { display: flex; gap: 8px; align-items: center; background: #060914; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.license-box code { flex: 1; font-size: 13px; color: var(--cyan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; filter: blur(5px); transition: filter .2s; }
+.license-box code.show { filter: none; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.login-screen { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.login-card { padding: 44px 36px; text-align: center; width: min(420px, 100%); }
+.login-card .brand { justify-content: center; margin-bottom: 22px; font-size: 22px; }
+.login-card p { color: var(--muted); margin-bottom: 26px; }
+.btn-discord { background: #5865f2; color: #fff; width: 100%; padding: 14px; }
+.btn-discord:hover { background: #4752c4; }
+.btn-discord svg { width: 22px; height: 22px; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 100; padding: 13px 18px; border-radius: 12px;
+  background: var(--card-solid); border: 1px solid var(--line-strong); box-shadow: 0 20px 50px -10px #000;
+  font-size: 14px; transform: translateY(20px); opacity: 0; transition: .25s; pointer-events: none;
+}
+.toast.show { transform: none; opacity: 1; }
+.toast.err { border-color: rgba(244, 63, 94, .5); }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); backdrop-filter: blur(4px); display: none; place-items: center; z-index: 90; padding: 20px; }
+.modal-bg.open { display: grid; }
+.modal { padding: 28px; width: min(440px, 100%); }
+.modal h3 { font-family: var(--display); margin-bottom: 8px; }
+.modal p { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+.modal .input { width: 100%; margin-bottom: 18px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+.skeleton { background: linear-gradient(90deg, rgba(255,255,255,.03), rgba(255,255,255,.07), rgba(255,255,255,.03)); background-size: 200% 100%; animation: sk 1.2s infinite; border-radius: 8px; }
+@keyframes sk { to { background-position: -200% 0; } }
+
+.mobile-tabs { display: none; }
+@media (max-width: 1000px) { .kpis { grid-template-columns: 1fr 1fr; } .grid-2 { grid-template-columns: 1fr; } }
+@media (max-width: 820px) {
+  .dash { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .main { padding: 18px 16px 90px; }
+  .mobile-tabs {
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 60; justify-content: space-around;
+    background: rgba(8, 11, 22, .95); border-top: 1px solid var(--line); padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(10px);
+  }
+  .mobile-tabs button { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); padding: 4px 8px; }
+  .mobile-tabs button svg { width: 21px; height: 21px; }
+  .mobile-tabs button.active { color: var(--cyan); }
+}
+
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="hsg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <symbol id="logo" viewBox="0 0 32 32">
+      <path d="M16 2 4 6.5v8.2c0 7.4 5.1 13.6 12 15.3 6.9-1.7 12-7.9 12-15.3V6.5L16 2Z" fill="url(#hsg)"/>
+      <path d="M16 5.2 7 8.6v6.1c0 5.7 3.8 10.6 9 12.1V5.2Z" fill="#fff" fill-opacity=".18"/>
+      <path d="M11.5 10v12M20.5 10v12M11.5 16h9" stroke="#04101f" stroke-width="2.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="nav">
+  <div class="container nav-inner">
+    <a href="/" class="brand"><svg><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#detections">Detections</a>
+      <a href="#install">Installation</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</a>
+      <a href="/heroshield.zip" class="btn btn-primary btn-sm" download>Download</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="container">
+      <div class="pill"><span>v1.4</span> 100% free - for every FiveM server</div>
+      <h1>Protect your <span class="grad-text">FiveM</span> server from cheaters</h1>
+      <p>HeRo Shield detects and bans mod menus, godmode, noclip, spawns and explosions automatically. Live web dashboard. Free, no subscription.</p>
+      <div class="hero-cta">
+        <a href="/heroshield.zip" class="btn btn-primary" download>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 21h16"/></svg>
+          Download for free
+        </a>
+        <a href="/dashboard" class="btn btn-ghost">Open dashboard →</a>
+      </div>
+      <div class="hero-meta">
+        <div><svg><use href="#i-check"/></svg>ESX · QBCore · Qbox · Standalone</div>
+        <div><svg><use href="#i-check"/></svg>HWID bans</div>
+        <div><svg><use href="#i-check"/></svg>2-minute setup</div>
+      </div>
+    </div>
+
+    <div class="waves" aria-hidden="true">
+      <svg class="w1" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="url(#hsg)" d="M0 90c240 0 240-60 480-60s240 60 480 60 240-60 480-60 240 60 480 60 240-60 480-60 240 60 480 60v70H0Z"/></svg>
+      <svg class="w2" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="#3b82f6" d="M0 110c180 0 300-50 480-50s300 50 480 50 300-50 480-50 300 50 480 50 300-50 480-50 300 50 480 50v50H0Z"/></svg>
+      <svg class="w3" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="#22d3ee" d="M0 70c240 0 240 50 480 50s240-50 480-50 240 50 480 50 240-50 480-50 240 50 480 50 240-50 480-50v90H0Z"/></svg>
+    </div>
+
+    <div class="container">
+      <div class="preview reveal" aria-hidden="true">
+        <div class="preview-bar"><i></i><i></i><i></i></div>
+        <div class="preview-body">
+          <div class="card kpi"><span><i class="dot" style="background:var(--cyan)"></i>Detections</span><strong>1 284</strong></div>
+          <div class="card kpi"><span><i class="dot" style="background:var(--red)"></i>Active bans</span><strong>312</strong></div>
+          <div class="card kpi"><span><i class="dot" style="background:var(--green)"></i>Online</span><strong>148</strong></div>
+          <div class="card kpi"><span><i class="dot" style="background:var(--violet)"></i>Players</span><strong>9 702</strong></div>
+          <div class="card preview-chart panel">
+            <div class="bars" style="height:120px">
+              <div class="bar-col"><div class="bar" style="height:40%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:65%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:30%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:85%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:55%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:100%"></div></div>
+              <div class="bar-col"><div class="bar" style="height:70%"></div></div>
+            </div>
+          </div>
+          <div class="preview-list"><div></div><div></div><div></div><div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:60px">
+    <div class="container">
+      <div class="stats">
+        <div class="card stat reveal"><strong class="grad-text">15</strong><span>Detections</span></div>
+        <div class="card stat reveal"><strong class="grad-text">$0</strong><span>Forever</span></div>
+        <div class="card stat reveal"><strong class="grad-text">4</strong><span>Frameworks</span></div>
+        <div class="card stat reveal"><strong class="grad-text">24/7</strong><span>Protection</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Features</div>
+        <h2>Everything you need for a <span class="grad-text">clean</span> server</h2>
+        <p>Client + server protection. No false bans, no lag.</p>
+      </div>
+      <div class="features">
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <h3>Client checks</h3><p>GodMode, speedhack, noclip, invisible, super jump, spectate, blacklisted weapons and injected resources.</p>
+        </div>
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+          <h3>Server checks</h3><p>Blacklisted events, event spam, hidden explosions, entity spawns and abnormal weapon damage blocked.</p>
+        </div>
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></div>
+          <h3>HWID bans</h3><p>Bans use identifiers + hardware tokens. A new Rockstar or Discord account is not enough.</p>
+        </div>
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></div>
+          <h3>Web dashboard</h3><p>Discord login, live stats, detections, bans, player playtime. Change settings and webhook online.</p>
+        </div>
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M8 5l1.5-2h5L16 5"/></svg></div>
+          <h3>Replay proof & live view</h3><p>Every ban saves a screenshot + a replay of the last 4 minutes. Watch any player live from the dashboard.</p>
+        </div>
+        <div class="card feature reveal">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M17 3h4v4"/></svg></div>
+          <h3>Admins safe</h3><p>Admins are never banned (ACE, framework groups or identifiers). Strikes and spawn grace stop false bans.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="detections">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Detections</div>
+        <h2>15 detections ready out of the box</h2>
+        <p>Set each one to <b>log</b>, <b>kick</b> or <b>ban</b> from the dashboard.</p>
+      </div>
+      <div class="chips reveal">
+        <span class="chip">GodMode</span><span class="chip">SpeedHack</span><span class="chip">NoClip / Teleport</span>
+        <span class="chip">Invisible</span><span class="chip">Super Jump</span><span class="chip">Spectate</span>
+        <span class="chip">Blacklisted weapons</span><span class="chip">Resource injection</span><span class="chip">Anti-stop</span>
+        <span class="chip">Blacklisted events</span><span class="chip">Event spam</span><span class="chip">Hidden explosions</span>
+        <span class="chip">Explosion spam</span><span class="chip">Blacklisted entities</span><span class="chip">Entity spam</span>
+        <span class="chip">Weapon damage</span><span class="chip">Server logs</span><span class="chip">Live view</span><span class="chip">Replay proof</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Installation</div>
+        <h2>Ready in 3 steps</h2>
+      </div>
+      <div class="steps">
+        <div class="card step reveal">
+          <h3>Download</h3>
+          <p>Put the <b>heroshield</b> folder in your <b>resources</b> folder.</p>
+          <code>resources/heroshield</code>
+        </div>
+        <div class="card step reveal">
+          <h3>Start</h3>
+          <p>Add this to your <b>server.cfg</b>:</p>
+          <code>ensure heroshield
+add_ace group.admin heroshield.bypass allow</code>
+        </div>
+        <div class="card step reveal">
+          <h3>Connect</h3>
+          <p>Add your server on the dashboard and paste the key in <b>shared/config.lua</b>.</p>
+          <code>Config.LicenseKey = 'HS-XXXX-...'</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">Pricing</div>
+        <h2>Free. Really.</h2>
+        <p>No subscription, no hidden premium.</p>
+      </div>
+      <div class="card price-card reveal">
+        <div class="eyebrow">HeRo Shield</div>
+        <div class="price grad-text">$0 <small>/ forever</small></div>
+        <ul class="price-list">
+          <li><svg><use href="#i-check"/></svg>All 15 client + server detections</li>
+          <li><svg><use href="#i-check"/></svg>HWID bans + admin commands</li>
+          <li><svg><use href="#i-check"/></svg>Web dashboard (up to 5 servers)</li>
+          <li><svg><use href="#i-check"/></svg>Discord logs + screenshots</li>
+          <li><svg><use href="#i-check"/></svg>Free updates</li>
+        </ul>
+        <a href="/heroshield.zip" class="btn btn-primary" style="width:100%" download>Download now</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="container">
+      <div class="section-head reveal">
+        <div class="eyebrow">FAQ</div>
+        <h2>FAQ</h2>
+      </div>
+      <div class="faq">
+        <details class="card reveal"><summary>Is it really free?</summary><p>Yes. HeRo Shield is 100% free for every server, no player limit.</p></details>
+        <details class="card reveal"><summary>Does it work with my framework?</summary><p>Yes: ESX, QBCore, Qbox or standalone. It detects your framework by itself. OneSync is required.</p></details>
+        <details class="card reveal"><summary>Can admins get banned?</summary><p>No. Admins are always ignored. Tip: set detections to "log" for 1-2 days, then switch to "ban".</p></details>
+        <details class="card reveal"><summary>How do I unban someone?</summary><p>From the dashboard (Bans tab) or in console with <b>hsunban HS-XXXXXX</b>.</p></details>
+        <details class="card reveal"><summary>Does it cause lag?</summary><p>No. Checks are light and run once per second.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:20px">
+    <div class="container">
+      <div class="card cta-box reveal">
+        <h2>Ready to clean your server?</h2>
+        <p>Install HeRo Shield in 2 minutes.</p>
+        <div class="hero-cta">
+          <a href="/heroshield.zip" class="btn btn-primary" download>Download</a>
+          <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <a href="/" class="brand" style="font-size:16px"><svg style="width:24px;height:24px"><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
+    <span>© <span id="year">2026</span> HeRo Shield - by HaMa. Not affiliated with Rockstar Games or Cfx.re.</span>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('year').textContent = new Date().getFullYear();
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
+</body>
+</html>
