@@ -486,8 +486,36 @@
           The scanner reads the Discord ID from the player's PC during a scan. This only searches
           your own records — it cannot read someone's Discord servers or messages.</p>
       </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Investigate Discord servers <span style="color:var(--dim);font-weight:500;font-size:13px">(via your bot)</span></h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+          Checks which of <b>your bot's</b> servers the user is a member of, with join date and role count.
+          Add your bot to the cheat / community servers you want to monitor.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="disc-id2" class="input" style="flex:1;min-width:200px" inputmode="numeric"
+                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
+          <button class="btn btn-primary" data-discinvest>Investigate</button>
+        </div>
+        <div id="disc-inv" style="margin-top:12px"></div>
+        <p style="color:var(--dim);font-size:11px;margin-top:8px">
+          Only servers your bot has joined are visible — this never reads someone's full server list.</p>
+      </div>
+
       <div id="disc-out"></div>`;
     if (id) await runDiscordCheck(id);
+  }
+
+  async function runDiscordInvestigate(id) {
+    const out = $('#disc-inv'); out.innerHTML = loading();
+    try {
+      const d = await api(`/api/discord-investigate?id=${encodeURIComponent(id)}`);
+      if (!d.found.length) { out.innerHTML = `<div class="empty">Not found in any of your bot's ${fmtNum(d.servers || 0)} servers.</div>`; return; }
+      out.innerHTML = `<div style="color:var(--cyan);font-weight:700;margin-bottom:10px">${d.found.length} server${d.found.length === 1 ? '' : 's'} found</div>
+        ${d.found.map((s) => `<div class="top-row" style="align-items:center">
+          <span><b>${esc(s.server)}</b><div class="mono" style="color:var(--dim);font-size:11px">joined ${esc((s.joined || '').slice(0, 10))}</div></span>
+          <span class="badge log">${s.roles} role${s.roles === 1 ? '' : 's'}</span></div>`).join('')}`;
+    } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   }
 
   async function runDiscordCheck(id) {
@@ -675,22 +703,35 @@
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Add a cheat signature</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live — add a cheat and every check catches it.</p>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live. Match a cheat by <b>file name</b>, by its <b>C2 / API domain</b> (catches renamed loaders), or by <b>SHA-256</b> (rename-proof).</p>
         <div class="set-grid" style="display:grid;gap:10px">
-          <input id="sig-name" class="input" placeholder="Cheat name (e.g. Eulen)">
-          <input id="sig-files" class="input" placeholder="File names: eulen.exe, eulen.dll">
-          <input id="sig-feats" class="input" placeholder="Features: Aimbot, No recoil, ESP">
+          <input id="sig-name" class="input" placeholder="Cheat name (e.g. Susano)">
+          <input id="sig-files" class="input" placeholder="File names: susano.exe, chaga.exe">
+          <input id="sig-domains" class="input" placeholder="Domains: api.susano.re, susano.re">
+          <input id="sig-hashes" class="input" placeholder="SHA-256 hashes (comma separated, optional)">
+          <input id="sig-feats" class="input" placeholder="Features: Aimbot, ESP, Spawn menu">
           <div style="display:flex;gap:10px">
             <select id="sig-sev" class="input" style="flex:1"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
             <button class="btn btn-primary" data-addsig>Add</button>
           </div>
         </div>
       </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Bulk import</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:8px">One cheat per line, fields separated by <b>|</b> (pipe):
+          <span class="mono" style="color:var(--cyan)">Name | files | domains | hashes</span>. Files/domains/hashes are comma-separated; leave a field empty if none.</p>
+        <textarea id="sig-bulk" class="input" rows="7" style="width:100%;font-family:ui-monospace,monospace;font-size:12.5px"
+          placeholder="Susano | chaga.exe | api.susano.re, susano.re&#10;RedEngine | hugeperhapswashroad.exe | falcon.redengine.eu&#10;Keyser | loader.exe | api.keyser-dashboard.com&#10;Tzx | taskthow.exe | api.tzproject.com, tzproject.com"></textarea>
+        <button class="btn btn-primary" data-bulksig style="margin-top:10px">Import all</button>
+      </div>
+
       <div class="card panel"><h3>Signatures (${signatures.length})</h3>
-        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Files</th><th>Features</th><th>Severity</th><th></th></tr></thead>
+        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Files</th><th>Domains</th><th>Hashes</th><th>Sev</th><th></th></tr></thead>
           <tbody>${signatures.map((s) => `<tr><td><b>${esc(s.name)}</b></td>
-            <td class="mono">${esc((s.file_names || []).join(', '))}</td>
-            <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
+            <td class="mono" style="font-size:11px">${esc((s.file_names || []).join(', ')) || '-'}</td>
+            <td class="mono" style="font-size:11px;color:var(--cyan)">${esc((s.domains || []).join(', ')) || '-'}</td>
+            <td class="mono" style="font-size:10px;color:var(--dim)">${(s.hashes || []).length || 0}</td>
             <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
             <td><button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No signatures yet.</div>'}
@@ -934,6 +975,11 @@
       if (!id) return toast('Enter a Discord ID', true);
       return runDiscordCheck(id);
     }
+    if (t.dataset.discinvest !== undefined) {
+      const id = ($('#disc-id2').value || '').replace(/[^0-9]/g, '');
+      if (!id) return toast('Enter a Discord ID', true);
+      return runDiscordInvestigate(id);
+    }
     if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
     if (t.dataset.lookuppin !== undefined) {
       const code = ($('#pin-lookup').value || '').trim().toUpperCase();
@@ -1037,9 +1083,22 @@
       } else if (t.dataset.addsig !== undefined) {
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();
-        if (!name || !fileNames) { toast('Name and file names required', true); return; }
-        await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value } });
+        const domains = $('#sig-domains').value.trim();
+        const hashes = $('#sig-hashes').value.trim();
+        if (!name || (!fileNames && !domains && !hashes)) { toast('Name + at least one file, domain or hash', true); return; }
+        await api('/api/signatures', { method: 'POST', body: { name, fileNames, domains, hashes, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value } });
         toast('Signature added');
+        render();
+      } else if (t.dataset.bulksig !== undefined) {
+        const raw = $('#sig-bulk').value.trim();
+        if (!raw) { toast('Paste at least one line', true); return; }
+        const bulk = raw.split('\n').map((ln) => ln.trim()).filter(Boolean).map((ln) => {
+          const [name, fileNames, domains, hashes, severity] = ln.split('|').map((p) => (p || '').trim());
+          return { name, fileNames: fileNames || '', domains: domains || '', hashes: hashes || '', severity: severity || 'high' };
+        }).filter((x) => x.name && (x.fileNames || x.domains || x.hashes));
+        if (!bulk.length) { toast('No valid lines — each needs a name and a file, domain or hash', true); return; }
+        const r = await api('/api/signatures', { method: 'POST', body: { bulk } });
+        toast(`Imported ${r.added} signature${r.added === 1 ? '' : 's'}`);
         render();
       } else if (t.dataset.delsig) {
         await api(`/api/signatures?id=${encodeURIComponent(t.dataset.delsig)}`, { method: 'DELETE' });

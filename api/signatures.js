@@ -15,15 +15,30 @@ export default wrap(async (req, res) => {
 
   if (req.method === 'POST') {
     const b = readBody(req);
-    if (!b.name || !b.fileNames) throw httpError(400, 'name and fileNames required');
-    const row = {
+    const mk = (x) => ({
       owner_discord: user.id,
-      name: str(b.name, 80),
-      file_names: toList(b.fileNames).map((s) => s.toLowerCase()),
-      features: toList(b.features),
-      severity: ['high', 'medium', 'low'].includes(b.severity) ? b.severity : 'high',
-    };
-    const created = await sb('signatures', { method: 'POST', body: row, prefer: 'return=representation' });
+      name: str(x.name, 80),
+      file_names: toList(x.fileNames).map((s) => s.toLowerCase()),
+      features: toList(x.features),
+      domains: toList(x.domains).map((s) => s.toLowerCase()),
+      hashes: toList(x.hashes).map((s) => s.toLowerCase()).filter((h) => h.length >= 32),
+      severity: ['high', 'medium', 'low'].includes(x.severity) ? x.severity : 'high',
+    });
+
+    // bulk import: { bulk: [ {name, fileNames, domains, hashes, features, severity}, ... ] }
+    if (Array.isArray(b.bulk)) {
+      const rows = b.bulk
+        .filter((x) => x && x.name && (toList(x.fileNames).length || toList(x.domains).length || toList(x.hashes).length))
+        .slice(0, 500)
+        .map(mk);
+      if (!rows.length) throw httpError(400, 'No valid rows — each needs a name and at least one file name, domain or hash');
+      await sb('signatures', { method: 'POST', body: rows, prefer: 'return=minimal' });
+      return send(res, 200, { ok: true, added: rows.length });
+    }
+
+    if (!b.name || (!b.fileNames && !b.domains && !b.hashes))
+      throw httpError(400, 'name and at least one of fileNames / domains / hashes required');
+    const created = await sb('signatures', { method: 'POST', body: mk(b), prefer: 'return=representation' });
     return send(res, 200, { signature: Array.isArray(created) ? created[0] : created });
   }
 

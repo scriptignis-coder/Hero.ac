@@ -22,6 +22,8 @@ create table if not exists signatures (
   severity      text not null default 'high',
   created_at    timestamptz not null default now()
 );
+alter table signatures add column if not exists domains jsonb not null default '[]'::jsonb;
+alter table signatures add column if not exists hashes  jsonb not null default '[]'::jsonb;
 create index if not exists signatures_owner_idx on signatures(owner_discord);
 alter table signatures enable row level security;
 
