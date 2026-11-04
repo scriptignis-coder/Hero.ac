@@ -16,19 +16,19 @@
 /* HeRo Shield — design system */
 [hidden] { display: none !important; }
 :root {
-  --bg: #05070f;
-  --bg-2: #0a0e1c;
-  --card: rgba(16, 22, 42, 0.72);
-  --card-solid: #10162a;
-  --line: rgba(120, 150, 255, 0.12);
-  --line-strong: rgba(120, 150, 255, 0.25);
-  --text: #e8ecff;
-  --muted: #8b94b8;
-  --dim: #5b6488;
-  --blue: #3b82f6;
-  --cyan: #22d3ee;
-  --violet: #8b5cf6;
-  --grad: linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%);
+  --bg: #070809;
+  --bg-2: #0c0e11;
+  --card: rgba(18, 21, 26, 0.74);
+  --card-solid: #121419;
+  --line: rgba(125, 180, 255, 0.12);
+  --line-strong: rgba(125, 180, 255, 0.24);
+  --text: #e9eef7;
+  --muted: #8a93a8;
+  --dim: #5a6276;
+  --blue: #38bdf8;
+  --cyan: #7dd3fc;
+  --violet: #38bdf8;
+  --grad: linear-gradient(135deg, #38bdf8 0%, #7dd3fc 100%);
   --red: #f43f5e;
   --orange: #f59e0b;
   --green: #10b981;
@@ -38,6 +38,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+body > *:not(#wx):not(.bg-glow) { position: relative; z-index: 1; }
 html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
@@ -367,6 +368,7 @@ td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5
 </head>
 <body>
 <div class="bg-glow"></div>
+<canvas id="wx" aria-hidden="true" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.5"></canvas>
 <div class="bg-grid"></div>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -608,6 +610,27 @@ add_ace group.admin heroshield.bypass allow</code>
     entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
   }, { threshold: 0.12 });
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
+</script>
+<script>
+(function(){
+  var c=document.getElementById('wx'); if(!c) return; var x=c.getContext('2d');
+  var W,H, drops=[], flakes=[];
+  function size(){ W=c.width=innerWidth; H=c.height=innerHeight;
+    drops=[]; for(var i=0;i<90;i++)drops.push({x:Math.random()*W,y:Math.random()*H,l:8+Math.random()*14,s:5+Math.random()*6});
+    flakes=[]; for(var j=0;j<45;j++)flakes.push({x:Math.random()*W,y:Math.random()*H,r:.6+Math.random()*1.8,s:.4+Math.random()*1,d:Math.random()*2}); }
+  size(); addEventListener('resize',size);
+  function tick(){
+    x.clearRect(0,0,W,H);
+    x.strokeStyle='rgba(125,211,252,.28)'; x.lineWidth=1.1;
+    for(var i=0;i<drops.length;i++){var d=drops[i];x.beginPath();x.moveTo(d.x,d.y);x.lineTo(d.x+1.5,d.y+d.l);x.stroke();
+      d.y+=d.s; d.x+=0.4; if(d.y>H){d.y=-d.l;d.x=Math.random()*W;}}
+    x.fillStyle='rgba(220,235,255,.5)';
+    for(var j=0;j<flakes.length;j++){var f=flakes[j];x.beginPath();x.arc(f.x,f.y,f.r,0,6.283);x.fill();
+      f.y+=f.s; f.x+=Math.sin((f.y+f.d)*0.02)*0.4; if(f.y>H){f.y=-4;f.x=Math.random()*W;}}
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
 </script>
 </body>
 </html>

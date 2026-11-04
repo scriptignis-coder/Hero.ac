@@ -202,6 +202,7 @@
       else if (state.tab === 'logs') await renderLogs(view);
       else if (state.tab === 'pins') await renderPins(view);
       else if (state.tab === 'discord') await renderDiscordCheck(view);
+      else if (state.tab === 'scannergui') await renderScannerGui(view);
       else await renderTable(view, state.tab);
     } catch (e) {
       view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
@@ -416,6 +417,59 @@
       </div>`;
   }
 
+  async function renderScannerGui(view) {
+    const { bg } = await api(`/api/scanner-bg?server=${state.server}`);
+    state.scanbg = bg || '';
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Scanner background</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+          Upload an image shown behind your scanner window while a PIN scan runs. PNG / JPG / GIF, best 500×300.
+          It applies on the next scan for PINs you generate.</p>
+        <div class="grid-2">
+          <div>
+            <div id="sg-preview" style="position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#07090d;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">
+              ${bg ? `<img src="${esc(bg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : '<span style="color:var(--dim)">No background — default storm</span>'}
+              <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>
+            </div>
+            <p style="color:var(--dim);font-size:11px;margin-top:8px">Preview — how the scanner looks while scanning.</p>
+          </div>
+          <div>
+            <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin-bottom:10px">
+              Choose image<input id="sg-file" type="file" accept="image/png,image/jpeg,image/gif" hidden></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" data-sgsave disabled>Save background</button>
+              ${bg ? '<button class="btn btn-danger" data-sgremove>Remove</button>' : ''}
+            </div>
+            <p style="color:var(--dim);font-size:11px;margin-top:12px">Inappropriate images may get your account banned. Background is private to your PINs.</p>
+          </div>
+        </div>
+      </div>`;
+    const file = $('#sg-file'), saveBtn = $('[data-sgsave]');
+    file.addEventListener('change', () => {
+      const f = file.files && file.files[0]; if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        // downscale to 500x300 jpeg (gif kept as-is so it animates)
+        if (f.type === 'image/gif') { state.scannewbg = rd.result; showPrev(rd.result); saveBtn.disabled = false; return; }
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas'); c.width = 500; c.height = 300;
+          const x = c.getContext('2d'); x.drawImage(img, 0, 0, 500, 300);
+          state.scannewbg = c.toDataURL('image/jpeg', 0.85);
+          showPrev(state.scannewbg); saveBtn.disabled = false;
+        };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(f);
+    });
+    function showPrev(src) {
+      const p = $('#sg-preview');
+      p.innerHTML = `<img src="${src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+        <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>`;
+    }
+  }
+
   async function renderDiscordCheck(view, id) {
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
@@ -480,177 +534,139 @@
     const warns = r.Warnings || r.warnings || [];
     const susp = r.Suspicious || r.suspicious || [];
     const mods = r.Mods || r.mods || [];
-    const steam = r.SteamAccounts || r.steamAccounts || [];
     const exe = r.ExecutedPrograms || r.executedPrograms || [];
     const cmds = r.Commands || r.commands || [];
+    const deleted = r.DeletedFiles || r.deletedFiles || [];
+    const steam = r.SteamAccounts || r.steamAccounts || [];
     const did = r.DiscordId || r.discordId;
+    const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
     const verdict = r.Verdict || r.verdict || (row && row.result) || 'clean';
     const g = (a, b) => s[a] || s[b] || '-';
-    const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
     state.pinView = pin;
-    const tab = sub || 'detects';
-    const vcol = verdict === 'cheating' ? '#f43f5e' : verdict === 'suspicious' ? '#f59e0b' : '#2dd4bf';
-    const vtxt = verdict === 'cheating' ? 'is cheating' : verdict === 'suspicious' ? 'is suspicious' : 'is clean';
 
-    // one-time scoped style so the result page matches the Ocean look exactly
-    if (!document.getElementById('ss-report-css')) {
-      const st = document.createElement('style');
-      st.id = 'ss-report-css';
+    if (!document.getElementById('np-report-css')) {
+      const st = document.createElement('style'); st.id = 'np-report-css';
       st.textContent = `
-      .ss{--bg:#0b0f17;--card:#111725;--card2:#0e131f;--bd:#1d2636;--tx:#e8edf6;--dim:#7b899e;--red:#f43f5e;--teal:#2dd4bf;color:var(--tx)}
-      .ss .ss-verdict{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;border:1px solid var(--bd);border-radius:14px;background:var(--card);font-size:18px;font-weight:700;margin-bottom:16px}
-      .ss .ss-dot{width:10px;height:10px;border-radius:50%}
-      .ss .ss-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
-      .ss .ss-grid3{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:16px;margin-top:16px}
-      @media(max-width:900px){.ss .ss-grid,.ss .ss-grid3{grid-template-columns:1fr}}
-      .ss .ss-c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px}
-      .ss .ss-c>h4{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
-      .ss .ss-ico{width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
-      .ss .ss-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-      .ss .ss-tabs{display:flex;gap:6px;background:var(--card2);padding:4px;border-radius:10px}
-      .ss .ss-tab{border:0;background:transparent;color:var(--dim);padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center}
-      .ss .ss-tab.on{background:var(--red);color:#fff}
-      .ss .ss-tab b{background:rgba(255,255,255,.18);border-radius:20px;padding:0 7px;font-size:11px}
-      .ss .ss-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;margin-bottom:8px;background:var(--card2)}
-      .ss .ss-row .nm{font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;word-break:break-all}
-      .ss .ss-chip{display:inline-block;background:rgba(45,212,191,.12);color:var(--teal);border:1px solid rgba(45,212,191,.3);border-radius:20px;padding:2px 9px;font-size:11px;margin:2px 4px 2px 0}
-      .ss .ss-bang{min-width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
-      .ss .ss-warn{min-width:24px;height:24px;border-radius:50%;background:#f59e0b;color:#111;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
-      .ss .ss-info{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:13px}
-      .ss .ss-info:last-child{border-bottom:0}
-      .ss .ss-info span{color:var(--dim)}
-      .ss .ss-info b{font-family:ui-monospace,Menlo,monospace;font-weight:600;text-align:right;word-break:break-all}
-      .ss .ss-steam{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd)}
-      .ss .ss-steam:last-child{border-bottom:0}
-      .ss .ss-av{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#1b2a4a,#0e1626);display:inline-flex;align-items:center;justify-content:center;font-size:13px}
-      .ss .ss-empty{color:var(--dim);font-size:13px;padding:14px;text-align:center}
-      .ss .ss-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:12.5px;color:var(--dim)}
-      .ss .ss-tools input,.ss .ss-tools select{background:var(--card2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 10px;font-size:12.5px}
-      .ss .ss-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
-      .ss .ss-tbl th{text-align:left;color:var(--dim);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--card)}
-      .ss .ss-tbl td{padding:9px 10px;border-bottom:1px solid var(--bd);font-family:ui-monospace,Menlo,monospace;word-break:break-all}
-      .ss .ss-tbl tr:hover td{background:var(--card2)}
-      .ss .ss-scroll{max-height:380px;overflow:auto;border:1px solid var(--bd);border-radius:10px}
-      .ss .ss-back{background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;margin-bottom:16px}`;
+      .np{--c:#121419;--c2:#0d0f13;--bd:#20242e;--tx:#e9eef7;--dim:#7b8699;color:var(--tx)}
+      .np .np-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px;border:1px solid var(--bd);border-radius:14px;background:var(--c);margin-bottom:12px}
+      .np .np-pcname{font-weight:800;font-size:17px;letter-spacing:.5px}
+      .np .np-risk{padding:4px 12px;border-radius:8px;font-weight:800;font-size:12px}
+      .np .np-note{color:var(--dim);font-size:12px}
+      .np .np-info{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+      .np .np-stat{flex:1;min-width:120px;border:1px solid var(--bd);border-radius:12px;background:var(--c);padding:10px 14px}
+      .np .np-stat .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+      .np .np-stat .v{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;margin-top:3px;word-break:break-all}
+      .np .np-layout{display:grid;grid-template-columns:230px 1fr;gap:14px}
+      @media(max-width:820px){.np .np-layout{grid-template-columns:1fr}}
+      .np .np-side{border:1px solid var(--bd);border-radius:14px;background:var(--c);padding:8px;max-height:620px;overflow:auto}
+      .np .np-cat{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 11px;border-radius:9px;border:0;background:transparent;color:var(--tx);cursor:pointer;font-size:13px;margin-bottom:2px}
+      .np .np-cat:hover{background:var(--c2)}
+      .np .np-cat.on{background:rgba(56,189,248,.12);color:#7dd3fc}
+      .np .np-cat .dot{width:7px;height:7px;border-radius:50%}
+      .np .np-cat .cnt{margin-left:auto;background:var(--c2);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--dim)}
+      .np .np-cat.on .cnt{color:#7dd3fc}
+      .np .np-main{border:1px solid var(--bd);border-radius:14px;background:var(--c);padding:14px;min-height:400px}
+      .np .np-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+      .np .np-head h4{margin:0;font-size:15px}
+      .np .np-head input{background:var(--c2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 11px;font-size:12.5px;min-width:160px}
+      .np .np-list{max-height:560px;overflow:auto;display:flex;flex-direction:column;gap:7px}
+      .np .np-row{display:flex;gap:11px;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--c2)}
+      .np .np-sev{flex:none;align-self:flex-start;border:1px solid;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:800;letter-spacing:.05em}
+      .np .np-name{font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;word-break:break-all}
+      .np .np-tag{color:#7dd3fc;font-size:11px;font-weight:600;margin-left:4px}
+      .np .np-path{color:var(--dim);font-size:11px;font-family:ui-monospace,Menlo,monospace;margin-top:3px;word-break:break-all}
+      .np .np-meta{color:var(--dim);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;margin-top:4px}
+      .np .np-chip{display:inline-block;background:rgba(56,189,248,.1);color:#7dd3fc;border-radius:16px;padding:1px 8px;font-size:10.5px;margin:2px 3px 0 0}
+      .np .np-empty{color:var(--dim);text-align:center;padding:30px;font-size:13px}
+      .np .np-info2{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:13px}
+      .np .np-info2 span{color:var(--dim)} .np .np-info2 b{font-family:ui-monospace,monospace;word-break:break-all;text-align:right}
+      .np .np-back{background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;margin-bottom:14px}`;
       document.head.appendChild(st);
     }
 
-    const detsHtml = dets.length ? dets.map((d) => {
-      const p = d.Path || d.path || '';
-      const when = d.When || d.when || '';
-      const deleted = d.Deleted || d.deleted;
-      const sha = d.Sha256 || d.sha256 || '';
-      return `
-      <div class="ss-row"><span><span class="nm">${esc(d.File || d.file)}</span>
-        ${deleted ? '<span class="ss-chip" style="background:rgba(148,163,184,.15);color:#94a3b8">deleted</span>' : ''}<br>
-        ${p ? `<span class="nm" style="color:var(--dim);font-size:11.5px">📁 ${esc(p)}</span><br>` : ''}
-        ${((d.Features || d.features) || []).map((f) => `<span class="ss-chip">${esc(f)}</span>`).join('')}
-        <span class="ss-chip" style="background:rgba(244,63,94,.12);color:var(--red);border-color:rgba(244,63,94,.3)">${esc(d.Signature || d.signature)}</span>
-        ${when ? `<span class="ss-chip" style="background:rgba(148,163,184,.12);color:#94a3b8">${esc(when)}</span>` : ''}
-        ${sha ? `<br><span class="nm" style="color:var(--dim);font-size:10px">SHA256 ${esc(sha)}</span>` : ''}</span>
-        <span class="ss-bang">!</span></div>`; }).join('') : '<div class="ss-empty">No cheat files found.</div>';
-    const warnHtml = warns.length ? warns.map((w) => `<div class="ss-row"><span><span class="nm">${esc(w.Title || w.title)}</span>
-        ${(w.Detail||w.detail)?`<br><span style="color:var(--dim);font-size:12px;font-family:inherit">${esc(w.Detail||w.detail)}</span>`:''}</span>
-        <span class="ss-warn">!</span></div>`).join('') : '<div class="ss-empty">No warnings.</div>';
-    const suspHtml = susp.length ? susp.map((x) => `<div class="ss-row"><span class="nm">${esc(x.Path || x.path)}</span>
-        <span class="ss-chip">${esc(x.Kind || x.kind)}</span></div>`).join('') : '<div class="ss-empty">Nothing suspicious.</div>';
-    const body = tab === 'warnings' ? warnHtml : tab === 'suspicious' ? suspHtml : detsHtml;
-    const title = tab === 'warnings' ? 'Warnings Logs' : tab === 'suspicious' ? 'Suspicious File Logs' : 'Detects Logs';
-    const icoCol = tab === 'warnings' ? '#f59e0b' : tab === 'suspicious' ? '#64748b' : 'var(--red)';
-    const tbtn = (id, label, n) => `<button class="ss-tab ${tab === id ? 'on' : ''}" data-ptab="${id}">${label}${n ? ` <b>${n}</b>` : ''}</button>`;
+    const risk = verdict === 'cheating' ? ['HIGH RISK', '#f43f5e'] : verdict === 'suspicious' ? ['MEDIUM', '#f59e0b'] : ['LOW RISK', '#2dd4bf'];
+    const sev = (x) => { const v = (x.Severity !== undefined ? x.Severity : x.severity); return (v === 2 || v === 'High' || v === 'high') ? 'HIGH' : (v === 1 || v === 'Medium' || v === 'medium') ? 'MED' : 'LOW'; };
+    const sc = (t) => t === 'HIGH' ? '#f43f5e' : t === 'MED' ? '#f59e0b' : '#7dd3fc';
+    const bySrc = (src) => exe.filter((e) => (e.Source || e.source) === src);
+    const isGeneric = (d) => /suspicious name|cheat code|cheat marker/i.test(d.Signature || d.signature || '');
 
-    const info = [
-      ['System', g('Os','os') + ' ' + (s.WinBuild||s.winBuild||'')],
-      ['CPU', g('Cpu','cpu')], ['GPU', g('Gpu','gpu')], ['RAM', g('RamGb','ramGb')],
-      ['Boot time', g('BootTime','bootTime')],
-      ['Windows install', g('WindowsInstall','windowsInstall')],
-      ['FiveM', g('FiveMLastLaunch','fiveMLastLaunch')],
-      ['Recycle bin', g('RecycleModified','recycleModified')],
-      ['HWID', g('Hwid','hwid')],
-      ['Motherboard', g('Motherboard','motherboard')],
-      ['BIOS serial', g('BiosSerial','biosSerial')],
-      ['Disk serials', g('DiskSerials','diskSerials')],
-      ['MAC address', g('MacAddresses','macAddresses')],
-      ['Machine GUID', g('MachineGuid','machineGuid')],
-      ['SMBIOS UUID', g('Uuid','uuid')],
-      ['Files scanned', fmtNum(r.FilesScanned||r.filesScanned||0)],
+    const detRow = (d) => { const t = sev(d); return `<div class="np-row"><span class="np-sev" style="color:${sc(t)};border-color:${sc(t)}">${t}</span>
+      <div><div class="np-name">${(d.Deleted||d.deleted)?'🗑 ':''}${esc(d.File||d.file)}<span class="np-tag">${esc(d.Signature||d.signature)}</span></div>
+      ${(d.Path||d.path)?`<div class="np-path">📁 ${esc(d.Path||d.path)}</div>`:''}
+      <div class="np-meta">${esc(d.When||d.when||'')} ${((d.Features||d.features)||[]).map((f)=>`<span class="np-chip">${esc(f)}</span>`).join('')}</div></div></div>`; };
+    const warnRow = (w) => `<div class="np-row"><span class="np-sev" style="color:#f59e0b;border-color:#f59e0b">WARN</span>
+      <div><div class="np-name">${esc(w.Title||w.title)}</div>${(w.Detail||w.detail)?`<div class="np-meta">${esc(w.Detail||w.detail)}</div>`:''}</div></div>`;
+    const suspRow = (x) => `<div class="np-row"><span class="np-sev" style="color:#7dd3fc;border-color:#7dd3fc">SUSP</span>
+      <div><div class="np-name">${esc(x.Kind||x.kind)}</div><div class="np-path">${esc(x.Path||x.path)}</div></div></div>`;
+    const exeRow = (e) => { const fl=(e.Flagged||e.flagged); return `<div class="np-row"><span class="np-sev" style="color:${fl?'#f43f5e':'#5a6276'};border-color:${fl?'#f43f5e':'#2a3042'}">${fl?'HIGH':'RAN'}</span>
+      <div><div class="np-name">${esc(e.Name||e.name)}<span class="np-tag">${esc(e.Source||e.source)}</span></div>
+      <div class="np-meta">${esc(e.LastRun||e.lastRun||'')}</div>${(e.Path||e.path)?`<div class="np-path">${esc(e.Path||e.path)}</div>`:''}</div></div>`; };
+    const cmdRow = (c) => { const su=(c.Suspicious||c.suspicious); return `<div class="np-row"><span class="np-sev" style="color:${su?'#f43f5e':'#5a6276'};border-color:${su?'#f43f5e':'#2a3042'}">${su?'FLAG':'CMD'}</span>
+      <div><div class="np-name" style="${su?'color:#f43f5e':''}">${esc(c.Text||c.text)}</div><div class="np-meta"><span class="np-chip">${esc(c.Source||c.source)}</span></div></div></div>`; };
+    const modRow = (m) => `<div class="np-row"><span class="np-sev" style="color:#7dd3fc;border-color:#2a3042">MOD</span>
+      <div><div class="np-name">${esc(m.File||m.file)}<span class="np-tag">${(m.SizeMb||m.sizeMb||0)} MB</span></div><div class="np-path">${esc(m.Path||m.path||'')}</div></div></div>`;
+    const delRow = (d) => `<div class="np-row"><span class="np-sev" style="color:#5a6276;border-color:#2a3042">DEL</span>
+      <div><div class="np-name">${esc(d.File||d.file)}</div><div class="np-meta">${esc(d.When||d.when||'')}</div></div></div>`;
+
+    const strings = dets.filter((d) => !isGeneric(d));
+    const cats = [
+      { id:'overview', label:'Overview', col:'#7dd3fc', items:dets, row:detRow },
+      { id:'warnings', label:'Warnings', col:'#f59e0b', items:warns, row:warnRow },
+      { id:'strings', label:'My Strings', col:'#a78bfa', items:strings, row:detRow },
+      { id:'suspicious', label:'Suspicious', col:'#f59e0b', items:susp, row:suspRow },
+      { id:'bam', label:'BAM', col:'#f43f5e', items:bySrc('BAM'), row:exeRow },
+      { id:'pca', label:'PcaSvc', col:'#7dd3fc', items:bySrc('PCA'), row:exeRow },
+      { id:'programs', label:'Executed Programs', col:'#38bdf8', items:exe, row:exeRow },
+      { id:'commands', label:'Commands', col:'#a78bfa', items:cmds, row:cmdRow },
+      { id:'mods', label:'Mods', col:'#7dd3fc', items:mods, row:modRow },
+      { id:'deleted', label:'Deleted Files', col:'#5a6276', items:deleted, row:delRow },
+      { id:'pc', label:'PC Information', col:'#38bdf8', items:[], row:null },
     ];
+    const cur = cats.find((c) => c.id === (sub || 'overview')) || cats[0];
+    const flags = dets.length + warns.length + susp.length;
+
+    const pcPanel = () => {
+      const info = [['System', g('Os','os')+' '+(s.WinBuild||s.winBuild||'')],['CPU',g('Cpu','cpu')],['GPU',g('Gpu','gpu')],['RAM',g('RamGb','ramGb')],
+        ['Boot time',g('BootTime','bootTime')],['Windows install',g('WindowsInstall','windowsInstall')],['FiveM',g('FiveMLastLaunch','fiveMLastLaunch')],
+        ['Recycle bin',g('RecycleModified','recycleModified')],['HWID',g('Hwid','hwid')],['Motherboard',g('Motherboard','motherboard')],['BIOS serial',g('BiosSerial','biosSerial')],
+        ['Disk serials',g('DiskSerials','diskSerials')],['MAC',g('MacAddresses','macAddresses')],['Machine GUID',g('MachineGuid','machineGuid')],['SMBIOS UUID',g('Uuid','uuid')],
+        ['Files scanned',fmtNum(r.FilesScanned||r.filesScanned||0)]];
+      return info.map(([k,v])=>`<div class="np-info2"><span>${k}</span><b>${esc(String(v))}</b></div>`).join('')
+        + (steam.length?`<div class="np-info2"><span>Steam</span><b>${steam.map(esc).join(', ')}</b></div>`:'')
+        + (did?`<div class="np-info2"><span>Discord ID</span><b>${esc(did)}</b></div>`:'')
+        + (shot?`<img src="${esc(shot)}" style="width:100%;border-radius:10px;margin-top:12px;border:1px solid var(--bd)">`:'');
+    };
+
+    const mainBody = cur.id === 'pc' ? pcPanel()
+      : (cur.items.length ? cur.items.map(cur.row).join('') : '<div class="np-empty">Nothing here.</div>');
 
     view.innerHTML = `
-      <div class="ss">
-      <button class="ss-back" data-go="pins">← Back to PINs</button>
-      <div class="ss-verdict" style="border-color:${vcol}">
-        <span class="ss-dot" style="background:${vcol}"></span>
-        This user <span style="color:${vcol}">${vtxt}</span>
-        <span style="color:var(--dim);font-weight:500;font-size:13px">· PIN ${esc(pin)}${row && row.player ? ' · ' + esc(row.player) : ''}</span>
+      <div class="np">
+      <button class="np-back" data-go="pins">← Back to PINs</button>
+      <div class="np-top">
+        <span class="np-pcname">${esc((s.Hwid||s.hwid||'PC').slice(0,14))}</span>
+        <span class="np-risk" style="background:${risk[1]}22;color:${risk[1]};border:1px solid ${risk[1]}">${risk[0]}</span>
+        <span class="np-note">Based on scanner flags — manual review recommended. Not a definitive cheat verdict.</span>
       </div>
-
-      <div class="ss-c" style="padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="color:var(--dim);font-size:13px">🔍 Search this result</span>
-        <input id="ss-search" type="text" placeholder="type a name, e.g. aimbot…"
-          style="flex:1;min-width:200px;background:var(--card2,#0e131f);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:7px 11px;font-size:13px"
-          oninput="(function(q){q=(q||'').toLowerCase();var hit=0;
-            document.querySelectorAll('.ss .ss-row').forEach(function(r){var m=r.textContent.toLowerCase().indexOf(q)>-1;r.style.display=m?'':'none';if(m&&q)hit++;});
-            document.querySelectorAll('.ss .ss-tbl tbody tr').forEach(function(r){var m=r.textContent.toLowerCase().indexOf(q)>-1;r.style.display=m?'':'none';if(m&&q)hit++;});
-            var c=document.getElementById('ss-searchcount');if(c)c.textContent=q?(hit+' match'+(hit===1?'':'es')):'';
-          })(this.value)">
-        <span id="ss-searchcount" style="color:var(--red);font-size:12px;font-weight:600"></span>
+      <div class="np-info">
+        <div class="np-stat"><div class="k">Session PIN</div><div class="v" style="color:#7dd3fc">${esc(pin)}</div></div>
+        <div class="np-stat"><div class="k">User</div><div class="v">${esc((row&&row.player)||'-')}</div></div>
+        <div class="np-stat"><div class="k">Date</div><div class="v">${esc(row?fmtDate(row.created_at):'-')}</div></div>
+        <div class="np-stat"><div class="k">Flags</div><div class="v" style="color:${risk[1]}">${flags}</div></div>
       </div>
-
-      <div class="ss-grid">
-        <div class="ss-c">
-          <div class="ss-head">
-            <h4><span class="ss-ico" style="background:${icoCol};color:#fff">!</span>${title}</h4>
-            <div class="ss-tabs">
-              ${tbtn('detects','Detects',dets.length)}${tbtn('warnings','Warnings',warns.length)}${tbtn('suspicious','Suspicious',susp.length)}
-            </div>
+      <div class="np-layout">
+        <div class="np-side">
+          ${cats.map((c)=>`<button class="np-cat ${c.id===cur.id?'on':''}" data-ptab="${c.id}">
+            <span class="dot" style="background:${c.col}"></span>${c.label}
+            ${c.id!=='pc'?`<span class="cnt">${c.items.length}</span>`:''}</button>`).join('')}
+        </div>
+        <div class="np-main">
+          <div class="np-head"><h4>${cur.label} ${cur.id!=='pc'?`<span style="color:var(--dim);font-weight:500">— ${cur.items.length} entries</span>`:''}</h4>
+            ${cur.id!=='pc'?`<input type="text" placeholder="filter…" oninput="(function(q){q=q.toLowerCase();document.querySelectorAll('#np-list .np-row').forEach(function(r){r.style.display=r.textContent.toLowerCase().indexOf(q)>-1?'':'none'})})(this.value)">`:''}
           </div>
-          ${body}
-        </div>
-        <div class="ss-c">
-          <h4><span class="ss-ico" style="background:#1e3a5f;color:#7dd3fc">i</span>PC Information</h4>
-          ${info.map(([k,v]) => `<div class="ss-info"><span>${k}</span><b>${esc(String(v))}</b></div>`).join('')}
+          <div class="np-list" id="np-list">${mainBody}</div>
         </div>
       </div>
-
-      <div class="ss-grid3">
-        <div class="ss-c">
-          <h4><span class="ss-ico" style="background:#16324f;color:#7dd3fc">◆</span>Steam accounts</h4>
-          ${steam.length ? steam.map((a) => `<div class="ss-steam"><span class="ss-av">👤</span><span class="nm">${esc(a)}</span></div>`).join('') : '<div class="ss-empty">None found.</div>'}
-          ${did ? `<div class="ss-info" style="margin-top:6px"><span>Discord ID</span><b>${esc(did)}</b></div>` : ''}
-        </div>
-        <div class="ss-c">
-          <h4><span class="ss-ico" style="background:#2a2140;color:#c4b5fd">▦</span>Mods logs</h4>
-          <div class="ss-tools">
-            <span>Show <select><option>10</option><option>25</option><option selected>All</option></select> entries</span>
-            <span>Search: <input type="text" placeholder="filter mods…" oninput="(function(q){document.querySelectorAll('#ss-modrows tr').forEach(function(tr){tr.style.display=tr.textContent.toLowerCase().indexOf(q.toLowerCase())>-1?'':'none'})})(this.value)"></span>
-          </div>
-          <div class="ss-scroll"><table class="ss-tbl"><thead><tr><th>File</th><th>Size</th><th>Download</th></tr></thead>
-          <tbody id="ss-modrows">${mods.length ? mods.map((m) => `<tr><td>${esc(m.File||m.file)}</td><td>${(m.SizeMb||m.sizeMb||0)} MB</td><td style="color:var(--dim)">None</td></tr>`).join('') : '<tr><td colspan="3" class="ss-empty">No mods found.</td></tr>'}</tbody></table></div>
-          <p style="color:var(--dim);font-size:11px;margin:8px 2px 0">${mods.length} file(s) from FiveM / mods / resources paths across all drives.</p>
-        </div>
-        <div class="ss-c">
-          <h4><span class="ss-ico" style="background:#3f1d2b;color:#fda4af">●</span>Active recording</h4>
-          ${shot ? `<img src="${esc(shot)}" style="width:100%;border-radius:10px;border:1px solid var(--bd)">` : '<div class="ss-empty">No recordings found.</div>'}
-        </div>
-      </div>
-
-      ${exe.length ? `<div class="ss-c" style="margin-top:16px">
-        <h4><span class="ss-ico" style="background:#1f2937;color:#9ca3af">⏱</span>Programs that ran on this PC <span style="color:var(--dim);font-weight:500">(${exe.length})</span></h4>
-        <div class="ss-scroll" style="max-height:320px"><table class="ss-tbl"><thead><tr><th>Program</th><th>Last run</th><th>Source</th></tr></thead>
-        <tbody>${exe.map((e) => `<tr>
-          <td style="${(e.Flagged||e.flagged)?'color:var(--red);font-weight:700':''}">${esc(e.Name||e.name)}</td>
-          <td>${esc(e.LastRun||e.lastRun)}</td><td><span class="ss-chip">${esc(e.Source||e.source)}</span></td></tr>`).join('')}</tbody></table></div>
-      </div>` : ''}
-
-      ${cmds.length ? `<div class="ss-c" style="margin-top:16px">
-        <h4><span class="ss-ico" style="background:#1e293b;color:#7dd3fc">&gt;_</span>PowerShell &amp; Run commands <span style="color:var(--dim);font-weight:500">(${cmds.length})</span></h4>
-        <div class="ss-scroll" style="max-height:320px"><table class="ss-tbl"><thead><tr><th>Command</th><th>Source</th></tr></thead>
-        <tbody>${cmds.map((c) => { const sus = c.Suspicious||c.suspicious; return `<tr style="${sus?'background:rgba(244,63,94,.08)':''}">
-          <td style="${sus?'color:var(--red);font-weight:600':''}">${sus?'⚠ ':''}${esc(c.Text||c.text)}</td>
-          <td><span class="ss-chip">${esc(c.Source||c.source)}</span></td></tr>`; }).join('')}</tbody></table></div>
-        <p style="color:var(--dim);font-size:11px;margin:8px 2px 0">Red = disables protection, downloads files, or wipes traces.</p>
-      </div>` : ''}
       </div>`;
   }
 
@@ -900,6 +916,19 @@
     if (t.dataset.live) return startLive(t.dataset.live, t.dataset.name);
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
+    if (t.dataset.sgsave !== undefined) {
+      if (!state.scannewbg) return toast('Choose an image first', true);
+      t.disabled = true; t.textContent = 'Saving…';
+      try { await api('/api/scanner-bg', { method: 'POST', body: { server: state.server, image: state.scannewbg } });
+        toast('Background saved'); state.scannewbg = null; renderScannerGui($('#view')); }
+      catch (e) { toast(e.message, true); t.disabled = false; t.textContent = 'Save background'; }
+      return;
+    }
+    if (t.dataset.sgremove !== undefined) {
+      try { await api(`/api/scanner-bg?server=${state.server}`, { method: 'DELETE' }); toast('Background removed'); renderScannerGui($('#view')); }
+      catch (e) { toast(e.message, true); }
+      return;
+    }
     if (t.dataset.disccheck !== undefined) {
       const id = ($('#disc-id').value || '').replace(/[^0-9]/g, '');
       if (!id) return toast('Enter a Discord ID', true);
