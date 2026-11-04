@@ -535,11 +535,20 @@
       document.head.appendChild(st);
     }
 
-    const detsHtml = dets.length ? dets.map((d) => `
-      <div class="ss-row"><span><span class="nm">${esc(d.File || d.file)}</span><br>
+    const detsHtml = dets.length ? dets.map((d) => {
+      const p = d.Path || d.path || '';
+      const when = d.When || d.when || '';
+      const deleted = d.Deleted || d.deleted;
+      const sha = d.Sha256 || d.sha256 || '';
+      return `
+      <div class="ss-row"><span><span class="nm">${esc(d.File || d.file)}</span>
+        ${deleted ? '<span class="ss-chip" style="background:rgba(148,163,184,.15);color:#94a3b8">deleted</span>' : ''}<br>
+        ${p ? `<span class="nm" style="color:var(--dim);font-size:11.5px">📁 ${esc(p)}</span><br>` : ''}
         ${((d.Features || d.features) || []).map((f) => `<span class="ss-chip">${esc(f)}</span>`).join('')}
-        <span class="ss-chip" style="background:rgba(244,63,94,.12);color:var(--red);border-color:rgba(244,63,94,.3)">${esc(d.Signature || d.signature)}</span></span>
-        <span class="ss-bang">!</span></div>`).join('') : '<div class="ss-empty">No cheat files found.</div>';
+        <span class="ss-chip" style="background:rgba(244,63,94,.12);color:var(--red);border-color:rgba(244,63,94,.3)">${esc(d.Signature || d.signature)}</span>
+        ${when ? `<span class="ss-chip" style="background:rgba(148,163,184,.12);color:#94a3b8">${esc(when)}</span>` : ''}
+        ${sha ? `<br><span class="nm" style="color:var(--dim);font-size:10px">SHA256 ${esc(sha)}</span>` : ''}</span>
+        <span class="ss-bang">!</span></div>`; }).join('') : '<div class="ss-empty">No cheat files found.</div>';
     const warnHtml = warns.length ? warns.map((w) => `<div class="ss-row"><span><span class="nm">${esc(w.Title || w.title)}</span>
         ${(w.Detail||w.detail)?`<br><span style="color:var(--dim);font-size:12px;font-family:inherit">${esc(w.Detail||w.detail)}</span>`:''}</span>
         <span class="ss-warn">!</span></div>`).join('') : '<div class="ss-empty">No warnings.</div>';
@@ -574,6 +583,18 @@
         <span class="ss-dot" style="background:${vcol}"></span>
         This user <span style="color:${vcol}">${vtxt}</span>
         <span style="color:var(--dim);font-weight:500;font-size:13px">· PIN ${esc(pin)}${row && row.player ? ' · ' + esc(row.player) : ''}</span>
+      </div>
+
+      <div class="ss-c" style="padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="color:var(--dim);font-size:13px">🔍 Search this result</span>
+        <input id="ss-search" type="text" placeholder="type a name, e.g. aimbot…"
+          style="flex:1;min-width:200px;background:var(--card2,#0e131f);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:7px 11px;font-size:13px"
+          oninput="(function(q){q=(q||'').toLowerCase();var hit=0;
+            document.querySelectorAll('.ss .ss-row').forEach(function(r){var m=r.textContent.toLowerCase().indexOf(q)>-1;r.style.display=m?'':'none';if(m&&q)hit++;});
+            document.querySelectorAll('.ss .ss-tbl tbody tr').forEach(function(r){var m=r.textContent.toLowerCase().indexOf(q)>-1;r.style.display=m?'':'none';if(m&&q)hit++;});
+            var c=document.getElementById('ss-searchcount');if(c)c.textContent=q?(hit+' match'+(hit===1?'':'es')):'';
+          })(this.value)">
+        <span id="ss-searchcount" style="color:var(--red);font-size:12px;font-weight:600"></span>
       </div>
 
       <div class="ss-grid">
