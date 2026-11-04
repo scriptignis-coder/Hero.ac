@@ -345,15 +345,15 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
 
     const T = [
       ['overview', '🟣', 'Overview', det, dItem],
-      ['warnings', '⚠️', 'Warnings', warn, wItem],
+      ['warnings', '⚠️', 'Warnings', warn.sort((a, b) => (R(a, 'Category') || 'System').localeCompare(R(b, 'Category') || 'System')), (w) => { const cat = R(w, 'Category') || 'System'; return `<div class="it"><span class="sev s-m" title="${esc(cat)}">${cat === 'Antivirus' ? '🛡' : cat === 'Injection' ? '💉' : cat === 'Cleaning' ? '🧹' : cat === 'Commands' ? '💻' : '⚠'}</span><div><div class="t">${esc(R(w, 'Title'))}</div><div class="x">${esc(R(w, 'Detail'))}</div></div></div>`; }],
       ['suspicious', '👁', 'Suspicious', sus.filter((s) => !/^generic a1|unsigned|invalid/i.test(kind(s))), sItem],
       ['strings', '👤', 'My Strings', det.filter((d) => myNames.some((n) => String(R(d, 'Signature') || '').toLowerCase().startsWith(n))), dItem],
       ['yara', '〰', 'Yara', det.filter((d) => /^(detected:|cheat string:)|\((domain|hash)\)$/i.test(R(d, 'Signature') || '')), dItem],
       ['entropy', '📈', 'Entropy', sus.filter((s) => /^generic a1/i.test(kind(s))), sItem],
       ['pca', '⚡', 'PcaClient', exe.filter((e) => R(e, 'Source') === 'PCA'), eItem],
       ['recent', '🕒', 'Recent Files', exe.filter((e) => /just now|min ago|h ago/.test(R(e, 'LastRun') || '')), eItem],
-      ['usb', '🔌', 'USB Files', det.filter((d) => isUsb(R(d, 'Path'))), dItem],
-      ['av', '🛡', 'Antivirus', warn.filter((w) => /defender|antivirus|protection/i.test((R(w, 'Title') || '') + (R(w, 'Detail') || ''))), wItem],
+      ['usb', '🔌', 'USB Files', [...det.filter((d) => isUsb(R(d, 'Path'))), ...arr(rep, 'UsbDevices').map((u) => ({_usbDev: typeof u === 'string' ? u : R(u, 'Name') || '?'}))], (x) => x._usbDev ? `<div class="it"><span class="sev s-l">USB</span><div><div class="t">${esc(x._usbDev)}</div></div></div>` : dItem(x)],
+      ['av', '🛡', 'Antivirus', [...arr(rep, 'Antivirus').map((a) => ({_avProd: typeof a === 'string' ? a : R(a, 'Name') || '?'})), ...warn.filter((w) => (R(w, 'Category') || '').toLowerCase() === 'antivirus' || /defender|antivirus|protection/i.test((R(w, 'Title') || '') + (R(w, 'Detail') || '')))], (x) => x._avProd ? `<div class="it"><span class="sev ${/\(off\)/i.test(x._avProd) ? 's-h' : 's-l'}">AV</span><div><div class="t">${esc(x._avProd)}</div></div></div>` : wItem(x)],
       ['rpf', '☰', '.RPF', mods.filter((m) => /\.rpf$/i.test(R(m, 'File') || '')), mItem],
       ['invalid', '⛔', 'Invalid-Signature', sus.filter((s) => /invalid/i.test(kind(s))), sItem],
       ['unsigned', '✳', 'Unsigned Files', sus.filter((s) => /unsigned|generic dll|asi/i.test(kind(s))), sItem],
@@ -380,6 +380,8 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
       <div class="card"><b>🖥 PC Information</b><div class="tw" style="margin-top:10px"><table><tbody>
         ${[['OS', 'Os'], ['CPU', 'Cpu'], ['GPU', 'Gpu'], ['RAM', 'RamGb'], ['Motherboard', 'Motherboard'], ['Windows install', 'WindowsInstall'], ['Boot', 'BootTime'], ['FiveM last launch', 'FiveMLastLaunch'], ['Recycle bin', 'RecycleModified'], ['Disk serials', 'DiskSerials'], ['MAC', 'MacAddresses'], ['Machine GUID', 'MachineGuid'], ['Spoofer', 'SpooferFlag']]
           .filter(([, k]) => R(sys, k)).map(([l, k]) => `<tr><td style="color:var(--muted);width:200px">${l}</td><td class="mono">${esc(R(sys, k))}</td></tr>`).join('')}
+        ${arr(rep, 'Antivirus').length ? `<tr><td style="color:var(--muted)">Antivirus</td><td class="mono">${esc(arr(rep, 'Antivirus').map((a) => typeof a === 'string' ? a : R(a, 'Name')).join(', '))}</td></tr>` : ''}
+        ${arr(rep, 'UsbDevices').length ? `<tr><td style="color:var(--muted)">USB devices</td><td class="mono">${esc(arr(rep, 'UsbDevices').map((u) => typeof u === 'string' ? u : R(u, 'Name')).join(', '))}</td></tr>` : ''}
         <tr><td style="color:var(--muted)">Files scanned</td><td class="mono">${esc(R(rep, 'FilesScanned') ?? '-')} in ${esc(R(rep, 'DurationSeconds') ?? '-')} s</td></tr>
       </tbody></table></div></div>`;
 

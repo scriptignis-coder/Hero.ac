@@ -584,6 +584,9 @@
     const cmds = r.Commands || r.commands || [];
     const deleted = r.DeletedFiles || r.deletedFiles || [];
     const steam = r.SteamAccounts || r.steamAccounts || [];
+    const browsers = r.Browsers || r.browsers || [];
+    const usbDevs = r.UsbDevices || r.usbDevices || [];
+    const avProducts = r.Antivirus || r.antivirus || [];
     const did = r.DiscordId || r.discordId;
     const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
     const verdict = r.Verdict || r.verdict || (row && row.result) || 'clean';
@@ -678,6 +681,9 @@
         ['Disk serials',g('DiskSerials','diskSerials')],['MAC',g('MacAddresses','macAddresses')],['Machine GUID',g('MachineGuid','machineGuid')],['SMBIOS UUID',g('Uuid','uuid')],
         ['Files scanned',fmtNum(r.FilesScanned||r.filesScanned||0)]];
       return info.map(([k,v])=>`<div class="np-info2"><span>${k}</span><b>${esc(String(v))}</b></div>`).join('')
+        + (avProducts.length?`<div class="np-info2"><span>Antivirus</span><b>${avProducts.map(esc).join(', ')}</b></div>`:'')
+        + (browsers.length?`<div class="np-info2"><span>Browsers</span><b>${browsers.map(esc).join(', ')}</b></div>`:'')
+        + (usbDevs.length?`<div class="np-info2"><span>USB devices</span><b>${usbDevs.map(esc).join(', ')}</b></div>`:'')
         + (steam.length?`<div class="np-info2"><span>Steam</span><b>${steam.map(esc).join(', ')}</b></div>`:'')
         + (did?`<div class="np-info2"><span>Discord ID</span><b>${esc(did)}</b></div>`:'')
         + (shot?`<img src="${esc(shot)}" style="width:100%;border-radius:10px;margin-top:12px;border:1px solid var(--bd)">`:'');
