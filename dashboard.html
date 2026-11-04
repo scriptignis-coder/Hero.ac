@@ -531,23 +531,23 @@ textarea.input { color: var(--text); }
 <div id="app" class="dash" hidden>
   <aside class="side">
     <a href="/" class="brand"><svg><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
-    <div class="side-label">Server</div>
-    <button class="side-link" data-tab="overview"><svg><use href="#i-home"/></svg>Overview</button>
-    <button class="side-link" data-tab="detections"><svg><use href="#i-alert"/></svg>Detections</button>
-    <button class="side-link" data-tab="bans"><svg><use href="#i-ban"/></svg>Bans</button>
-    <button class="side-link" data-tab="players"><svg><use href="#i-users"/></svg>Players</button>
-    <button class="side-link" data-tab="logs"><svg><use href="#i-logs"/></svg>Logs</button>
-    <button class="side-link" data-tab="stream"><svg><use href="#i-cam"/></svg>Multi Stream</button>
-    <button class="side-link" data-tab="settings"><svg><use href="#i-gear"/></svg>Configuration</button>
-    <div class="side-label">Screenshare</div>
-    <button class="side-link" data-tab="scanner"><svg><use href="#i-download"/></svg>Download scanner</button>
-    <button class="side-link" data-tab="pins"><svg><use href="#i-pin"/></svg>Scan PINs</button>
-    <button class="side-link" data-tab="discord"><svg><use href="#i-sig"/></svg>Discord check</button>
-    <button class="side-link" data-tab="scannergui"><svg><use href="#i-download"/></svg>Scanner GUI</button>
-    <button class="side-link" data-tab="signatures"><svg><use href="#i-sig"/></svg>Signatures</button>
-    <div class="side-label">Help</div>
-    <button class="side-link" data-tab="tutorial"><svg><use href="#i-download"/></svg>Tutorial</button>
-    <button class="side-link" data-tab="changelogs"><svg><use href="#i-sig"/></svg>Changelogs</button>
+    <div class="side-label" data-perm="heroshield">Anti-Cheat</div>
+    <button class="side-link" data-tab="overview" data-perm="heroshield"><svg><use href="#i-home"/></svg>Overview</button>
+    <button class="side-link" data-tab="detections" data-perm="heroshield"><svg><use href="#i-alert"/></svg>Detections</button>
+    <button class="side-link" data-tab="bans" data-perm="heroshield"><svg><use href="#i-ban"/></svg>Bans</button>
+    <button class="side-link" data-tab="players" data-perm="heroshield"><svg><use href="#i-users"/></svg>Players</button>
+    <button class="side-link" data-tab="logs" data-perm="heroshield"><svg><use href="#i-logs"/></svg>Logs</button>
+    <button class="side-link" data-tab="stream" data-perm="heroshield"><svg><use href="#i-cam"/></svg>Multi Stream</button>
+    <button class="side-link" data-tab="settings" data-perm="heroshield"><svg><use href="#i-gear"/></svg>Configuration</button>
+    <div class="side-label" data-perm="herocheck">Screenshare</div>
+    <button class="side-link" data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Download scanner</button>
+    <button class="side-link" data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan PINs</button>
+    <button class="side-link" data-tab="discord" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Discord check</button>
+    <button class="side-link" data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner GUI</button>
+    <button class="side-link" data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Signatures</button>
+    <div class="side-label" data-perm="herocheck">Help</div>
+    <button class="side-link" data-tab="tutorial" data-perm="herocheck"><svg><use href="#i-download"/></svg>Tutorial</button>
+    <button class="side-link" data-tab="changelogs" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Changelogs</button>
     <div class="side-label">Account</div>
     <button class="side-link" data-tab="staff"><svg><use href="#i-users"/></svg>Staff team</button>
     <button class="side-link" data-tab="servers"><svg><use href="#i-server"/></svg>My servers</button>
@@ -571,20 +571,20 @@ textarea.input { color: var(--text); }
   </main>
 
   <nav class="mobile-tabs">
-    <button data-tab="overview"><svg><use href="#i-home"/></svg>Home</button>
-    <button data-tab="detections"><svg><use href="#i-alert"/></svg>Alerts</button>
-    <button data-tab="bans"><svg><use href="#i-ban"/></svg>Bans</button>
-    <button data-tab="players"><svg><use href="#i-users"/></svg>Players</button>
-    <button data-tab="logs"><svg><use href="#i-logs"/></svg>Logs</button>
-    <button data-tab="stream"><svg><use href="#i-cam"/></svg>Live</button>
-    <button data-tab="settings"><svg><use href="#i-gear"/></svg>Settings</button>
-    <button data-tab="scanner"><svg><use href="#i-download"/></svg>Scanner</button>
-    <button data-tab="pins"><svg><use href="#i-pin"/></svg>PINs</button>
-    <button data-tab="discord"><svg><use href="#i-sig"/></svg>Discord</button>
-    <button data-tab="signatures"><svg><use href="#i-sig"/></svg>Sigs</button>
+    <button data-tab="overview" data-perm="heroshield"><svg><use href="#i-home"/></svg>Home</button>
+    <button data-tab="detections" data-perm="heroshield"><svg><use href="#i-alert"/></svg>Alerts</button>
+    <button data-tab="bans" data-perm="heroshield"><svg><use href="#i-ban"/></svg>Bans</button>
+    <button data-tab="players" data-perm="heroshield"><svg><use href="#i-users"/></svg>Players</button>
+    <button data-tab="logs" data-perm="heroshield"><svg><use href="#i-logs"/></svg>Logs</button>
+    <button data-tab="stream" data-perm="heroshield"><svg><use href="#i-cam"/></svg>Live</button>
+    <button data-tab="settings" data-perm="heroshield"><svg><use href="#i-gear"/></svg>Settings</button>
+    <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
+    <button data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>PINs</button>
+    <button data-tab="discord" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Discord</button>
+    <button data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Sigs</button>
     <button data-tab="staff"><svg><use href="#i-users"/></svg>Staff</button>
-    <button data-tab="tutorial"><svg><use href="#i-download"/></svg>Tutorial</button>
-    <button data-tab="changelogs"><svg><use href="#i-sig"/></svg>Logs</button>
+    <button data-tab="tutorial" data-perm="herocheck"><svg><use href="#i-download"/></svg>Tutorial</button>
+    <button data-tab="changelogs" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Changes</button>
     <button data-tab="servers"><svg><use href="#i-server"/></svg>Servers</button>
   </nav>
 </div>

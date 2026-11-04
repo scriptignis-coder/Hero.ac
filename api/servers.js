@@ -1,5 +1,5 @@
 
-import { wrap, send, readBody, sb, enc, str, httpError, requireUser, requireOwnedServer, newLicense } from './_lib.js';
+import { wrap, send, readBody, sb, enc, str, httpError, requireUser, requireAccess, requireOwnedServer, newLicense } from './_lib.js';
 
 export default wrap(async (req, res) => {
   const user = requireUser(req);

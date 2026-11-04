@@ -158,9 +158,19 @@
       $('#u-avatar').hidden = false;
       $('#u-fallback').hidden = true;
     }
+    // Permission-based tab visibility
+    state.access = acc;
+    document.querySelectorAll('[data-perm]').forEach(el => {
+      const p = el.dataset.perm;
+      if (p === 'heroshield' && !acc.heroshield) el.hidden = true;
+      if (p === 'herocheck' && !acc.herocheck) el.hidden = true;
+    });
     await loadServers();
     const hash = location.hash.slice(1);
-    go(TITLES[hash] ? hash : (state.servers.length ? 'overview' : 'servers'));
+    const defaultTab = acc.heroshield ? (state.servers.length ? 'overview' : 'servers')
+                     : acc.herocheck  ? 'pins'
+                     : 'servers';
+    go(canAccess(hash) ? hash : defaultTab);
   }
 
   async function loadServers() {
@@ -176,7 +186,21 @@
   }
 
   // ---------- navigation ----------
+  const PERM_MAP = {
+    overview:'heroshield', detections:'heroshield', bans:'heroshield',
+    players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
+    scanner:'herocheck', pins:'herocheck', discord:'herocheck', scannergui:'herocheck',
+    signatures:'herocheck', tutorial:'herocheck', changelogs:'herocheck'
+  };
+  function canAccess(tab) {
+    if (!TITLES[tab]) return false;
+    const p = PERM_MAP[tab];
+    if (!p) return true; // staff, servers = always visible
+    const acc = state.access || {};
+    return !!acc[p];
+  }
   function go(tab) {
+    if (!canAccess(tab)) return;
     if (tab !== 'stream' && window.HSConfig) window.HSConfig.stopStreams();
     state.tab = tab;
     state.q = '';
