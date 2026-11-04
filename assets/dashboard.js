@@ -482,6 +482,7 @@
     const mods = r.Mods || r.mods || [];
     const steam = r.SteamAccounts || r.steamAccounts || [];
     const exe = r.ExecutedPrograms || r.executedPrograms || [];
+    const cmds = r.Commands || r.commands || [];
     const did = r.DiscordId || r.discordId;
     const verdict = r.Verdict || r.verdict || (row && row.result) || 'clean';
     const g = (a, b) => s[a] || s[b] || '-';
@@ -619,6 +620,15 @@
         <tbody>${exe.map((e) => `<tr>
           <td style="${(e.Flagged||e.flagged)?'color:var(--red);font-weight:700':''}">${esc(e.Name||e.name)}</td>
           <td>${esc(e.LastRun||e.lastRun)}</td><td><span class="ss-chip">${esc(e.Source||e.source)}</span></td></tr>`).join('')}</tbody></table></div>
+      </div>` : ''}
+
+      ${cmds.length ? `<div class="ss-c" style="margin-top:16px">
+        <h4><span class="ss-ico" style="background:#1e293b;color:#7dd3fc">&gt;_</span>PowerShell &amp; Run commands <span style="color:var(--dim);font-weight:500">(${cmds.length})</span></h4>
+        <div class="ss-scroll" style="max-height:320px"><table class="ss-tbl"><thead><tr><th>Command</th><th>Source</th></tr></thead>
+        <tbody>${cmds.map((c) => { const sus = c.Suspicious||c.suspicious; return `<tr style="${sus?'background:rgba(244,63,94,.08)':''}">
+          <td style="${sus?'color:var(--red);font-weight:600':''}">${sus?'⚠ ':''}${esc(c.Text||c.text)}</td>
+          <td><span class="ss-chip">${esc(c.Source||c.source)}</span></td></tr>`; }).join('')}</tbody></table></div>
+        <p style="color:var(--dim);font-size:11px;margin:8px 2px 0">Red = disables protection, downloads files, or wipes traces.</p>
       </div>` : ''}
       </div>`;
   }
