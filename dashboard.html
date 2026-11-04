@@ -14,19 +14,19 @@
 /* HeRo Shield — design system */
 [hidden] { display: none !important; }
 :root {
-  --bg: #070809;
-  --bg-2: #0c0e11;
-  --card: rgba(18, 21, 26, 0.74);
-  --card-solid: #121419;
-  --line: rgba(125, 180, 255, 0.12);
-  --line-strong: rgba(125, 180, 255, 0.24);
-  --text: #e9eef7;
-  --muted: #8a93a8;
-  --dim: #5a6276;
-  --blue: #38bdf8;
-  --cyan: #7dd3fc;
-  --violet: #38bdf8;
-  --grad: linear-gradient(135deg, #38bdf8 0%, #7dd3fc 100%);
+  --bg: #05070f;
+  --bg-2: #0a0e1c;
+  --card: rgba(16, 22, 42, 0.72);
+  --card-solid: #10162a;
+  --line: rgba(120, 150, 255, 0.12);
+  --line-strong: rgba(120, 150, 255, 0.25);
+  --text: #e8ecff;
+  --muted: #8b94b8;
+  --dim: #5b6488;
+  --blue: #3b82f6;
+  --cyan: #22d3ee;
+  --violet: #8b5cf6;
+  --grad: linear-gradient(135deg, #3b82f6 0%, #22d3ee 100%);
   --red: #f43f5e;
   --orange: #f59e0b;
   --green: #10b981;
@@ -37,7 +37,6 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-body > *:not(#wx):not(.bg-glow) { position: relative; z-index: 1; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -491,7 +490,6 @@ textarea.input { color: var(--text); }
 </head>
 <body>
 <div class="bg-glow"></div>
-<canvas id="wx" aria-hidden="true" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.5"></canvas>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -542,12 +540,7 @@ textarea.input { color: var(--text); }
     <div class="side-label" data-perm="herocheck">Screenshare</div>
     <button class="side-link" data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Download scanner</button>
     <button class="side-link" data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan PINs</button>
-    <button class="side-link" data-tab="discord" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Discord check</button>
-    <button class="side-link" data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner GUI</button>
     <button class="side-link" data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Signatures</button>
-    <div class="side-label" data-perm="herocheck">Help</div>
-    <button class="side-link" data-tab="tutorial" data-perm="herocheck"><svg><use href="#i-download"/></svg>Tutorial</button>
-    <button class="side-link" data-tab="changelogs" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Changelogs</button>
     <div class="side-label">Account</div>
     <button class="side-link" data-tab="staff"><svg><use href="#i-users"/></svg>Staff team</button>
     <button class="side-link" data-tab="servers"><svg><use href="#i-server"/></svg>My servers</button>
@@ -580,11 +573,8 @@ textarea.input { color: var(--text); }
     <button data-tab="settings" data-perm="heroshield"><svg><use href="#i-gear"/></svg>Settings</button>
     <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
     <button data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>PINs</button>
-    <button data-tab="discord" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Discord</button>
     <button data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Sigs</button>
     <button data-tab="staff"><svg><use href="#i-users"/></svg>Staff</button>
-    <button data-tab="tutorial" data-perm="herocheck"><svg><use href="#i-download"/></svg>Tutorial</button>
-    <button data-tab="changelogs" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Changes</button>
     <button data-tab="servers"><svg><use href="#i-server"/></svg>Servers</button>
   </nav>
 </div>
@@ -617,27 +607,5 @@ textarea.input { color: var(--text); }
 
 <script src="/assets/config.js"></script>
 <script src="/assets/dashboard.js"></script>
-<script>
-/* rain + snow weather background */
-(function(){
-  var c=document.getElementById('wx'); if(!c) return; var x=c.getContext('2d');
-  var W,H, drops=[], flakes=[];
-  function size(){ W=c.width=innerWidth; H=c.height=innerHeight;
-    drops=[]; for(var i=0;i<90;i++)drops.push({x:Math.random()*W,y:Math.random()*H,l:8+Math.random()*14,s:5+Math.random()*6});
-    flakes=[]; for(var j=0;j<45;j++)flakes.push({x:Math.random()*W,y:Math.random()*H,r:.6+Math.random()*1.8,s:.4+Math.random()*1,d:Math.random()*2}); }
-  size(); addEventListener('resize',size);
-  function tick(){
-    x.clearRect(0,0,W,H);
-    x.strokeStyle='rgba(125,211,252,.28)'; x.lineWidth=1.1;
-    for(var i=0;i<drops.length;i++){var d=drops[i];x.beginPath();x.moveTo(d.x,d.y);x.lineTo(d.x+1.5,d.y+d.l);x.stroke();
-      d.y+=d.s; d.x+=0.4; if(d.y>H){d.y=-d.l;d.x=Math.random()*W;}}
-    x.fillStyle='rgba(220,235,255,.5)';
-    for(var j=0;j<flakes.length;j++){var f=flakes[j];x.beginPath();x.arc(f.x,f.y,f.r,0,6.283);x.fill();
-      f.y+=f.s; f.x+=Math.sin((f.y+f.d)*0.02)*0.4; if(f.y>H){f.y=-4;f.x=Math.random()*W;}}
-    requestAnimationFrame(tick);
-  }
-  tick();
-})();
-</script>
 </body>
 </html>

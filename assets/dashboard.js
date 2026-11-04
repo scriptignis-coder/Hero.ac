@@ -10,9 +10,8 @@
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team',
-    tutorial: 'Tutorial', changelogs: 'Changelogs',
   };
-  const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
+  const SCANNER_URL = 'https://github.com/midouff030-blip/HeRo-Shield/releases/latest/download/HeRoShieldScanner.exe';
   const ERRORS = {
     state: 'Session expired, try again.', token: 'Discord refused the login.',
     user: 'Could not read your Discord profile.', server: 'Server error, try again.',
@@ -189,13 +188,12 @@
   const PERM_MAP = {
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
-    scanner:'herocheck', pins:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    signatures:'herocheck', tutorial:'herocheck', changelogs:'herocheck'
+    scanner:'herocheck', pins:'herocheck', signatures:'herocheck'
   };
   function canAccess(tab) {
     if (!TITLES[tab]) return false;
     const p = PERM_MAP[tab];
-    if (!p) return true; // staff, servers = always visible
+    if (!p) return true;
     const acc = state.access || {};
     return !!acc[p];
   }
@@ -220,8 +218,6 @@
     if (state.tab === 'scanner') return renderScanner(view);
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
-    if (state.tab === 'tutorial') return renderTutorial(view);
-    if (state.tab === 'changelogs') return renderChangelogs(view);
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
         <p style="margin-bottom:16px">You don't have a server yet.</p>
@@ -235,8 +231,6 @@
       else if (state.tab === 'stream') await window.HSConfig.renderStream(view, { api, toast, state, modal });
       else if (state.tab === 'logs') await renderLogs(view);
       else if (state.tab === 'pins') await renderPins(view);
-      else if (state.tab === 'discord') await renderDiscordCheck(view);
-      else if (state.tab === 'scannergui') await renderScannerGui(view);
       else await renderTable(view, state.tab);
     } catch (e) {
       view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
@@ -427,15 +421,6 @@
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>View a result by PIN</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Paste the PIN you gave the player to open its scan result.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <input id="pin-lookup" class="input" style="flex:1;min-width:180px;text-transform:uppercase;letter-spacing:2px"
-                 placeholder="e.g. ABCD1234" maxlength="8">
-          <button class="btn btn-primary" data-lookuppin>View result</button>
-        </div>
-      </div>
       <div class="card panel"><h3>Recent PINs</h3>
         ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
           <tbody>${pins.map((p) => `<tr>
@@ -451,291 +436,41 @@
       </div>`;
   }
 
-  async function renderScannerGui(view) {
-    const { bg } = await api(`/api/scanner-bg?server=${state.server}`);
-    state.scanbg = bg || '';
-    view.innerHTML = `
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Scanner background</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
-          Upload an image shown behind your scanner window while a PIN scan runs. PNG / JPG / GIF, best 500×300.
-          It applies on the next scan for PINs you generate.</p>
-        <div class="grid-2">
-          <div>
-            <div id="sg-preview" style="position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#07090d;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">
-              ${bg ? `<img src="${esc(bg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : '<span style="color:var(--dim)">No background — default storm</span>'}
-              <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>
-            </div>
-            <p style="color:var(--dim);font-size:11px;margin-top:8px">Preview — how the scanner looks while scanning.</p>
-          </div>
-          <div>
-            <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin-bottom:10px">
-              Choose image<input id="sg-file" type="file" accept="image/png,image/jpeg,image/gif" hidden></label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-primary" data-sgsave disabled>Save background</button>
-              ${bg ? '<button class="btn btn-danger" data-sgremove>Remove</button>' : ''}
-            </div>
-            <p style="color:var(--dim);font-size:11px;margin-top:12px">Inappropriate images may get your account banned. Background is private to your PINs.</p>
-          </div>
-        </div>
-      </div>`;
-    const file = $('#sg-file'), saveBtn = $('[data-sgsave]');
-    file.addEventListener('change', () => {
-      const f = file.files && file.files[0]; if (!f) return;
-      const rd = new FileReader();
-      rd.onload = () => {
-        // downscale to 500x300 jpeg (gif kept as-is so it animates)
-        if (f.type === 'image/gif') { state.scannewbg = rd.result; showPrev(rd.result); saveBtn.disabled = false; return; }
-        const img = new Image();
-        img.onload = () => {
-          const c = document.createElement('canvas'); c.width = 500; c.height = 300;
-          const x = c.getContext('2d'); x.drawImage(img, 0, 0, 500, 300);
-          state.scannewbg = c.toDataURL('image/jpeg', 0.85);
-          showPrev(state.scannewbg); saveBtn.disabled = false;
-        };
-        img.src = rd.result;
-      };
-      rd.readAsDataURL(f);
-    });
-    function showPrev(src) {
-      const p = $('#sg-preview');
-      p.innerHTML = `<img src="${src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
-        <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>`;
-    }
-  }
-
-  async function renderDiscordCheck(view, id) {
-    view.innerHTML = `
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Check a Discord ID</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
-          Enter a player's Discord ID to see everything on record for them on this server:
-          anticheat bans, in-game detections and screenshare scan results.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <input id="disc-id" class="input" style="flex:1;min-width:200px" inputmode="numeric"
-                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
-          <button class="btn btn-primary" data-disccheck>Check</button>
-        </div>
-        <p style="color:var(--dim);font-size:11px;margin-top:8px">
-          The scanner reads the Discord ID from the player's PC during a scan. This only searches
-          your own records — it cannot read someone's Discord servers or messages.</p>
-      </div>
-
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Investigate Discord servers <span style="color:var(--dim);font-weight:500;font-size:13px">(via your bot)</span></h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
-          Checks which of <b>your bot's</b> servers the user is a member of, with join date and role count.
-          Add your bot to the cheat / community servers you want to monitor.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <input id="disc-id2" class="input" style="flex:1;min-width:200px" inputmode="numeric"
-                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
-          <button class="btn btn-primary" data-discinvest>Investigate</button>
-        </div>
-        <div id="disc-inv" style="margin-top:12px"></div>
-        <p style="color:var(--dim);font-size:11px;margin-top:8px">
-          Only servers your bot has joined are visible — this never reads someone's full server list.</p>
-      </div>
-
-      <div id="disc-out"></div>`;
-    if (id) await runDiscordCheck(id);
-  }
-
-  async function runDiscordInvestigate(id) {
-    const out = $('#disc-inv'); out.innerHTML = loading();
-    try {
-      const d = await api(`/api/discord-investigate?id=${encodeURIComponent(id)}`);
-      if (!d.found.length) { out.innerHTML = `<div class="empty">Not found in any of your bot's ${fmtNum(d.servers || 0)} servers.</div>`; return; }
-      out.innerHTML = `<div style="color:var(--cyan);font-weight:700;margin-bottom:10px">${d.found.length} server${d.found.length === 1 ? '' : 's'} found</div>
-        ${d.found.map((s) => `<div class="top-row" style="align-items:center">
-          <span><b>${esc(s.server)}</b><div class="mono" style="color:var(--dim);font-size:11px">joined ${esc((s.joined || '').slice(0, 10))}</div></span>
-          <span class="badge log">${s.roles} role${s.roles === 1 ? '' : 's'}</span></div>`).join('')}`;
-    } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
-  }
-
-  async function runDiscordCheck(id) {
-    const out = $('#disc-out');
-    out.innerHTML = loading();
-    try {
-      const d = await api(`/api/data?server=${state.server}&type=lookup&id=${encodeURIComponent(id)}`);
-      const total = d.bans.length + d.detections.length + d.scans.length;
-      const verdict = d.bans.some((b) => b.active) ? ['BANNED', 'var(--red)']
-        : total === 0 ? ['NO RECORD', 'var(--dim)']
-        : d.scans.some((s) => s.result === 'cheating') || d.detections.length ? ['FLAGGED', 'var(--orange)']
-        : ['SEEN', 'var(--green)'];
-      const rowsTbl = (title, head, body, n) => `<div class="card panel" style="margin-bottom:14px">
-        <h3>${title} <span style="color:var(--dim);font-weight:500">(${n})</span></h3>
-        ${n ? `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
-            : '<div class="empty">None.</div>'}</div>`;
-      out.innerHTML = `
-        <div class="card panel" style="margin-bottom:14px;text-align:center">
-          <h3 style="margin:0">Discord <span class="mono" style="color:var(--cyan)">${esc(d.id)}</span>
-            — <span style="color:${verdict[1]}">${verdict[0]}</span></h3>
-        </div>
-        ${rowsTbl('Anticheat bans', '<th>Ban ID</th><th>Player</th><th>Reason</th><th>Status</th><th>Date</th>',
-          d.bans.map((b) => `<tr><td class="mono" style="color:var(--cyan)">${esc(b.ban_id)}</td><td>${esc(b.player)}</td>
-            <td>${esc(b.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(b.info)}</div></td>
-            <td><span class="badge ${b.active ? 'ban' : 'off'}">${b.active ? 'Active' : 'Removed'}</span></td>
-            <td class="mono">${fmtDate(b.created_at)}</td></tr>`).join(''), d.bans.length)}
-        ${rowsTbl('In-game detections', '<th>Player</th><th>Detection</th><th>Action</th><th>Date</th>',
-          d.detections.map((x) => `<tr><td>${esc(x.player)}</td>
-            <td>${esc(x.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(x.info)}</div></td>
-            <td><span class="badge ${esc(x.action)}">${esc(x.action)}</span></td>
-            <td class="mono">${fmtDate(x.created_at)}</td></tr>`).join(''), d.detections.length)}
-        ${rowsTbl('Screenshare scans', '<th>PIN</th><th>Player</th><th>Result</th><th>Date</th>',
-          d.scans.map((s) => `<tr><td class="mono" style="color:var(--cyan)">${esc(s.pin)}</td><td>${esc(s.player) || '-'}</td>
-            <td>${s.result ? `<span class="badge ${s.result === 'cheating' ? 'ban' : s.result === 'clean' ? 'on' : 'kick'}">${esc(s.result)}</span>` : '-'}</td>
-            <td class="mono">${fmtDate(s.created_at)}</td></tr>`).join(''), d.scans.length)}`;
-    } catch (e) { out.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
-  }
-
-  function renderPinReport(view, pin, sub) {
+  function renderPinReport(view, pin) {
     const row = (state.pins || []).find((p) => p.pin === pin);
     const r = row && row.report ? row.report : {};
     const s = r.System || r.system || {};
     const dets = r.Detections || r.detections || [];
     const warns = r.Warnings || r.warnings || [];
-    const susp = r.Suspicious || r.suspicious || [];
     const mods = r.Mods || r.mods || [];
-    const exe = r.ExecutedPrograms || r.executedPrograms || [];
-    const cmds = r.Commands || r.commands || [];
-    const deleted = r.DeletedFiles || r.deletedFiles || [];
     const steam = r.SteamAccounts || r.steamAccounts || [];
-    const browsers = r.Browsers || r.browsers || [];
-    const usbDevs = r.UsbDevices || r.usbDevices || [];
-    const avProducts = r.Antivirus || r.antivirus || [];
-    const did = r.DiscordId || r.discordId;
-    const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
     const verdict = r.Verdict || r.verdict || (row && row.result) || 'clean';
     const g = (a, b) => s[a] || s[b] || '-';
-    state.pinView = pin;
-
-    if (!document.getElementById('np-report-css')) {
-      const st = document.createElement('style'); st.id = 'np-report-css';
-      st.textContent = `
-      .np{--c:#121419;--c2:#0d0f13;--bd:#20242e;--tx:#e9eef7;--dim:#7b8699;color:var(--tx)}
-      .np .np-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 18px;border:1px solid var(--bd);border-radius:14px;background:var(--c);margin-bottom:12px}
-      .np .np-pcname{font-weight:800;font-size:17px;letter-spacing:.5px}
-      .np .np-risk{padding:4px 12px;border-radius:8px;font-weight:800;font-size:12px}
-      .np .np-note{color:var(--dim);font-size:12px}
-      .np .np-info{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-      .np .np-stat{flex:1;min-width:120px;border:1px solid var(--bd);border-radius:12px;background:var(--c);padding:10px 14px}
-      .np .np-stat .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-      .np .np-stat .v{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;margin-top:3px;word-break:break-all}
-      .np .np-layout{display:grid;grid-template-columns:230px 1fr;gap:14px}
-      @media(max-width:820px){.np .np-layout{grid-template-columns:1fr}}
-      .np .np-side{border:1px solid var(--bd);border-radius:14px;background:var(--c);padding:8px;max-height:620px;overflow:auto}
-      .np .np-cat{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 11px;border-radius:9px;border:0;background:transparent;color:var(--tx);cursor:pointer;font-size:13px;margin-bottom:2px}
-      .np .np-cat:hover{background:var(--c2)}
-      .np .np-cat.on{background:rgba(56,189,248,.12);color:#7dd3fc}
-      .np .np-cat .dot{width:7px;height:7px;border-radius:50%}
-      .np .np-cat .cnt{margin-left:auto;background:var(--c2);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--dim)}
-      .np .np-cat.on .cnt{color:#7dd3fc}
-      .np .np-main{border:1px solid var(--bd);border-radius:14px;background:var(--c);padding:14px;min-height:400px}
-      .np .np-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-      .np .np-head h4{margin:0;font-size:15px}
-      .np .np-head input{background:var(--c2);border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:6px 11px;font-size:12.5px;min-width:160px}
-      .np .np-list{max-height:560px;overflow:auto;display:flex;flex-direction:column;gap:7px}
-      .np .np-row{display:flex;gap:11px;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--c2)}
-      .np .np-sev{flex:none;align-self:flex-start;border:1px solid;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:800;letter-spacing:.05em}
-      .np .np-name{font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:600;word-break:break-all}
-      .np .np-tag{color:#7dd3fc;font-size:11px;font-weight:600;margin-left:4px}
-      .np .np-path{color:var(--dim);font-size:11px;font-family:ui-monospace,Menlo,monospace;margin-top:3px;word-break:break-all}
-      .np .np-meta{color:var(--dim);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;margin-top:4px}
-      .np .np-chip{display:inline-block;background:rgba(56,189,248,.1);color:#7dd3fc;border-radius:16px;padding:1px 8px;font-size:10.5px;margin:2px 3px 0 0}
-      .np .np-empty{color:var(--dim);text-align:center;padding:30px;font-size:13px}
-      .np .np-info2{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:13px}
-      .np .np-info2 span{color:var(--dim)} .np .np-info2 b{font-family:ui-monospace,monospace;word-break:break-all;text-align:right}
-      .np .np-back{background:transparent;border:1px solid var(--bd);color:var(--tx);border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;margin-bottom:14px}`;
-      document.head.appendChild(st);
-    }
-
-    const risk = verdict === 'cheating' ? ['HIGH RISK', '#f43f5e'] : verdict === 'suspicious' ? ['MEDIUM', '#f59e0b'] : ['LOW RISK', '#2dd4bf'];
-    const sev = (x) => { const v = (x.Severity !== undefined ? x.Severity : x.severity); return (v === 2 || v === 'High' || v === 'high') ? 'HIGH' : (v === 1 || v === 'Medium' || v === 'medium') ? 'MED' : 'LOW'; };
-    const sc = (t) => t === 'HIGH' ? '#f43f5e' : t === 'MED' ? '#f59e0b' : '#7dd3fc';
-    const bySrc = (src) => exe.filter((e) => (e.Source || e.source) === src);
-    const isGeneric = (d) => /suspicious name|cheat code|cheat marker/i.test(d.Signature || d.signature || '');
-
-    const detRow = (d) => { const t = sev(d); return `<div class="np-row"><span class="np-sev" style="color:${sc(t)};border-color:${sc(t)}">${t}</span>
-      <div><div class="np-name">${(d.Deleted||d.deleted)?'🗑 ':''}${esc(d.File||d.file)}<span class="np-tag">${esc(d.Signature||d.signature)}</span></div>
-      ${(d.Path||d.path)?`<div class="np-path">📁 ${esc(d.Path||d.path)}</div>`:''}
-      <div class="np-meta">${esc(d.When||d.when||'')} ${((d.Features||d.features)||[]).map((f)=>`<span class="np-chip">${esc(f)}</span>`).join('')}</div></div></div>`; };
-    const warnRow = (w) => `<div class="np-row"><span class="np-sev" style="color:#f59e0b;border-color:#f59e0b">WARN</span>
-      <div><div class="np-name">${esc(w.Title||w.title)}</div>${(w.Detail||w.detail)?`<div class="np-meta">${esc(w.Detail||w.detail)}</div>`:''}</div></div>`;
-    const suspRow = (x) => `<div class="np-row"><span class="np-sev" style="color:#7dd3fc;border-color:#7dd3fc">SUSP</span>
-      <div><div class="np-name">${esc(x.Kind||x.kind)}</div><div class="np-path">${esc(x.Path||x.path)}</div></div></div>`;
-    const exeRow = (e) => { const fl=(e.Flagged||e.flagged); return `<div class="np-row"><span class="np-sev" style="color:${fl?'#f43f5e':'#5a6276'};border-color:${fl?'#f43f5e':'#2a3042'}">${fl?'HIGH':'RAN'}</span>
-      <div><div class="np-name">${esc(e.Name||e.name)}<span class="np-tag">${esc(e.Source||e.source)}</span></div>
-      <div class="np-meta">${esc(e.LastRun||e.lastRun||'')}</div>${(e.Path||e.path)?`<div class="np-path">${esc(e.Path||e.path)}</div>`:''}</div></div>`; };
-    const cmdRow = (c) => { const su=(c.Suspicious||c.suspicious); return `<div class="np-row"><span class="np-sev" style="color:${su?'#f43f5e':'#5a6276'};border-color:${su?'#f43f5e':'#2a3042'}">${su?'FLAG':'CMD'}</span>
-      <div><div class="np-name" style="${su?'color:#f43f5e':''}">${esc(c.Text||c.text)}</div><div class="np-meta"><span class="np-chip">${esc(c.Source||c.source)}</span></div></div></div>`; };
-    const modRow = (m) => `<div class="np-row"><span class="np-sev" style="color:#7dd3fc;border-color:#2a3042">MOD</span>
-      <div><div class="np-name">${esc(m.File||m.file)}<span class="np-tag">${(m.SizeMb||m.sizeMb||0)} MB</span></div><div class="np-path">${esc(m.Path||m.path||'')}</div></div></div>`;
-    const delRow = (d) => `<div class="np-row"><span class="np-sev" style="color:#5a6276;border-color:#2a3042">DEL</span>
-      <div><div class="np-name">${esc(d.File||d.file)}</div><div class="np-meta">${esc(d.When||d.when||'')}</div></div></div>`;
-
-    const strings = dets.filter((d) => !isGeneric(d));
-    const cats = [
-      { id:'overview', label:'Overview', col:'#7dd3fc', items:dets, row:detRow },
-      { id:'warnings', label:'Warnings', col:'#f59e0b', items:warns, row:warnRow },
-      { id:'strings', label:'My Strings', col:'#a78bfa', items:strings, row:detRow },
-      { id:'suspicious', label:'Suspicious', col:'#f59e0b', items:susp, row:suspRow },
-      { id:'bam', label:'BAM', col:'#f43f5e', items:bySrc('BAM'), row:exeRow },
-      { id:'pca', label:'PcaSvc', col:'#7dd3fc', items:bySrc('PCA'), row:exeRow },
-      { id:'programs', label:'Executed Programs', col:'#38bdf8', items:exe, row:exeRow },
-      { id:'commands', label:'Commands', col:'#a78bfa', items:cmds, row:cmdRow },
-      { id:'mods', label:'Mods', col:'#7dd3fc', items:mods, row:modRow },
-      { id:'deleted', label:'Deleted Files', col:'#5a6276', items:deleted, row:delRow },
-      { id:'pc', label:'PC Information', col:'#38bdf8', items:[], row:null },
-    ];
-    const cur = cats.find((c) => c.id === (sub || 'overview')) || cats[0];
-    const flags = dets.length + warns.length + susp.length;
-
-    const pcPanel = () => {
-      const info = [['System', g('Os','os')+' '+(s.WinBuild||s.winBuild||'')],['CPU',g('Cpu','cpu')],['GPU',g('Gpu','gpu')],['RAM',g('RamGb','ramGb')],
-        ['Boot time',g('BootTime','bootTime')],['Windows install',g('WindowsInstall','windowsInstall')],['FiveM',g('FiveMLastLaunch','fiveMLastLaunch')],
-        ['Recycle bin',g('RecycleModified','recycleModified')],['HWID',g('Hwid','hwid')],['Motherboard',g('Motherboard','motherboard')],['BIOS serial',g('BiosSerial','biosSerial')],
-        ['Disk serials',g('DiskSerials','diskSerials')],['MAC',g('MacAddresses','macAddresses')],['Machine GUID',g('MachineGuid','machineGuid')],['SMBIOS UUID',g('Uuid','uuid')],
-        ['Files scanned',fmtNum(r.FilesScanned||r.filesScanned||0)]];
-      return info.map(([k,v])=>`<div class="np-info2"><span>${k}</span><b>${esc(String(v))}</b></div>`).join('')
-        + (avProducts.length?`<div class="np-info2"><span>Antivirus</span><b>${avProducts.map(esc).join(', ')}</b></div>`:'')
-        + (browsers.length?`<div class="np-info2"><span>Browsers</span><b>${browsers.map(esc).join(', ')}</b></div>`:'')
-        + (usbDevs.length?`<div class="np-info2"><span>USB devices</span><b>${usbDevs.map(esc).join(', ')}</b></div>`:'')
-        + (steam.length?`<div class="np-info2"><span>Steam</span><b>${steam.map(esc).join(', ')}</b></div>`:'')
-        + (did?`<div class="np-info2"><span>Discord ID</span><b>${esc(did)}</b></div>`:'')
-        + (shot?`<img src="${esc(shot)}" style="width:100%;border-radius:10px;margin-top:12px;border:1px solid var(--bd)">`:'');
-    };
-
-    const mainBody = cur.id === 'pc' ? pcPanel()
-      : (cur.items.length ? cur.items.map(cur.row).join('') : '<div class="np-empty">Nothing here.</div>');
-
+    const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
     view.innerHTML = `
-      <div class="np">
-      <button class="np-back" data-go="pins">← Back to PINs</button>
-      <div class="np-top">
-        <span class="np-pcname">${esc((s.Hwid||s.hwid||'PC').slice(0,14))}</span>
-        <span class="np-risk" style="background:${risk[1]}22;color:${risk[1]};border:1px solid ${risk[1]}">${risk[0]}</span>
-        <span class="np-note">Based on scanner flags — manual review recommended. Not a definitive cheat verdict.</span>
+      <button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:16px">← Back to PINs</button>
+      <div class="card panel" style="margin-bottom:16px">
+        <h3 style="margin:0">Player is <span style="color:${verdict === 'cheating' ? 'var(--red)' : verdict === 'suspicious' ? 'var(--orange)' : 'var(--green)'}">${esc(verdict)}</span>
+          <span class="mono" style="color:var(--dim)">PIN ${esc(pin)}${row && row.player ? ' · ' + esc(row.player) : ''}</span></h3>
       </div>
-      <div class="np-info">
-        <div class="np-stat"><div class="k">Session PIN</div><div class="v" style="color:#7dd3fc">${esc(pin)}</div></div>
-        <div class="np-stat"><div class="k">User</div><div class="v">${esc((row&&row.player)||'-')}</div></div>
-        <div class="np-stat"><div class="k">Date</div><div class="v">${esc(row?fmtDate(row.created_at):'-')}</div></div>
-        <div class="np-stat"><div class="k">Flags</div><div class="v" style="color:${risk[1]}">${flags}</div></div>
-      </div>
-      <div class="np-layout">
-        <div class="np-side">
-          ${cats.map((c)=>`<button class="np-cat ${c.id===cur.id?'on':''}" data-ptab="${c.id}">
-            <span class="dot" style="background:${c.col}"></span>${c.label}
-            ${c.id!=='pc'?`<span class="cnt">${c.items.length}</span>`:''}</button>`).join('')}
+      <div class="grid-2">
+        <div class="card panel">
+          <h3>Detections (${dets.length})</h3>
+          ${dets.length ? `<div class="table-wrap"><table><thead><tr><th>File</th><th>Signature</th><th>Features</th></tr></thead>
+            <tbody>${dets.map((d) => `<tr><td class="mono">${esc(d.File || d.file)}</td><td>${esc(d.Signature || d.signature)}</td>
+              <td>${((d.Features || d.features) || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table></div>`
+            : '<div class="empty">No cheat files found.</div>'}
+          ${warns.length ? `<h3 style="margin-top:18px">Warnings (${warns.length})</h3>${warns.map((w) => `<div class="top-row"><span>${esc(w.Title || w.title)}</span></div>`).join('')}` : ''}
         </div>
-        <div class="np-main">
-          <div class="np-head"><h4>${cur.label} ${cur.id!=='pc'?`<span style="color:var(--dim);font-weight:500">— ${cur.items.length} entries</span>`:''}</h4>
-            ${cur.id!=='pc'?`<input type="text" placeholder="filter…" oninput="(function(q){q=q.toLowerCase();document.querySelectorAll('#np-list .np-row').forEach(function(r){r.style.display=r.textContent.toLowerCase().indexOf(q)>-1?'':'none'})})(this.value)">`:''}
-          </div>
-          <div class="np-list" id="np-list">${mainBody}</div>
+        <div class="card panel">
+          <h3>PC information</h3>
+          ${[['System', g('Os', 'os') + ' ' + (s.WinBuild || s.winBuild || '')], ['CPU', g('Cpu', 'cpu')], ['GPU', g('Gpu', 'gpu')], ['RAM', g('RamGb', 'ramGb')], ['Boot', g('BootTime', 'bootTime')], ['FiveM', g('FiveMLastLaunch', 'fiveMLastLaunch')], ['Recycle', g('RecycleModified', 'recycleModified')], ['HWID', g('Hwid', 'hwid')]].map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono">${esc(v)}</b></div>`).join('')}
+          ${steam.length ? `<div class="top-row"><span>Steam</span><b class="mono">${esc(steam.join(', '))}</b></div>` : ''}
+          <div class="top-row"><span>Files scanned</span><b>${fmtNum(r.FilesScanned || r.filesScanned || 0)}</b></div>
+          <div class="top-row"><span>Mods found</span><b>${mods.length}</b></div>
         </div>
       </div>
-      </div>`;
+      ${shot ? `<div class="card panel" style="margin-top:16px"><h3>Screenshot</h3><img src="${esc(shot)}" style="width:100%;border-radius:10px"></div>` : ''}`;
   }
 
   async function renderSignatures(view) {
@@ -743,35 +478,22 @@
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Add a cheat signature</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live. Match a cheat by <b>file name</b>, by its <b>C2 / API domain</b> (catches renamed loaders), or by <b>SHA-256</b> (rename-proof).</p>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live — add a cheat and every check catches it.</p>
         <div class="set-grid" style="display:grid;gap:10px">
-          <input id="sig-name" class="input" placeholder="Cheat name (e.g. Susano)">
-          <input id="sig-files" class="input" placeholder="File names: susano.exe, chaga.exe">
-          <input id="sig-domains" class="input" placeholder="Domains: api.susano.re, susano.re">
-          <input id="sig-hashes" class="input" placeholder="SHA-256 hashes (comma separated, optional)">
-          <input id="sig-feats" class="input" placeholder="Features: Aimbot, ESP, Spawn menu">
+          <input id="sig-name" class="input" placeholder="Cheat name (e.g. Eulen)">
+          <input id="sig-files" class="input" placeholder="File names: eulen.exe, eulen.dll">
+          <input id="sig-feats" class="input" placeholder="Features: Aimbot, No recoil, ESP">
           <div style="display:flex;gap:10px">
             <select id="sig-sev" class="input" style="flex:1"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
             <button class="btn btn-primary" data-addsig>Add</button>
           </div>
         </div>
       </div>
-
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Bulk import</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:8px">One cheat per line, fields separated by <b>|</b> (pipe):
-          <span class="mono" style="color:var(--cyan)">Name | files | domains | hashes</span>. Files/domains/hashes are comma-separated; leave a field empty if none.</p>
-        <textarea id="sig-bulk" class="input" rows="7" style="width:100%;font-family:ui-monospace,monospace;font-size:12.5px"
-          placeholder="Susano | chaga.exe | api.susano.re, susano.re&#10;RedEngine | hugeperhapswashroad.exe | falcon.redengine.eu&#10;Keyser | loader.exe | api.keyser-dashboard.com&#10;Tzx | taskthow.exe | api.tzproject.com, tzproject.com"></textarea>
-        <button class="btn btn-primary" data-bulksig style="margin-top:10px">Import all</button>
-      </div>
-
       <div class="card panel"><h3>Signatures (${signatures.length})</h3>
-        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Files</th><th>Domains</th><th>Hashes</th><th>Sev</th><th></th></tr></thead>
+        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Files</th><th>Features</th><th>Severity</th><th></th></tr></thead>
           <tbody>${signatures.map((s) => `<tr><td><b>${esc(s.name)}</b></td>
-            <td class="mono" style="font-size:11px">${esc((s.file_names || []).join(', ')) || '-'}</td>
-            <td class="mono" style="font-size:11px;color:var(--cyan)">${esc((s.domains || []).join(', ')) || '-'}</td>
-            <td class="mono" style="font-size:10px;color:var(--dim)">${(s.hashes || []).length || 0}</td>
+            <td class="mono">${esc((s.file_names || []).join(', '))}</td>
+            <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
             <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
             <td><button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No signatures yet.</div>'}
@@ -798,42 +520,6 @@
             <td><button class="btn btn-danger btn-sm" data-delstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No staff yet.</div>'}
       </div>`;
-  }
-
-  function renderTutorial(view) {
-    view.innerHTML = `
-      <h2 style="margin-bottom:8px">Tutorial</h2>
-      <p class="text-muted" style="margin-bottom:20px">How a screenshare works with HeRo Shield.</p>
-      <div class="card" style="padding:24px">
-        <ol style="display:flex;flex-direction:column;gap:18px;padding-left:22px;margin:0">
-          <li><b>Generate a PIN</b><p class="text-muted" style="margin:4px 0 0">Go to Scan PINs → Generate PIN. Copy it.</p></li>
-          <li><b>Send the scanner + PIN to the player</b><p class="text-muted" style="margin:4px 0 0">Player downloads the scanner from the Downloads page and types the PIN when it opens.</p></li>
-          <li><b>Player accepts the check</b><p class="text-muted" style="margin:4px 0 0">The scan runs for 1–3 minutes. It reads the whole PC (execution history, files, registry).</p></li>
-          <li><b>Open the result</b><p class="text-muted" style="margin:4px 0 0">Scan PINs → click the PIN. Check Overview, Warnings, Suspicious and the other tabs.</p></li>
-          <li><b>Add your own strings</b><p class="text-muted" style="margin:4px 0 0">Signatures → add cheat names, C2 domains, SHA-256 hashes. Every next scan picks them up live.</p></li>
-          <li><b>Review the verdict</b><p class="text-muted" style="margin:4px 0 0">The scanner rates the PC as <b style="color:var(--red)">cheating</b>, <b style="color:var(--yellow)">suspicious</b> or <b style="color:var(--green)">clean</b> based on what it found. Always review manually.</p></li>
-        </ol>
-      </div>`;
-  }
-
-  function renderChangelogs(view) {
-    const log = [
-      ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
-      ['3.6.0', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import, domains & hashes in signatures'],
-      ['3.5.0', 'False-positive guards: skip own project files, OneDrive, node_modules, recycle bin. Multi-match fix (3+ cheat names = list, not cheat)'],
-      ['3.4.0', 'PowerShell & Run (Win+R) command history, bypass & cleaning tells, UserAssist, MUICache'],
-      ['3.3.0', 'Whole-disk deep scan, script obfuscation detection (encoded PowerShell, base64 Lua), packer detection (Themida, VMProtect, Enigma, UPX)'],
-      ['3.2.0', 'Prefetch, BAM, PCA execution timeline. FiveM plugin scan. Recycle bin analysis'],
-      ['3.1.0', 'Running process scan, network/DNS indicators, drop folder scan'],
-      ['3.0.0', 'Initial release — system info, signature matching, screenshot capture, backend upload'],
-    ];
-    view.innerHTML = `
-      <h2 style="margin-bottom:8px">Changelogs</h2>
-      <p class="text-muted" style="margin-bottom:20px">What changed in the scanner.</p>
-      ${log.map(([ver, text]) => `<div class="card" style="margin-bottom:10px;padding:16px 20px">
-        <b style="color:var(--primary)">v${ver}</b>
-        <div style="margin-top:6px">${esc(text)}</div>
-      </div>`).join('')}`;
   }
 
   function renderServers(view) {
@@ -1033,39 +719,7 @@
     if (t.dataset.live) return startLive(t.dataset.live, t.dataset.name);
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
-    if (t.dataset.sgsave !== undefined) {
-      if (!state.scannewbg) return toast('Choose an image first', true);
-      t.disabled = true; t.textContent = 'Saving…';
-      try { await api('/api/scanner-bg', { method: 'POST', body: { server: state.server, image: state.scannewbg } });
-        toast('Background saved'); state.scannewbg = null; renderScannerGui($('#view')); }
-      catch (e) { toast(e.message, true); t.disabled = false; t.textContent = 'Save background'; }
-      return;
-    }
-    if (t.dataset.sgremove !== undefined) {
-      try { await api(`/api/scanner-bg?server=${state.server}`, { method: 'DELETE' }); toast('Background removed'); renderScannerGui($('#view')); }
-      catch (e) { toast(e.message, true); }
-      return;
-    }
-    if (t.dataset.disccheck !== undefined) {
-      const id = ($('#disc-id').value || '').replace(/[^0-9]/g, '');
-      if (!id) return toast('Enter a Discord ID', true);
-      return runDiscordCheck(id);
-    }
-    if (t.dataset.discinvest !== undefined) {
-      const id = ($('#disc-id2').value || '').replace(/[^0-9]/g, '');
-      if (!id) return toast('Enter a Discord ID', true);
-      return runDiscordInvestigate(id);
-    }
     if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
-    if (t.dataset.lookuppin !== undefined) {
-      const code = ($('#pin-lookup').value || '').trim().toUpperCase();
-      if (!code) return toast('Enter a PIN', true);
-      const found = (state.pins || []).find((p) => p.pin === code);
-      if (!found) return toast('No PIN like that on this server', true);
-      if (!(found.used && found.report)) return toast('No result yet for ' + code + ' — the player has not finished the scan', true);
-      return renderPinReport($('#view'), code);
-    }
-    if (t.dataset.ptab) return renderPinReport($('#view'), state.pinView, t.dataset.ptab);
     if (t.dataset.copypin) {
       try { await navigator.clipboard.writeText(t.dataset.copypin); toast('PIN copied'); } catch { toast('Copy failed', true); }
       return;
@@ -1159,22 +813,9 @@
       } else if (t.dataset.addsig !== undefined) {
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();
-        const domains = $('#sig-domains').value.trim();
-        const hashes = $('#sig-hashes').value.trim();
-        if (!name || (!fileNames && !domains && !hashes)) { toast('Name + at least one file, domain or hash', true); return; }
-        await api('/api/signatures', { method: 'POST', body: { name, fileNames, domains, hashes, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value } });
+        if (!name || !fileNames) { toast('Name and file names required', true); return; }
+        await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value } });
         toast('Signature added');
-        render();
-      } else if (t.dataset.bulksig !== undefined) {
-        const raw = $('#sig-bulk').value.trim();
-        if (!raw) { toast('Paste at least one line', true); return; }
-        const bulk = raw.split('\n').map((ln) => ln.trim()).filter(Boolean).map((ln) => {
-          const [name, fileNames, domains, hashes, severity] = ln.split('|').map((p) => (p || '').trim());
-          return { name, fileNames: fileNames || '', domains: domains || '', hashes: hashes || '', severity: severity || 'high' };
-        }).filter((x) => x.name && (x.fileNames || x.domains || x.hashes));
-        if (!bulk.length) { toast('No valid lines — each needs a name and a file, domain or hash', true); return; }
-        const r = await api('/api/signatures', { method: 'POST', body: { bulk } });
-        toast(`Imported ${r.added} signature${r.added === 1 ? '' : 's'}`);
         render();
       } else if (t.dataset.delsig) {
         await api(`/api/signatures?id=${encodeURIComponent(t.dataset.delsig)}`, { method: 'DELETE' });
