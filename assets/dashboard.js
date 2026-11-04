@@ -141,6 +141,24 @@
     } catch {
       return showLogin();
     }
+    const acc = state.user.access || { heroshield: true, herocheck: true };
+    if (!acc.heroshield) {
+      if (acc.herocheck) { location.replace('/check'); return; }
+      $('#login').hidden = false; $('#app').hidden = true;
+      $('#login-error').textContent = 'Your account has no HeRo Shield or HeRo Check access. Ask the owner for a role.';
+      $('#login-error').hidden = false;
+      return;
+    }
+    if (acc.herocheck) {
+      const nav = document.querySelector('.sidebar nav, nav.side, aside nav, aside');
+      if (nav && !document.getElementById('to-check')) {
+        const a = document.createElement('a');
+        a.id = 'to-check'; a.href = '/check';
+        a.textContent = '🔎  Open HeRo Check';
+        a.style.cssText = 'display:block;margin:10px 14px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-weight:600;text-decoration:none;text-align:center';
+        nav.prepend(a);
+      }
+    }
     if (location.search) history.replaceState(null, '', '/dashboard');
     $('#login').hidden = true;
     $('#app').hidden = false;

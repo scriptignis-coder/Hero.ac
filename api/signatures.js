@@ -7,6 +7,7 @@ const toList = (v) => Array.isArray(v)
 // Cheat signatures the scanner matches. Owner-scoped (apply to all the owner's servers).
 export default wrap(async (req, res) => {
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield', 'herocheck');
 
   if (req.method === 'GET') {
     const rows = await sb(`signatures?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);

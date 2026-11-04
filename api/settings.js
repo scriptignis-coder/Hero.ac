@@ -1,5 +1,6 @@
 // Dashboard: read / save server configuration
 import { wrap, send, readBody, sb, httpError, requireUser, requireOwnedServer } from './_lib.js';
+import { requireAccess } from './_lib.js';
 
 // name -> [min, max] for value (null = no value)
 const DETECTIONS = {
@@ -68,6 +69,7 @@ function clean(input) {
 
 export default wrap(async (req, res) => {
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield');
 
   if (req.method === 'GET') {
     const server = await requireOwnedServer(user, req.query.server);

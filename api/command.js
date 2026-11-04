@@ -7,6 +7,7 @@ const safe = (v) => String(v || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80)
 export default wrap(async (req, res) => {
   if (req.method !== 'POST') throw httpError(405, 'POST only');
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield');
   const b = readBody(req);
   const server = await requireOwnedServer(user, b.server);
   if (!TYPES.includes(b.type)) throw httpError(400, 'Invalid command');

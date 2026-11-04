@@ -3,6 +3,7 @@ import { wrap, send, sb, enc, str, httpError, requireUser, requireOwnedServer } 
 
 export default wrap(async (req, res) => {
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const identifier = str(req.query.identifier, 120);
   if (!identifier) throw httpError(400, 'Missing player');

@@ -1,6 +1,7 @@
 // POST (FiveM, x-license) {action:'open', identifier} -> upload url
 // GET  (dashboard)        ?server=&identifier=      -> latest jpeg frame
 import { wrap, send, readBody, requireLicense, requireUser, requireOwnedServer, httpError, str } from './_lib.js';
+import { requireAccess } from './_lib.js';
 import { openStream, getFrame } from './_stream.js';
 
 export default wrap(async (req, res) => {
@@ -21,6 +22,7 @@ export default wrap(async (req, res) => {
   }
 
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const frame = getFrame(server.id, str(req.query.identifier, 120));
   if (!frame) return send(res, 404, { error: 'No frame yet' });

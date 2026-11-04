@@ -196,3 +196,49 @@ export function newLicense() {
 }
 
 export const str = (v, max = 200) => String(v ?? '').slice(0, max);
+
+// ---------- access / permissions (set in the Render environment) ----------
+// HEROSHIELD_IDS = Discord IDs (comma) allowed the full HeRo Shield anticheat dashboard
+// HEROCHECK_IDS  = Discord IDs (comma) allowed the HeRo Check (screenshare) dashboard
+// ADMIN_IDS      = Discord IDs that get both
+// Optional role-based: DISCORD_GUILD_ID + HEROSHIELD_ROLE_ID / HEROCHECK_ROLE_ID (+ DISCORD_BOT_TOKEN)
+// If NONE of these are set, everyone gets both (nothing breaks).
+const ids = (k) => String(process.env[k] || '').split(',').map((s) => s.trim()).filter(Boolean);
+const _accessCache = new Map();
+
+export async function getAccess(user) {
+  const configured = ['HEROSHIELD_IDS', 'HEROCHECK_IDS', 'ADMIN_IDS', 'HEROSHIELD_ROLE_ID', 'HEROCHECK_ROLE_ID']
+    .some((k) => process.env[k]);
+  if (!configured) return { heroshield: true, herocheck: true };
+
+  const hit = _accessCache.get(user.id);
+  if (hit && Date.now() - hit.t < 60000) return hit.a;
+
+  const admin = ids('ADMIN_IDS').includes(user.id);
+  const a = {
+    heroshield: admin || ids('HEROSHIELD_IDS').includes(user.id),
+    herocheck: admin || ids('HEROCHECK_IDS').includes(user.id),
+  };
+
+  const guild = process.env.DISCORD_GUILD_ID, bot = process.env.DISCORD_BOT_TOKEN;
+  if (guild && bot && (!a.heroshield || !a.herocheck)) {
+    try {
+      const r = await fetch(`https://discord.com/api/v10/guilds/${guild}/members/${user.id}`,
+        { headers: { Authorization: `Bot ${bot}` } });
+      if (r.ok) {
+        const roles = (await r.json()).roles || [];
+        if (process.env.HEROSHIELD_ROLE_ID && roles.includes(process.env.HEROSHIELD_ROLE_ID)) a.heroshield = true;
+        if (process.env.HEROCHECK_ROLE_ID && roles.includes(process.env.HEROCHECK_ROLE_ID)) a.herocheck = true;
+      }
+    } catch {}
+  }
+  _accessCache.set(user.id, { t: Date.now(), a });
+  return a;
+}
+
+// throws 403 unless the user has at least one of the given products
+export async function requireAccess(user, ...products) {
+  const a = await getAccess(user);
+  if (!products.some((p) => a[p])) throw httpError(403, 'No access — ask the owner for the ' + products.join(' / ') + ' role');
+  return a;
+}

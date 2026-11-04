@@ -3,6 +3,7 @@ import { wrap, send, readBody, sb, enc, str, httpError, requireUser, requireOwne
 
 export default wrap(async (req, res) => {
   const user = requireUser(req);
+  await requireAccess(user, 'heroshield', 'herocheck');
 
   if (req.method === 'GET') {
     const rows = await sb(`servers?owner_discord=eq.${enc(user.id)}&select=id,name,license,last_seen,created_at&order=created_at.asc`);

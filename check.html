@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HeRo Check</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+[hidden]{display:none!important}
+:root{
+  --bg:#0a0a0b;--card:#111113;--card2:#161619;--line:#232327;--line2:#2e2e34;
+  --text:#ececf1;--muted:#8b8b96;--dim:#5c5c66;
+  --p:#a855f7;--p2:#7c3aed;--pg:linear-gradient(135deg,#7c3aed,#c084fc);
+  --red:#f43f5e;--orange:#f59e0b;--yellow:#eab308;--green:#22c55e;--blue:#38bdf8;--teal:#2dd4bf;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1200px 600px at 50% -200px,#1a1324 0%,var(--bg) 60%) fixed,var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:ui-monospace,Consolas,monospace}
+/* top bar */
+.top{position:sticky;top:0;z-index:10;background:rgba(10,10,11,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:10px 16px}
+.brand{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;background:var(--pg);font-weight:700;box-shadow:0 6px 24px rgba(168,85,247,.35);white-space:nowrap}
+.nav{display:flex;gap:4px;flex:1;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{padding:7px 11px;border-radius:8px;color:var(--muted);font-size:13px;white-space:nowrap;cursor:pointer}
+.nav a:hover{color:var(--text);background:var(--card2)}
+.nav a.on{color:#fff;background:var(--card2)}
+.me{display:flex;align-items:center;gap:10px}
+.me img{width:30px;height:30px;border-radius:50%}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;border:1px solid var(--line2);background:var(--card2);cursor:pointer;font-weight:500;font-size:13px}
+.btn:hover{border-color:var(--p)}
+.btn-p{background:var(--pg);border:0;color:#fff;font-weight:600}
+.btn-d{border-color:rgba(244,63,94,.4);color:#fda4af}
+.btn-sm{padding:5px 10px;font-size:12px}
+/* layout */
+main{max-width:1180px;margin:0 auto;padding:26px 16px 60px}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:var(--muted);margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,1fr)}.g2{grid-template-columns:1fr 1fr}
+@media(max-width:820px){.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+.kpi .l{color:var(--muted);font-size:12px}.kpi .v{font-size:26px;font-weight:700;margin-top:4px}
+.input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line2);background:#0d0d0f;outline:none}
+.input:focus{border-color:var(--p)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--card2)}
+.tw{overflow-x:auto}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.b-cheat{background:rgba(244,63,94,.15);color:#fb7185}
+.b-sus{background:rgba(234,179,8,.15);color:#facc15}
+.b-clean{background:rgba(34,197,94,.15);color:#4ade80}
+.b-wait{background:rgba(139,139,150,.15);color:var(--muted)}
+.empty{color:var(--dim);text-align:center;padding:40px 10px}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--card2);border:1px solid var(--line2);padding:12px 16px;border-radius:10px;z-index:50}
+.toast.err{border-color:var(--red)}
+/* result header */
+.rhead{display:flex;gap:28px;flex-wrap:wrap;align-items:center}
+.rh{display:flex;gap:10px;align-items:center}
+.ri{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:16px}
+.rh .l{color:var(--muted);font-size:12px}.rh .v{font-weight:600}
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.tab{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid transparent;color:var(--muted);font-size:12.5px;cursor:pointer;font-weight:500}
+.tab:hover{color:var(--text)}
+.tab.on{border-color:#e11d74;color:#fff;background:rgba(225,29,116,.08)}
+.tab .n{color:var(--dim)}
+.it{display:flex;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#0d0d0f}
+.it .t{font-weight:600}
+.it .p{color:var(--muted);font-size:12px;word-break:break-all;margin-top:3px}
+.it .x{color:var(--dim);font-size:12px;margin-top:3px}
+.sev{flex:0 0 auto;font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;height:fit-content}
+.s-h{background:rgba(244,63,94,.18);color:#fb7185}.s-m{background:rgba(245,158,11,.18);color:#fbbf24}.s-l{background:rgba(56,189,248,.15);color:#7dd3fc}
+.login{max-width:380px;margin:12vh auto;text-align:center}
+.steps{counter-reset:s}.steps li{list-style:none;counter-increment:s;padding:12px 0 12px 44px;position:relative;border-bottom:1px solid var(--line)}
+.steps li:before{content:counter(s);position:absolute;left:0;top:10px;width:28px;height:28px;border-radius:8px;background:var(--pg);display:grid;place-items:center;font-weight:700}
+</style>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <div class="brand" style="display:inline-flex;margin-bottom:18px">⚡ HeRo Check</div>
+  <div class="card">
+    <h1>Sign in</h1>
+    <p class="sub" id="login-msg">Log in with Discord to open HeRo Check.</p>
+    <a class="btn btn-p" href="/api/auth/login" style="width:100%;justify-content:center">Continue with Discord</a>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="top"><div class="top-in">
+    <a class="brand" data-go="dashboard">⚡ HeRo Check</a>
+    <nav class="nav" id="nav">
+      <a data-go="dashboard">Dashboard</a><a data-go="pins">Pins</a><a data-go="strings">Strings</a>
+      <a data-go="downloads">Downloads</a><a data-go="guilds">Guilds</a><a data-go="enterprise">Enterprise</a>
+      <a data-go="changelogs">Changelogs</a><a data-go="tutorial">Tutorial</a><a data-go="analytic">🔍 Analytic</a>
+    </nav>
+    <div class="me">
+      <a class="btn btn-sm" id="to-shield" href="/dashboard" hidden>HeRo Shield</a>
+      <img id="av" alt="" hidden>
+      <a class="btn btn-sm" data-go="settings">⚙ Settings</a>
+    </div>
+  </div></header>
+  <main id="view"></main>
+</div>
+
+<script>
+(() => {
+  const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
+  const $ = (s) => document.querySelector(s);
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const st = { user: null, server: null, pins: [], sigs: [] };
+
+  // report fields may be PascalCase (C#) or camelCase
+  const R = (o, k) => o == null ? undefined : (o[k] ?? o[k[0].toLowerCase() + k.slice(1)]);
+  const arr = (o, k) => R(o, k) || [];
+
+  function toast(m, err) { const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = m; document.body.append(t); setTimeout(() => t.remove(), 3200); }
+
+  async function api(path, opts = {}) {
+    const r = await fetch(path, { method: opts.method || 'GET', headers: opts.body ? { 'Content-Type': 'application/json' } : undefined, body: opts.body ? JSON.stringify(opts.body) : undefined, credentials: 'same-origin' });
+    let d = {}; try { d = await r.json(); } catch {}
+    if (r.status === 401 && !path.includes('/api/me')) { showLogin(); throw new Error('Not logged in'); }
+    if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
+    return d;
+  }
+
+  function showLogin(msg) { $('#app').hidden = true; $('#login').hidden = false; if (msg) $('#login-msg').textContent = msg; }
+
+  const resBadge = (r) => r === 'cheating' ? '<span class="badge b-cheat">Cheating</span>' : r === 'suspicious' ? '<span class="badge b-sus">Suspicious</span>' : r === 'clean' ? '<span class="badge b-clean">Clean</span>' : '<span class="badge b-wait">Waiting</span>';
+  const when = (t) => t ? new Date(t).toLocaleString() : '';
+
+  async function init() {
+    try { st.user = await api('/api/me'); } catch { return showLogin(); }
+    const acc = st.user.access || { heroshield: true, herocheck: true };
+    if (!acc.herocheck) {
+      if (acc.heroshield) { location.replace('/dashboard'); return; }
+      return showLogin('Your account has no HeRo Check access. Ask the owner for the HeRo Check role.');
+    }
+    $('#to-shield').hidden = !acc.heroshield;
+    if (st.user.avatar) { $('#av').src = st.user.avatar; $('#av').hidden = false; }
+    $('#login').hidden = true; $('#app').hidden = false;
+    // HeRo Check needs one "space" (server row) to hold its PINs — create it on first use
+    let { servers } = await api('/api/servers');
+    if (!servers.length) { await api('/api/servers', { method: 'POST', body: { name: 'HeRo Check' } }); ({ servers } = await api('/api/servers')); }
+    st.server = servers[0].id;
+    route();
+  }
+
+  window.addEventListener('hashchange', route);
+  document.addEventListener('click', (e) => { const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); location.hash = g.dataset.go; } });
+
+  async function route() {
+    const [page, arg] = (location.hash.slice(1) || 'dashboard').split('/');
+    document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.go === page));
+    const v = $('#view');
+    v.innerHTML = '<div class="empty">Loading…</div>';
+    try { await (PAGES[page] || PAGES.dashboard)(v, arg); } catch (err) { v.innerHTML = `<div class="card empty">${esc(err.message)}</div>`; }
+  }
+
+  async function loadPins() { const { pins } = await api('/api/pins?server=' + encodeURIComponent(st.server)); st.pins = pins; return pins; }
+
+  const PAGES = {
+    async dashboard(v) {
+      const pins = await loadPins();
+      const done = pins.filter((p) => p.used);
+      const c = (r) => done.filter((p) => p.result === r).length;
+      v.innerHTML = `<h1>Dashboard</h1><p class="sub">Welcome back, ${esc(st.user.name)}.</p>
+        <div class="grid g4" style="margin-bottom:16px">
+          <div class="card kpi"><div class="l">Total scans</div><div class="v">${done.length}</div></div>
+          <div class="card kpi"><div class="l">Cheating</div><div class="v" style="color:var(--red)">${c('cheating')}</div></div>
+          <div class="card kpi"><div class="l">Suspicious</div><div class="v" style="color:var(--yellow)">${c('suspicious')}</div></div>
+          <div class="card kpi"><div class="l">Clean</div><div class="v" style="color:var(--green)">${c('clean')}</div></div>
+        </div>
+        <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><b>Recent scans</b><a class="btn btn-p btn-sm" data-go="pins">+ New PIN</a></div>
+        ${pinTable(pins.slice(0, 10))}</div>`;
+    },
+
+    async pins(v, arg) {
+      if (arg) return result(v, arg);
+      const pins = await loadPins();
+      v.innerHTML = `<h1>Pins</h1><p class="sub">Create a PIN, send it to the player, they type it in the scanner.</p>
+        <div class="card" style="margin-bottom:16px"><div class="row">
+          <input id="pp" class="input" style="flex:1;min-width:200px" placeholder="Player name (optional)">
+          <button class="btn btn-p" id="mk">Generate PIN</button></div></div>
+        <div class="card">${pinTable(pins)}</div>`;
+      $('#mk').onclick = async () => {
+        const { pin } = await api('/api/pins', { method: 'POST', body: { server: st.server, player: $('#pp').value.trim() } });
+        navigator.clipboard?.writeText(pin.pin).catch(() => {});
+        toast('PIN ' + pin.pin + ' created (copied)'); route();
+      };
+    },
+
+    async strings(v) {
+      const { signatures } = await api('/api/signatures');
+      v.innerHTML = `<h1>Strings</h1><p class="sub">Your own detection list. The scanner downloads it live with the PIN. Match by file name, C2 domain or SHA-256.</p>
+        <div class="grid g2" style="margin-bottom:16px">
+          <div class="card"><b>Add one</b><div class="grid" style="margin-top:10px;gap:8px">
+            <input id="s-n" class="input" placeholder="Name (e.g. Susano)">
+            <input id="s-f" class="input" placeholder="File names: loader.exe, x.dll">
+            <input id="s-d" class="input" placeholder="Domains: api.example.re">
+            <input id="s-h" class="input" placeholder="SHA-256 hashes (optional)">
+            <button class="btn btn-p" id="s-add">Add string</button></div></div>
+          <div class="card"><b>Bulk import</b><p class="sub" style="margin:6px 0 8px;font-size:12px">One per line: <span class="mono">Name | files | domains | hashes</span></p>
+            <textarea id="s-b" class="input mono" rows="7" style="font-size:12px"></textarea>
+            <button class="btn btn-p" id="s-imp" style="margin-top:8px">Import all</button></div>
+        </div>
+        <div class="card"><b>Strings (${signatures.length})</b>
+        ${signatures.length ? `<div class="tw" style="margin-top:10px"><table><thead><tr><th>Name</th><th>Files</th><th>Domains</th><th>Hashes</th><th></th></tr></thead><tbody>
+          ${signatures.map((s) => `<tr><td><b>${esc(s.name)}</b></td><td class="mono" style="font-size:12px">${esc((s.file_names || []).join(', ')) || '-'}</td>
+          <td class="mono" style="font-size:12px;color:var(--p)">${esc((s.domains || []).join(', ')) || '-'}</td><td>${(s.hashes || []).length}</td>
+          <td><button class="btn btn-d btn-sm" data-del="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No strings yet.</div>'}</div>`;
+      $('#s-add').onclick = async () => {
+        const b = { name: $('#s-n').value.trim(), fileNames: $('#s-f').value.trim(), domains: $('#s-d').value.trim(), hashes: $('#s-h').value.trim(), severity: 'high' };
+        if (!b.name || !(b.fileNames || b.domains || b.hashes)) return toast('Name + a file, domain or hash', true);
+        await api('/api/signatures', { method: 'POST', body: b }); toast('Added'); route();
+      };
+      $('#s-imp').onclick = async () => {
+        const bulk = $('#s-b').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+          const [name, fileNames, domains, hashes] = l.split('|').map((x) => (x || '').trim());
+          return { name, fileNames: fileNames || '', domains: domains || '', hashes: hashes || '', severity: 'high' };
+        }).filter((x) => x.name && (x.fileNames || x.domains || x.hashes));
+        if (!bulk.length) return toast('Nothing valid to import', true);
+        const r = await api('/api/signatures', { method: 'POST', body: { bulk } }); toast('Imported ' + r.added); route();
+      };
+      v.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => { await api('/api/signatures?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }); route(); });
+    },
+
+    async downloads(v) {
+      v.innerHTML = `<h1>Downloads</h1><p class="sub">The scanner the player runs.</p>
+        <div class="card row" style="justify-content:space-between"><div><b>HeRo Scanner</b><div class="sub" style="margin:2px 0 0">Windows 10/11 · run, type the PIN, accept the check</div></div>
+        <a class="btn btn-p" href="${SCANNER_URL}">⬇ Download .exe</a></div>`;
+    },
+
+    async guilds(v) {
+      v.innerHTML = `<h1>Guilds</h1><p class="sub">Check which of the servers your bot is in a Discord user has joined.</p>
+        <div class="card" style="margin-bottom:16px"><div class="row"><input id="g-id" class="input mono" style="flex:1" placeholder="Discord user ID"><button class="btn btn-p" id="g-go">Check</button></div></div><div id="g-out"></div>`;
+      $('#g-go').onclick = async () => {
+        const id = $('#g-id').value.trim(); if (!id) return;
+        $('#g-out').innerHTML = '<div class="empty">Checking…</div>';
+        try {
+          const r = await api('/api/discord-investigate?id=' + encodeURIComponent(id));
+          $('#g-out').innerHTML = `<div class="card"><b>Found in ${r.found.length} of ${r.checked} servers</b>${r.found.length ? `<div class="tw" style="margin-top:10px"><table><thead><tr><th>Server</th><th>Joined</th><th>Roles</th></tr></thead><tbody>${r.found.map((f) => `<tr><td>${esc(f.server)}</td><td>${when(f.joined)}</td><td>${(f.roles || []).length}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">Not in any of the bot\'s servers.</div>'}</div>`;
+        } catch (e) { $('#g-out').innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
+      };
+    },
+
+    async enterprise(v) {
+      const { staff } = await api('/api/staff');
+      v.innerHTML = `<h1>Enterprise</h1><p class="sub">Your staff team.</p>
+        <div class="card" style="margin-bottom:16px"><div class="row">
+          <input id="e-n" class="input" style="flex:1" placeholder="Name"><input id="e-d" class="input mono" style="flex:1" placeholder="Discord ID">
+          <select id="e-r" class="input" style="width:130px"><option value="staff">Staff</option><option value="admin">Admin</option></select>
+          <button class="btn btn-p" id="e-add">Add</button></div></div>
+        <div class="card">${(staff || []).length ? `<table><thead><tr><th>Name</th><th>Discord ID</th><th>Role</th><th></th></tr></thead><tbody>${staff.map((s) => `<tr><td>${esc(s.name)}</td><td class="mono">${esc(s.discord_id || '-')}</td><td>${esc(s.role)}</td><td><button class="btn btn-d btn-sm" data-del="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">No staff yet.</div>'}</div>`;
+      $('#e-add').onclick = async () => { const name = $('#e-n').value.trim(); if (!name) return toast('Name required', true); await api('/api/staff', { method: 'POST', body: { name, discordId: $('#e-d').value.trim(), role: $('#e-r').value } }); route(); };
+      v.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => { await api('/api/staff?id=' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }); route(); });
+    },
+
+    async changelogs(v) {
+      const log = [
+        ['3.6', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import'],
+        ['3.5', 'False-positive guards: own project files, OneDrive, node_modules, recycle bin, multi-match'],
+        ['3.4', 'PowerShell / Run history, bypass & cleaning tells, UserAssist, MUICache'],
+        ['3.3', 'Whole-disk deep scan, script obfuscation and packer detection'],
+      ];
+      v.innerHTML = `<h1>Changelogs</h1><p class="sub">What changed in the scanner.</p>${log.map(([ver, t]) => `<div class="card" style="margin-bottom:10px"><b style="color:var(--p)">v${ver}</b><div style="margin-top:4px">${esc(t)}</div></div>`).join('')}`;
+    },
+
+    async tutorial(v) {
+      v.innerHTML = `<h1>Tutorial</h1><p class="sub">How a screenshare works with HeRo Check.</p><div class="card"><ol class="steps">
+        <li><b>Generate a PIN</b><div class="sub" style="margin:0">Pins → Generate PIN.</div></li>
+        <li><b>Send the scanner + PIN</b><div class="sub" style="margin:0">Player downloads it from Downloads and types the PIN.</div></li>
+        <li><b>Player accepts the check</b><div class="sub" style="margin:0">The scan takes a few minutes (whole PC).</div></li>
+        <li><b>Open the result</b><div class="sub" style="margin:0">Pins → click the PIN. Read Overview, Warnings, Suspicious and the rest.</div></li>
+        <li><b>Add your own strings</b><div class="sub" style="margin:0">Strings → names, domains, hashes. Every next scan uses them.</div></li></ol></div>`;
+    },
+
+    async analytic(v) {
+      v.innerHTML = `<h1>Analytic</h1><p class="sub">Look up a Discord ID across your past scans.</p>
+        <div class="card" style="margin-bottom:16px"><div class="row"><input id="a-id" class="input mono" style="flex:1" placeholder="Discord user ID"><button class="btn btn-p" id="a-go">Search</button></div></div><div id="a-out"></div>`;
+      $('#a-go').onclick = async () => {
+        const id = $('#a-id').value.trim(); if (!id) return;
+        const r = await api(`/api/data?type=lookup&server=${encodeURIComponent(st.server)}&id=${encodeURIComponent(id)}`);
+        $('#a-out').innerHTML = `<div class="card"><b>Scans for ${esc(r.id)} (${r.scans.length})</b>${r.scans.length ? `<table style="margin-top:10px"><thead><tr><th>PIN</th><th>Player</th><th>Result</th><th>Date</th></tr></thead><tbody>${r.scans.map((s) => `<tr class="click" data-go="pins/${esc(s.pin)}"><td class="mono">${esc(s.pin)}</td><td>${esc(s.player || '-')}</td><td>${resBadge(s.result)}</td><td>${when(s.created_at)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No scans for this ID.</div>'}</div>`;
+      };
+    },
+
+    async settings(v) {
+      let bg = ''; try { bg = (await api('/api/scanner-bg?server=' + encodeURIComponent(st.server))).bg || ''; } catch {}
+      v.innerHTML = `<h1>Settings</h1><p class="sub">Account and scanner look.</p>
+        <div class="grid g2">
+          <div class="card"><b>Account</b><div style="margin:10px 0">${esc(st.user.name)} <span class="mono" style="color:var(--dim)">${esc(st.user.id)}</span></div><a class="btn btn-d" href="/api/auth/logout">Log out</a></div>
+          <div class="card"><b>Scanner background</b><div class="sub" style="margin:4px 0 10px">Shown in the scanner window for your PINs.</div>
+            ${bg ? `<img src="${esc(bg)}" style="width:100%;border-radius:10px;margin-bottom:10px">` : ''}
+            <div class="row"><input type="file" id="bg-f" accept="image/png,image/jpeg,image/gif"><button class="btn btn-p btn-sm" id="bg-up">Upload</button>${bg ? '<button class="btn btn-d btn-sm" id="bg-rm">Remove</button>' : ''}</div></div>
+        </div>`;
+      $('#bg-up').onclick = () => {
+        const f = $('#bg-f').files[0]; if (!f) return toast('Choose an image', true);
+        if (f.size > 4 * 1024 * 1024) return toast('Max 4 MB', true);
+        const rd = new FileReader(); rd.onload = async () => { await api('/api/scanner-bg', { method: 'POST', body: { server: st.server, image: rd.result } }); toast('Saved'); route(); }; rd.readAsDataURL(f);
+      };
+      if ($('#bg-rm')) $('#bg-rm').onclick = async () => { await api('/api/scanner-bg?server=' + encodeURIComponent(st.server), { method: 'DELETE' }); route(); };
+    },
+  };
+
+  function pinTable(pins) {
+    if (!pins.length) return '<div class="empty">No PINs yet.</div>';
+    return `<div class="tw"><table><thead><tr><th>PIN</th><th>Player</th><th>Result</th><th>Created</th></tr></thead><tbody>
+      ${pins.map((p) => `<tr class="click" data-go="pins/${esc(p.pin)}"><td class="mono"><b>${esc(p.pin)}</b></td><td>${esc(p.player || '-')}</td><td>${p.used ? resBadge(p.result) : resBadge()}</td><td>${when(p.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  // ---------------- scan result (napse layout) ----------------
+  async function result(v, pinCode) {
+    if (!st.pins.length) await loadPins();
+    const p = st.pins.find((x) => x.pin === pinCode);
+    if (!p) { v.innerHTML = '<div class="card empty">PIN not found.</div>'; return; }
+    if (!p.used || !p.report) { v.innerHTML = `<div class="card empty">PIN <b class="mono">${esc(p.pin)}</b> is waiting — the player hasn't finished the scan yet.<br><br><button class="btn" onclick="location.reload()">Refresh</button></div>`; return; }
+    try { st.sigs = (await api('/api/signatures')).signatures || []; } catch { st.sigs = []; }
+
+    const rep = p.report;
+    const det = arr(rep, 'Detections'), warn = arr(rep, 'Warnings'), sus = arr(rep, 'Suspicious');
+    const exe = arr(rep, 'ExecutedPrograms'), mods = arr(rep, 'Mods'), sys = R(rep, 'System') || {};
+    const sev = (d) => { const s = R(d, 'Severity'); return s === 2 || s === 'High' ? 'h' : s === 1 || s === 'Medium' ? 'm' : 'l'; };
+    const myNames = st.sigs.map((s) => s.name.toLowerCase());
+    const isUsb = (path) => /^[a-z]:\\/i.test(path || '') && !/^c:\\/i.test(path || '');
+    const kind = (s) => String(R(s, 'Kind') || '');
+
+    const dItem = (d) => `<div class="it"><span class="sev s-${sev(d)}">${({ h: 'HIGH', m: 'MED', l: 'LOW' })[sev(d)]}</span><div style="min-width:0">
+      <div class="t">${esc(R(d, 'Signature'))} <span style="color:var(--muted);font-weight:400">— ${esc(R(d, 'File'))}</span>${R(d, 'Deleted') ? ' <span class="badge b-cheat">deleted</span>' : ''}</div>
+      <div class="p mono">📁 ${esc(R(d, 'Path'))}</div>
+      ${R(d, 'Explain') ? `<div class="x">${esc(R(d, 'Explain'))}</div>` : ''}
+      ${R(d, 'Sha256') ? `<div class="x mono">SHA256 ${esc(R(d, 'Sha256'))}</div>` : ''}
+      <div class="x">${esc(R(d, 'When') || '')}</div></div></div>`;
+    const sItem = (s) => `<div class="it"><span class="sev s-m">SUS</span><div style="min-width:0"><div class="t">${esc(kind(s))}</div><div class="p mono">📁 ${esc(R(s, 'Path'))}</div></div></div>`;
+    const wItem = (w) => `<div class="it"><span class="sev s-m">WARN</span><div><div class="t">${esc(R(w, 'Title'))}</div><div class="x">${esc(R(w, 'Detail'))}</div></div></div>`;
+    const eItem = (e) => `<div class="it"><span class="sev ${R(e, 'Flagged') ? 's-h' : 's-l'}">${esc(R(e, 'Source'))}</span><div style="min-width:0"><div class="t">${esc(R(e, 'Name'))}</div><div class="p mono">📁 ${esc(R(e, 'Path'))}</div><div class="x">${esc(R(e, 'LastRun'))}</div></div></div>`;
+    const mItem = (m) => `<div class="it"><span class="sev s-l">RPF</span><div style="min-width:0"><div class="t">${esc(R(m, 'File'))} <span style="color:var(--dim)">${esc(R(m, 'SizeMb'))} MB</span></div><div class="p mono">📁 ${esc(R(m, 'Path'))}</div></div></div>`;
+
+    const T = [
+      ['overview', '🟣', 'Overview', det, dItem],
+      ['warnings', '⚠️', 'Warnings', warn, wItem],
+      ['suspicious', '👁', 'Suspicious', sus.filter((s) => !/^generic a1|unsigned|invalid/i.test(kind(s))), sItem],
+      ['strings', '👤', 'My Strings', det.filter((d) => myNames.some((n) => String(R(d, 'Signature') || '').toLowerCase().startsWith(n))), dItem],
+      ['yara', '〰', 'Yara', det.filter((d) => /^(detected:|cheat string:)|\((domain|hash)\)$/i.test(R(d, 'Signature') || '')), dItem],
+      ['entropy', '📈', 'Entropy', sus.filter((s) => /^generic a1/i.test(kind(s))), sItem],
+      ['pca', '⚡', 'PcaClient', exe.filter((e) => R(e, 'Source') === 'PCA'), eItem],
+      ['recent', '🕒', 'Recent Files', exe.filter((e) => /just now|min ago|h ago/.test(R(e, 'LastRun') || '')), eItem],
+      ['usb', '🔌', 'USB Files', det.filter((d) => isUsb(R(d, 'Path'))), dItem],
+      ['av', '🛡', 'Antivirus', warn.filter((w) => /defender|antivirus|protection/i.test((R(w, 'Title') || '') + (R(w, 'Detail') || ''))), wItem],
+      ['rpf', '☰', '.RPF', mods.filter((m) => /\.rpf$/i.test(R(m, 'File') || '')), mItem],
+      ['invalid', '⛔', 'Invalid-Signature', sus.filter((s) => /invalid/i.test(kind(s))), sItem],
+      ['unsigned', '✳', 'Unsigned Files', sus.filter((s) => /unsigned|generic dll|asi/i.test(kind(s))), sItem],
+    ];
+    const discord = R(rep, 'DiscordId'), steam = arr(rep, 'SteamAccounts'), browsers = arr(rep, 'Browsers');
+
+    v.innerHTML = `
+      <div class="card" style="margin-bottom:16px"><div class="rhead">
+        <div class="rh"><div class="ri" style="background:rgba(56,189,248,.15)">🎮</div><div><div class="l">Game</div><div class="v">FiveM</div></div></div>
+        <div class="rh"><div class="ri" style="background:rgba(244,63,94,.15)">🔑</div><div><div class="l">PIN</div><div class="v mono">${esc(p.pin)}</div></div></div>
+        <div class="rh"><div class="ri" style="background:rgba(234,179,8,.15)">⚠</div><div><div class="l">Result</div><div class="v" style="text-transform:capitalize">${esc(p.result)}</div></div></div>
+        <div class="rh"><div class="ri" style="background:rgba(168,85,247,.15)">🪪</div><div><div class="l">Customer ID</div><div class="v mono">${esc(R(sys, 'Hwid') || '-')}</div></div></div>
+        <div class="rh"><div class="ri" style="background:rgba(45,212,191,.15)">👤</div><div><div class="l">Player</div><div class="v">${esc(p.player || '-')}</div></div></div>
+      </div></div>
+      <div class="card" style="margin-bottom:16px;min-height:340px">
+        <div class="row" style="margin-bottom:12px"><input id="q" class="input" placeholder="Search everything (file, path, hash…)" style="max-width:360px"></div>
+        <div class="tabs" id="tabs">${T.map(([k, ic, lb, list], i) => `<div class="tab${i ? '' : ' on'}" data-t="${k}">${ic} ${lb} <span class="n">(${list.length})</span></div>`).join('')}</div>
+        <div id="tb"></div>
+      </div>
+      <div class="grid g2" style="margin-bottom:16px">
+        <div class="card"><b>💬 Discords (${discord ? 1 : 0})</b><div style="margin-top:10px">${discord ? `<div class="it"><div><div class="t mono">${esc(discord)}</div><div class="x">Discord user ID found on the PC</div></div></div>` : '<div class="empty" style="padding:16px">None</div>'}</div></div>
+        <div class="card"><b>🌐 Browsers / Accounts (${browsers.length + steam.length})</b><div style="margin-top:10px">${[...browsers.map((b) => `<div class="it"><div class="t">${esc(typeof b === 'string' ? b : R(b, 'Name'))}</div></div>`), ...steam.map((s) => `<div class="it"><div><div class="t">${esc(s)}</div><div class="x">Steam</div></div></div>`)].join('') || '<div class="empty" style="padding:16px">None</div>'}</div></div>
+      </div>
+      <div class="card"><b>🖥 PC Information</b><div class="tw" style="margin-top:10px"><table><tbody>
+        ${[['OS', 'Os'], ['CPU', 'Cpu'], ['GPU', 'Gpu'], ['RAM', 'RamGb'], ['Motherboard', 'Motherboard'], ['Windows install', 'WindowsInstall'], ['Boot', 'BootTime'], ['FiveM last launch', 'FiveMLastLaunch'], ['Recycle bin', 'RecycleModified'], ['Disk serials', 'DiskSerials'], ['MAC', 'MacAddresses'], ['Machine GUID', 'MachineGuid'], ['Spoofer', 'SpooferFlag']]
+          .filter(([, k]) => R(sys, k)).map(([l, k]) => `<tr><td style="color:var(--muted);width:200px">${l}</td><td class="mono">${esc(R(sys, k))}</td></tr>`).join('')}
+        <tr><td style="color:var(--muted)">Files scanned</td><td class="mono">${esc(R(rep, 'FilesScanned') ?? '-')} in ${esc(R(rep, 'DurationSeconds') ?? '-')} s</td></tr>
+      </tbody></table></div></div>`;
+
+    let cur = T[0];
+    const draw = () => {
+      const q = $('#q').value.trim().toLowerCase();
+      const list = q ? cur[3].filter((x) => JSON.stringify(x).toLowerCase().includes(q)) : cur[3];
+      $('#tb').innerHTML = list.length ? list.slice(0, 500).map(cur[4]).join('') : `<div class="empty">Nothing in ${esc(cur[2])}.</div>`;
+    };
+    $('#tabs').onclick = (e) => { const t = e.target.closest('.tab'); if (!t) return; document.querySelectorAll('.tab').forEach((x) => x.classList.remove('on')); t.classList.add('on'); cur = T.find((x) => x[0] === t.dataset.t); draw(); };
+    $('#q').oninput = draw;
+    draw();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
