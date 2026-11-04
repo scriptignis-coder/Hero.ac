@@ -70,5 +70,19 @@ export default wrap(async (req, res) => {
     return send(res, 200, { rows: rows || [] });
   }
 
+  // look a Discord ID up across THIS server's own records (bans, detections, scans)
+  if (type === 'lookup') {
+    const raw = String(req.query.id || '').replace(/[^0-9]/g, '').slice(0, 25); // numeric Discord ID
+    if (!raw) return send(res, 200, { id: '', bans: [], detections: [], scans: [] });
+    const disc = enc(`["discord:${raw}"]`);
+    const likeId = `*${enc(raw)}*`;
+    const [bans, detections, scans] = await Promise.all([
+      sb(`bans?server_id=eq.${sid}&or=(identifiers.cs.${disc},identifier.ilike.${likeId})&select=ban_id,player,reason,info,active,created_at&order=created_at.desc&limit=50`),
+      sb(`detections?server_id=eq.${sid}&or=(identifiers.cs.${disc},identifier.ilike.${likeId})&select=player,reason,action,info,created_at&order=created_at.desc&limit=50`),
+      sb(`scan_pins?server_id=eq.${sid}&report->>DiscordId=eq.${enc(raw)}&select=pin,player,result,created_at&order=created_at.desc&limit=50`),
+    ]);
+    return send(res, 200, { id: raw, bans: bans || [], detections: detections || [], scans: scans || [] });
+  }
+
   throw httpError(400, 'Invalid type');
 });

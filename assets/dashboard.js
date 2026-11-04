@@ -201,6 +201,7 @@
       else if (state.tab === 'stream') await window.HSConfig.renderStream(view, { api, toast, state, modal });
       else if (state.tab === 'logs') await renderLogs(view);
       else if (state.tab === 'pins') await renderPins(view);
+      else if (state.tab === 'discord') await renderDiscordCheck(view);
       else await renderTable(view, state.tab);
     } catch (e) {
       view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
@@ -413,6 +414,62 @@
               <button class="btn btn-ghost btn-sm" data-copypin="${esc(p.pin)}">Copy</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">No PINs yet.</div>'}
       </div>`;
+  }
+
+  async function renderDiscordCheck(view, id) {
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Check a Discord ID</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+          Enter a player's Discord ID to see everything on record for them on this server:
+          anticheat bans, in-game detections and screenshare scan results.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="disc-id" class="input" style="flex:1;min-width:200px" inputmode="numeric"
+                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
+          <button class="btn btn-primary" data-disccheck>Check</button>
+        </div>
+        <p style="color:var(--dim);font-size:11px;margin-top:8px">
+          The scanner reads the Discord ID from the player's PC during a scan. This only searches
+          your own records — it cannot read someone's Discord servers or messages.</p>
+      </div>
+      <div id="disc-out"></div>`;
+    if (id) await runDiscordCheck(id);
+  }
+
+  async function runDiscordCheck(id) {
+    const out = $('#disc-out');
+    out.innerHTML = loading();
+    try {
+      const d = await api(`/api/data?server=${state.server}&type=lookup&id=${encodeURIComponent(id)}`);
+      const total = d.bans.length + d.detections.length + d.scans.length;
+      const verdict = d.bans.some((b) => b.active) ? ['BANNED', 'var(--red)']
+        : total === 0 ? ['NO RECORD', 'var(--dim)']
+        : d.scans.some((s) => s.result === 'cheating') || d.detections.length ? ['FLAGGED', 'var(--orange)']
+        : ['SEEN', 'var(--green)'];
+      const rowsTbl = (title, head, body, n) => `<div class="card panel" style="margin-bottom:14px">
+        <h3>${title} <span style="color:var(--dim);font-weight:500">(${n})</span></h3>
+        ${n ? `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+            : '<div class="empty">None.</div>'}</div>`;
+      out.innerHTML = `
+        <div class="card panel" style="margin-bottom:14px;text-align:center">
+          <h3 style="margin:0">Discord <span class="mono" style="color:var(--cyan)">${esc(d.id)}</span>
+            — <span style="color:${verdict[1]}">${verdict[0]}</span></h3>
+        </div>
+        ${rowsTbl('Anticheat bans', '<th>Ban ID</th><th>Player</th><th>Reason</th><th>Status</th><th>Date</th>',
+          d.bans.map((b) => `<tr><td class="mono" style="color:var(--cyan)">${esc(b.ban_id)}</td><td>${esc(b.player)}</td>
+            <td>${esc(b.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(b.info)}</div></td>
+            <td><span class="badge ${b.active ? 'ban' : 'off'}">${b.active ? 'Active' : 'Removed'}</span></td>
+            <td class="mono">${fmtDate(b.created_at)}</td></tr>`).join(''), d.bans.length)}
+        ${rowsTbl('In-game detections', '<th>Player</th><th>Detection</th><th>Action</th><th>Date</th>',
+          d.detections.map((x) => `<tr><td>${esc(x.player)}</td>
+            <td>${esc(x.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(x.info)}</div></td>
+            <td><span class="badge ${esc(x.action)}">${esc(x.action)}</span></td>
+            <td class="mono">${fmtDate(x.created_at)}</td></tr>`).join(''), d.detections.length)}
+        ${rowsTbl('Screenshare scans', '<th>PIN</th><th>Player</th><th>Result</th><th>Date</th>',
+          d.scans.map((s) => `<tr><td class="mono" style="color:var(--cyan)">${esc(s.pin)}</td><td>${esc(s.player) || '-'}</td>
+            <td>${s.result ? `<span class="badge ${s.result === 'cheating' ? 'ban' : s.result === 'clean' ? 'on' : 'kick'}">${esc(s.result)}</span>` : '-'}</td>
+            <td class="mono">${fmtDate(s.created_at)}</td></tr>`).join(''), d.scans.length)}`;
+    } catch (e) { out.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
   }
 
   function renderPinReport(view, pin, sub) {
@@ -812,6 +869,11 @@
     if (t.dataset.live) return startLive(t.dataset.live, t.dataset.name);
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
+    if (t.dataset.disccheck !== undefined) {
+      const id = ($('#disc-id').value || '').replace(/[^0-9]/g, '');
+      if (!id) return toast('Enter a Discord ID', true);
+      return runDiscordCheck(id);
+    }
     if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
     if (t.dataset.lookuppin !== undefined) {
       const code = ($('#pin-lookup').value || '').trim().toUpperCase();
