@@ -10,6 +10,7 @@
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team',
+    tutorial: 'Tutorial', changelogs: 'Changelogs',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -142,22 +143,11 @@
       return showLogin();
     }
     const acc = state.user.access || { heroshield: true, herocheck: true };
-    if (!acc.heroshield) {
-      if (acc.herocheck) { location.replace('/check'); return; }
+    if (!acc.heroshield && !acc.herocheck) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = 'Your account has no HeRo Shield or HeRo Check access. Ask the owner for a role.';
+      $('#login-error').textContent = 'Your account has no access. Ask the owner for a role.';
       $('#login-error').hidden = false;
       return;
-    }
-    if (acc.herocheck) {
-      const nav = document.querySelector('.sidebar nav, nav.side, aside nav, aside');
-      if (nav && !document.getElementById('to-check')) {
-        const a = document.createElement('a');
-        a.id = 'to-check'; a.href = '/check';
-        a.textContent = '🔎  Open HeRo Check';
-        a.style.cssText = 'display:block;margin:10px 14px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-weight:600;text-decoration:none;text-align:center';
-        nav.prepend(a);
-      }
     }
     if (location.search) history.replaceState(null, '', '/dashboard');
     $('#login').hidden = true;
@@ -206,6 +196,8 @@
     if (state.tab === 'scanner') return renderScanner(view);
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
+    if (state.tab === 'tutorial') return renderTutorial(view);
+    if (state.tab === 'changelogs') return renderChangelogs(view);
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
         <p style="margin-bottom:16px">You don't have a server yet.</p>
@@ -782,6 +774,42 @@
             <td><button class="btn btn-danger btn-sm" data-delstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No staff yet.</div>'}
       </div>`;
+  }
+
+  function renderTutorial(view) {
+    view.innerHTML = `
+      <h2 style="margin-bottom:8px">Tutorial</h2>
+      <p class="text-muted" style="margin-bottom:20px">How a screenshare works with HeRo Shield.</p>
+      <div class="card" style="padding:24px">
+        <ol style="display:flex;flex-direction:column;gap:18px;padding-left:22px;margin:0">
+          <li><b>Generate a PIN</b><p class="text-muted" style="margin:4px 0 0">Go to Scan PINs → Generate PIN. Copy it.</p></li>
+          <li><b>Send the scanner + PIN to the player</b><p class="text-muted" style="margin:4px 0 0">Player downloads the scanner from the Downloads page and types the PIN when it opens.</p></li>
+          <li><b>Player accepts the check</b><p class="text-muted" style="margin:4px 0 0">The scan runs for 1–3 minutes. It reads the whole PC (execution history, files, registry).</p></li>
+          <li><b>Open the result</b><p class="text-muted" style="margin:4px 0 0">Scan PINs → click the PIN. Check Overview, Warnings, Suspicious and the other tabs.</p></li>
+          <li><b>Add your own strings</b><p class="text-muted" style="margin:4px 0 0">Signatures → add cheat names, C2 domains, SHA-256 hashes. Every next scan picks them up live.</p></li>
+          <li><b>Review the verdict</b><p class="text-muted" style="margin:4px 0 0">The scanner rates the PC as <b style="color:var(--red)">cheating</b>, <b style="color:var(--yellow)">suspicious</b> or <b style="color:var(--green)">clean</b> based on what it found. Always review manually.</p></li>
+        </ol>
+      </div>`;
+  }
+
+  function renderChangelogs(view) {
+    const log = [
+      ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
+      ['3.6.0', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import, domains & hashes in signatures'],
+      ['3.5.0', 'False-positive guards: skip own project files, OneDrive, node_modules, recycle bin. Multi-match fix (3+ cheat names = list, not cheat)'],
+      ['3.4.0', 'PowerShell & Run (Win+R) command history, bypass & cleaning tells, UserAssist, MUICache'],
+      ['3.3.0', 'Whole-disk deep scan, script obfuscation detection (encoded PowerShell, base64 Lua), packer detection (Themida, VMProtect, Enigma, UPX)'],
+      ['3.2.0', 'Prefetch, BAM, PCA execution timeline. FiveM plugin scan. Recycle bin analysis'],
+      ['3.1.0', 'Running process scan, network/DNS indicators, drop folder scan'],
+      ['3.0.0', 'Initial release — system info, signature matching, screenshot capture, backend upload'],
+    ];
+    view.innerHTML = `
+      <h2 style="margin-bottom:8px">Changelogs</h2>
+      <p class="text-muted" style="margin-bottom:20px">What changed in the scanner.</p>
+      ${log.map(([ver, text]) => `<div class="card" style="margin-bottom:10px;padding:16px 20px">
+        <b style="color:var(--primary)">v${ver}</b>
+        <div style="margin-top:6px">${esc(text)}</div>
+      </div>`).join('')}`;
   }
 
   function renderServers(view) {
