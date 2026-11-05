@@ -12,7 +12,7 @@
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
   };
-  const SCANNER_URL = 'https://github.com/midouff030-blip/HeRo-Shield/releases/latest/download/HeRoShieldScanner.exe';
+  const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
     state: 'Session expired, try again.', token: 'Discord refused the login.',
     user: 'Could not read your Discord profile.', server: 'Server error, try again.',
@@ -403,7 +403,7 @@
         <h3>HeRo Scanner — PC check</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:18px">A read-only Windows tool players run during a screenshare. It checks running programs, kernel drivers, startup & scheduled tasks, Windows execution traces (Prefetch, BAM, ShimCache — even deleted cheats), live connections, event logs, anti-cleaning tells, the FiveM folder and the recycle bin, then sends the result here.</p>
         <a class="btn btn-primary" href="${SCANNER_URL}"><svg style="width:18px;height:18px" aria-hidden="true"><use href="#i-download"/></svg>Download scanner (.exe)</a>
-        <p class="mono" style="margin-top:12px;color:var(--dim)">Upload your built HeRoShieldScanner.exe to the repo's Releases so this link works.</p>
+        <p class="mono" style="margin-top:12px;color:var(--dim)">Generic download (player types the PIN). Better: send the per-player link from Scan PINs — the PIN is already inside.</p>
       </div>
       <div class="card panel">
         <h3>How a check works</h3>

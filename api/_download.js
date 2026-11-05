@@ -10,7 +10,7 @@ import { Readable } from 'node:stream';
 import { sb, enc } from './_lib.js';
 
 const SRC = () => process.env.SCANNER_EXE_URL
-  || 'https://github.com/midouff030-blip/HeRo-Shield/releases/latest/download/HeRoShieldScanner.exe';
+  || 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
 const CACHE = path.join(os.tmpdir(), 'heroshield-scanner.exe');
 const MAX_AGE = 30 * 60 * 1000;
 let inflight = null;
@@ -59,7 +59,7 @@ export async function handleDownload(req, res, rawPin) {
   let size;
   try { size = await getExe(); } catch (e) {
     console.error('scanner download', e.message);
-    return page(res, 502, 'Scanner not available', 'Staff: upload HeRoShieldScanner.exe to your GitHub release (or set SCANNER_EXE_URL).');
+    return page(res, 502, 'Scanner not available', 'Staff: upload HeRoShield.exe to your GitHub release (or set SCANNER_EXE_URL in Render).');
   }
 
   const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
