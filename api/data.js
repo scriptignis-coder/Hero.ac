@@ -1,6 +1,5 @@
 
 import { wrap, send, sb, enc, httpError, requireUser, requireOwnedServer } from './_lib.js';
-import { requireAccess } from './_lib.js';
 
 const count = async (path) => {
   const rows = await sb(`${path}${path.includes('?') ? '&' : '?'}select=id`);
@@ -17,7 +16,6 @@ export default wrap(async (req, res) => {
   const server = await requireOwnedServer(user, req.query.server);
   const sid = server.id;
   const type = req.query.type || 'overview';
-  await requireAccess(user, ...(type === 'lookup' ? ['heroshield', 'herocheck'] : ['heroshield']));
 
   if (type === 'overview') {
     const since = new Date(Date.now() - 7 * 86400000).toISOString();

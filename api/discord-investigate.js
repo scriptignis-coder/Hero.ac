@@ -5,7 +5,6 @@
 // list, which would require their token). Add the bot to the cheat/community servers
 // you want to monitor, then set DISCORD_BOT_TOKEN.
 import { wrap, send, httpError, requireUser } from './_lib.js';
-import { requireAccess } from './_lib.js';
 
 const API = 'https://discord.com/api/v10';
 
@@ -21,7 +20,7 @@ async function dget(path, token, tries = 0) {
 }
 
 export default wrap(async (req, res) => {
-  await requireAccess(requireUser(req), 'heroshield', 'herocheck');
+  requireUser(req);
   const token = (process.env.DISCORD_BOT_TOKEN || '').trim();
   if (!token) throw httpError(400, 'No bot configured. Create a Discord bot, add it to the servers you want to monitor, and set DISCORD_BOT_TOKEN.');
   const id = String(req.query.id || '').replace(/[^0-9]/g, '').slice(0, 25);

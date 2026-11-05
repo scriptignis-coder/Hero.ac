@@ -395,7 +395,7 @@
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>HeRo Scanner — PC check</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:18px">A read-only Windows tool players run during a screenshare. It checks running programs, Windows execution traces (even deleted cheats), the FiveM folder and the recycle bin, then sends the result here.</p>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:18px">A read-only Windows tool players run during a screenshare. It checks running programs, kernel drivers, startup & scheduled tasks, Windows execution traces (Prefetch, BAM, ShimCache — even deleted cheats), live connections, event logs, anti-cleaning tells, the FiveM folder and the recycle bin, then sends the result here.</p>
         <a class="btn btn-primary" href="${SCANNER_URL}"><svg style="width:18px;height:18px" aria-hidden="true"><use href="#i-download"/></svg>Download scanner (.exe)</a>
         <p class="mono" style="margin-top:12px;color:var(--dim)">Upload your built HeRoShieldScanner.exe to the repo's Releases so this link works.</p>
       </div>
@@ -436,41 +436,188 @@
       </div>`;
   }
 
-  function renderPinReport(view, pin) {
+  // ---------- scan report (HeRo Scanner v4) ----------
+  const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
+    'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream'];
+  const SEV = ['Low', 'Medium', 'High'];
+
+  function renderPinReport(view, pin, tab) {
     const row = (state.pins || []).find((p) => p.pin === pin);
     const r = row && row.report ? row.report : {};
-    const s = r.System || r.system || {};
-    const dets = r.Detections || r.detections || [];
-    const warns = r.Warnings || r.warnings || [];
-    const mods = r.Mods || r.mods || [];
-    const steam = r.SteamAccounts || r.steamAccounts || [];
-    const verdict = r.Verdict || r.verdict || (row && row.result) || 'clean';
-    const g = (a, b) => s[a] || s[b] || '-';
-    const shot = r.ScreenshotJpegBase64 || r.screenshotJpegBase64;
+    // the scanner sends PascalCase; accept camelCase too
+    const R = (k) => r[k] ?? r[k[0].toLowerCase() + k.slice(1)];
+    const F = (o, k) => (o ? (o[k] ?? o[k[0].toLowerCase() + k.slice(1)]) : undefined);
+    const L = (k) => R(k) || [];
+    const s = R('System') || {};
+    const S = (k) => F(s, k);
+
+    const dets = L('Detections'), warns = L('Warnings'), mods = L('Mods'), susp = L('Suspicious');
+    const executed = L('ExecutedPrograms'), cmds = L('Commands'), deleted = L('DeletedFiles');
+    const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
+    const recent = L('RecentFiles'), conns = L('NetworkConnections'), events = L('EventLogEntries'), fw = L('FirewallRules');
+    const verdict = R('Verdict') || (row && row.result) || 'clean';
+    const shot = R('ScreenshotJpegBase64');
+    const vColor = verdict === 'cheating' ? 'var(--red)' : verdict === 'suspicious' ? 'var(--orange)' : 'var(--green)';
+
+    const flaggedRuns = executed.filter((e) => F(e, 'Flagged'));
+    const suspStartup = startup.filter((x) => F(x, 'Suspicious'));
+    const suspTasks = tasks.filter((x) => F(x, 'Suspicious'));
+    const suspDrivers = drivers.filter((x) => F(x, 'Suspicious'));
+    const suspConns = conns.filter((x) => F(x, 'Suspicious'));
+    const suspCmds = cmds.filter((x) => F(x, 'Suspicious'));
+
+    const flag = (on, label = 'suspicious') => (on ? `<span class="badge ban">${label}</span>` : '');
+    const table = (head, rows, empty) => rows.length
+      ? `<div class="table-wrap"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
+      : `<div class="empty">${empty}</div>`;
+    const td = (v, mono) => `<td${mono ? ' class="mono" style="word-break:break-all"' : ''}>${esc(v ?? '-')}</td>`;
+    const byCat = warns.reduce((m, w) => { const c = F(w, 'Category') || 'System'; (m[c] = m[c] || []).push(w); return m; }, {});
+
+    const tabs = [
+      ['overview', 'Overview', ''],
+      ['detects', 'Detections', dets.length],
+      ['warnings', 'Warnings', warns.length],
+      ['exec', 'Execution', flaggedRuns.length || executed.length],
+      ['persist', 'Startup & tasks', suspStartup.length + suspTasks.length],
+      ['drivers', 'Drivers', suspDrivers.length],
+      ['network', 'Network', suspConns.length + fw.length],
+      ['files', 'Files', susp.length + deleted.length],
+      ['cmds', 'Commands', suspCmds.length],
+      ['events', 'Event log', events.length],
+      ['pc', 'PC & accounts', ''],
+    ];
+    tab = tab || 'overview';
+
+    const panes = {
+      overview: `
+        <div class="grid-2">
+          <div class="card panel">
+            <h3>Summary</h3>
+            ${[['Cheat detections', dets.length, dets.length ? 'var(--red)' : ''],
+               ['Warnings', warns.length, warns.length >= 3 ? 'var(--orange)' : ''],
+               ['Known cheats that ran', flaggedRuns.length, flaggedRuns.length ? 'var(--red)' : ''],
+               ['Suspicious startup / tasks', suspStartup.length + suspTasks.length, suspStartup.length + suspTasks.length ? 'var(--orange)' : ''],
+               ['Suspicious drivers', suspDrivers.length, suspDrivers.length ? 'var(--orange)' : ''],
+               ['Suspicious commands', suspCmds.length, suspCmds.length ? 'var(--orange)' : ''],
+               ['Suspicious files', susp.length, ''],
+               ['Files scanned', fmtNum(R('FilesScanned')), ''],
+               ['Scan time', (R('DurationSeconds') || 0) + ' s', ''],
+               ['Scanner version', R('ScannerVersion') || '-', '']]
+              .map(([k, v, c]) => `<div class="top-row"><span>${k}</span><b${c ? ` style="color:${c}"` : ''}>${esc(v)}</b></div>`).join('')}
+          </div>
+          <div class="card panel">
+            <h3>Most important</h3>
+            ${dets.slice(0, 6).map((d) => `<div class="top-row"><span>${esc(F(d, 'Signature'))}</span><span class="badge ${F(d, 'Severity') === 2 ? 'ban' : 'kick'}">${esc(METHODS[F(d, 'Method')] || '')}</span></div>`).join('')}
+            ${warns.slice(0, Math.max(0, 8 - Math.min(dets.length, 6))).map((w) => `<div class="top-row"><span>${esc(F(w, 'Title'))}</span><span class="cat">${esc(F(w, 'Category') || 'System')}</span></div>`).join('')}
+            ${!dets.length && !warns.length ? '<div class="empty">Nothing found — the PC looks clean.</div>' : ''}
+          </div>
+        </div>
+        ${shot ? `<div class="card panel" style="margin-top:16px"><h3>Screenshot at the end of the scan</h3><img src="${esc(shot)}" style="width:100%;border-radius:10px" alt="Player screen"></div>` : ''}`,
+
+      detects: `<div class="card panel"><h3>Cheat detections (${dets.length})</h3>
+        ${dets.length ? dets.map((d) => `
+          <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <b>${esc(F(d, 'Signature'))}</b>
+              <span class="badge ${F(d, 'Severity') === 2 ? 'ban' : F(d, 'Severity') === 1 ? 'kick' : 'off'}">${SEV[F(d, 'Severity')] || ''}</span>
+              <span class="cat">${esc(METHODS[F(d, 'Method')] || '')}</span>
+              ${F(d, 'Deleted') ? '<span class="badge kick">file deleted</span>' : ''}
+              ${(F(d, 'Features') || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}
+              <span class="mono" style="margin-left:auto;color:var(--dim)">${esc(F(d, 'When'))}</span>
+            </div>
+            <div style="color:var(--muted);font-size:13px;margin-top:6px">${esc(F(d, 'Explain'))}</div>
+            <div class="mono" style="color:var(--dim);font-size:12px;margin-top:4px;word-break:break-all">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? ' · SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>
+          </div>`).join('') : '<div class="empty">No cheat files found.</div>'}</div>`,
+
+      warnings: `<div class="card panel"><h3>Warnings (${warns.length})</h3>
+        ${warns.length ? Object.entries(byCat).map(([cat, list]) => `
+          <h4 style="margin:14px 0 6px;color:var(--cyan);font-size:13px;letter-spacing:.08em;text-transform:uppercase">${esc(cat)} (${list.length})</h4>
+          ${list.map((w) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(F(w, 'Title'))}</b>
+            <div style="color:var(--muted);font-size:13px;margin-top:3px">${esc(F(w, 'Detail'))}</div></div>`).join('')}`).join('')
+          : '<div class="empty">No warnings.</div>'}</div>`,
+
+      exec: `<div class="card panel"><h3>Programs Windows recorded running (${executed.length})</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">From Prefetch, BAM, PCA, UserAssist, MUICache and ShimCache. Shows programs even after they were deleted. Known cheats are listed first.</p>
+        ${table(['Program', 'Last run', 'Source', 'Path', ''], executed.slice(0, 400).map((e) =>
+          `<tr>${td(F(e, 'Name'), true)}${td(F(e, 'LastRun'))}${td(F(e, 'Source'))}${td(F(e, 'Path'), true)}<td>${flag(F(e, 'Flagged'), 'known cheat')}</td></tr>`), 'No execution history (may have been wiped).')}</div>`,
+
+      persist: `<div class="card panel" style="margin-bottom:16px"><h3>Starts with Windows (${startup.length})</h3>
+        ${table(['Name', 'Where', 'Command', ''], startup.map((x) =>
+          `<tr>${td(F(x, 'Name'))}${td(F(x, 'Location'))}${td(F(x, 'Command'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No startup entries.')}</div>
+        <div class="card panel"><h3>Scheduled tasks — non-Microsoft (${tasks.length})</h3>
+        ${table(['Task', 'Status', 'Last run', 'Command', ''], tasks.map((x) =>
+          `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'Status'))}${td(F(x, 'LastRun'))}${td(F(x, 'Command'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No third-party scheduled tasks.')}</div>`,
+
+      drivers: `<div class="card panel"><h3>Loaded kernel drivers — non-Microsoft (${drivers.length})</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Kernel cheats need a driver. Flagged: unsigned, running from a user folder, or a known exploitable driver (some RGB / motherboard tools use these too, so ask the player).</p>
+        ${table(['Driver', 'Name', 'Signed', 'Path', ''], drivers.map((x) =>
+          `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'DisplayName'))}<td><span class="badge ${F(x, 'Signed') ? 'on' : 'ban'}">${F(x, 'Signed') ? 'yes' : 'NO'}</span></td>${td(F(x, 'Path'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No third-party drivers loaded.')}</div>`,
+
+      network: `<div class="card panel" style="margin-bottom:16px"><h3>Live connections (${conns.length})</h3>
+        ${table(['Process', 'PID', 'Remote', 'State', ''], conns.map((x) =>
+          `<tr>${td(F(x, 'Process'), true)}${td(F(x, 'Pid'))}${td(F(x, 'RemoteAddress'), true)}${td(F(x, 'State'))}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No outside connections.')}</div>
+        <div class="card panel"><h3>Firewall rules blocking FiveM / game (${fw.length})</h3>
+        ${fw.length ? fw.map((x) => `<div class="top-row"><span class="mono" style="word-break:break-all">${esc(x)}</span></div>`).join('') : '<div class="empty">None.</div>'}
+        <div class="top-row" style="margin-top:8px"><span>Hosts file</span><b class="mono" style="${/MODIFIED/i.test(S('HostsFileStatus') || '') ? 'color:var(--red)' : ''}">${esc(S('HostsFileStatus') || 'normal')}</b></div></div>`,
+
+      files: `<div class="card panel" style="margin-bottom:16px"><h3>Suspicious files (${susp.length})</h3>
+        ${table(['Why', 'Path'], susp.map((x) => `<tr>${td(F(x, 'Kind'))}${td(F(x, 'Path'), true)}</tr>`), 'No suspicious files.')}</div>
+        <div class="grid-2">
+          <div class="card panel"><h3>Recycle bin (${deleted.length})</h3>
+            ${table(['File', 'Deleted', ''], deleted.map((x) => `<tr>${td(F(x, 'File'), true)}${td(F(x, 'When'))}<td>${F(x, 'Executable') ? '<span class="badge kick">exe</span>' : ''}</td></tr>`), 'Empty.')}</div>
+          <div class="card panel"><h3>Recently opened (${recent.length})</h3>
+            ${table(['File', 'When', ''], recent.slice(0, 120).map((x) => `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'When'))}<td>${flag(F(x, 'Flagged'), 'cheat')}</td></tr>`), 'Nothing (list may have been cleared).')}</div>
+        </div>
+        <div class="card panel" style="margin-top:16px"><h3>Game mods (${mods.length})</h3>
+          ${table(['File', 'Size', 'Path'], mods.slice(0, 300).map((m) => `<tr>${td(F(m, 'File'), true)}${td((F(m, 'SizeMb') || 0) + ' MB')}${td(F(m, 'Path'), true)}</tr>`), 'No mods.')}</div>`,
+
+      cmds: `<div class="card panel"><h3>PowerShell / CMD / Run history (${cmds.length})</h3>
+        ${table(['Source', 'Command', ''], [...suspCmds, ...cmds.filter((x) => !F(x, 'Suspicious'))].slice(0, 400).map((x) =>
+          `<tr>${td(F(x, 'Source'))}${td(F(x, 'Text'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No command history.')}</div>`,
+
+      events: `<div class="card panel"><h3>Windows event log (${events.length})</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Driver/service installs, cleared logs, Defender alerts, clock changes.</p>
+        ${table(['When', 'Type', 'ID', 'Message'], events.map((x) =>
+          `<tr>${td(F(x, 'When'))}${td(F(x, 'Category'))}${td(F(x, 'EventId'))}${td(F(x, 'Message'))}</tr>`), 'No relevant events.')}</div>`,
+
+      pc: `<div class="grid-2">
+        <div class="card panel"><h3>PC information</h3>
+          ${[['System', (S('Os') || '-') + ' ' + (S('WinBuild') || '')], ['CPU', S('Cpu')], ['GPU', S('Gpu')], ['RAM', S('RamGb')],
+             ['Motherboard', S('Motherboard')], ['Time zone', S('TimeZone')], ['Windows installed', S('WindowsInstall')],
+             ['Boot', S('BootTime')], ['Uptime', S('Uptime')], ['FiveM last launch', S('FiveMLastLaunch')], ['Recycle bin', S('RecycleModified')],
+             ['Secure Boot', S('SecureBoot') ? 'On' : 'Off'], ['Virtual machine', S('IsVirtualMachine') ? 'YES — ' + (S('VmPlatform') || '') : 'No'],
+             ['HWID spoof', S('SpooferFlag') || 'none'], ['Antivirus', L('Antivirus').join(', ')],
+             ['Disabled services', (S('DisabledServices') || []).join(', ') || 'none']]
+            .map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-word">${esc(v || '-')}</b></div>`).join('')}
+        </div>
+        <div>
+          <div class="card panel" style="margin-bottom:16px"><h3>Hardware IDs (for bans)</h3>
+            ${[['HWID', S('Hwid')], ['UUID', S('Uuid')], ['Machine GUID', S('MachineGuid')], ['BIOS serial', S('BiosSerial')],
+               ['Disk serials', S('DiskSerials')], ['MAC', S('MacAddresses')], ['Windows SID', S('Sid')]]
+              .map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-all">${esc(v || '-')}</b></div>`).join('')}
+          </div>
+          <div class="card panel"><h3>Linked accounts</h3>
+            ${[['Discord', R('DiscordId') ? [R('DiscordId')] : []], ['Steam', L('SteamAccounts')], ['Rockstar', L('RockstarAccounts')],
+               ['Epic Games', L('EpicAccounts')], ['Browsers', L('Browsers')], ['USB devices', L('UsbDevices')]]
+              .map(([k, list]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-word">${list.length ? list.map(esc).join('<br>') : '-'}</b></div>`).join('')}
+          </div>
+        </div>
+      </div>`,
+    };
+
     view.innerHTML = `
       <button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:16px">← Back to PINs</button>
       <div class="card panel" style="margin-bottom:16px">
-        <h3 style="margin:0">Player is <span style="color:${verdict === 'cheating' ? 'var(--red)' : verdict === 'suspicious' ? 'var(--orange)' : 'var(--green)'}">${esc(verdict)}</span>
+        <h3 style="margin:0">Player is <span style="color:${vColor}">${esc(verdict)}</span>
           <span class="mono" style="color:var(--dim)">PIN ${esc(pin)}${row && row.player ? ' · ' + esc(row.player) : ''}</span></h3>
       </div>
-      <div class="grid-2">
-        <div class="card panel">
-          <h3>Detections (${dets.length})</h3>
-          ${dets.length ? `<div class="table-wrap"><table><thead><tr><th>File</th><th>Signature</th><th>Features</th></tr></thead>
-            <tbody>${dets.map((d) => `<tr><td class="mono">${esc(d.File || d.file)}</td><td>${esc(d.Signature || d.signature)}</td>
-              <td>${((d.Features || d.features) || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table></div>`
-            : '<div class="empty">No cheat files found.</div>'}
-          ${warns.length ? `<h3 style="margin-top:18px">Warnings (${warns.length})</h3>${warns.map((w) => `<div class="top-row"><span>${esc(w.Title || w.title)}</span></div>`).join('')}` : ''}
-        </div>
-        <div class="card panel">
-          <h3>PC information</h3>
-          ${[['System', g('Os', 'os') + ' ' + (s.WinBuild || s.winBuild || '')], ['CPU', g('Cpu', 'cpu')], ['GPU', g('Gpu', 'gpu')], ['RAM', g('RamGb', 'ramGb')], ['Boot', g('BootTime', 'bootTime')], ['FiveM', g('FiveMLastLaunch', 'fiveMLastLaunch')], ['Recycle', g('RecycleModified', 'recycleModified')], ['HWID', g('Hwid', 'hwid')]].map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono">${esc(v)}</b></div>`).join('')}
-          ${steam.length ? `<div class="top-row"><span>Steam</span><b class="mono">${esc(steam.join(', '))}</b></div>` : ''}
-          <div class="top-row"><span>Files scanned</span><b>${fmtNum(r.FilesScanned || r.filesScanned || 0)}</b></div>
-          <div class="top-row"><span>Mods found</span><b>${mods.length}</b></div>
-        </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
+        ${tabs.map(([id, label, n]) => `<button class="btn btn-sm ${id === tab ? 'btn-primary' : 'btn-ghost'}" data-rtab="${id}">${label}${n !== '' ? ` <span style="opacity:.7">${n}</span>` : ''}</button>`).join('')}
       </div>
-      ${shot ? `<div class="card panel" style="margin-top:16px"><h3>Screenshot</h3><img src="${esc(shot)}" style="width:100%;border-radius:10px"></div>` : ''}`;
+      <div>${panes[tab] || panes.overview}</div>`;
+
+    view.querySelectorAll('[data-rtab]').forEach((b) =>
+      b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
   }
 
   async function renderSignatures(view) {

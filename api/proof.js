@@ -3,7 +3,6 @@ import {
   wrap, send, readBody, sb, enc, httpError, requireUser, requireOwnedServer, requireLicense,
   storageList, publicUrl,
 } from './_lib.js';
-import { requireAccess } from './_lib.js';
 
 const cleanId = (v) => String(v || '').replace(/[^A-Za-z0-9_-]/g, '').toUpperCase().slice(0, 20);
 const urls = (list, max) => (Array.isArray(list) ? list : [])
@@ -24,7 +23,6 @@ export default wrap(async (req, res) => {
   }
 
   const user = requireUser(req);
-  await requireAccess(user, 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const banId = cleanId(req.query.banId);
   if (!banId) throw httpError(400, 'Missing banId');

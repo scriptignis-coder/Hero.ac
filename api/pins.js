@@ -7,7 +7,6 @@ const newPin = () => Array.from({ length: 8 }, () => ALPHA[crypto.randomInt(ALPH
 // Scan PINs for the screenshare scanner. Scoped to a server the user owns.
 export default wrap(async (req, res) => {
   const user = requireUser(req);
-  await requireAccess(user, 'heroshield', 'herocheck');
 
   if (req.method === 'GET') {
     const server = await requireOwnedServer(user, req.query.server);

@@ -3,7 +3,6 @@ import { wrap, send, requireUser, readBody, sb, enc, str, httpError } from './_l
 // Staff team for the account. Owner-scoped.
 export default wrap(async (req, res) => {
   const user = requireUser(req);
-  await requireAccess(user, 'heroshield', 'herocheck');
 
   if (req.method === 'GET') {
     const rows = await sb(`staff?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);
