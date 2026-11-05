@@ -440,199 +440,310 @@
         ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
           <tbody>${pins.map((p) => `<tr>
             <td class="mono" style="color:var(--cyan);font-size:14px">${esc(p.pin)}</td>
-            <td>${esc(p.player) || '-'}</td>
+            <td>${esc(p.player) || '-'}${p.discord_check && p.discord_check.user ? ` <span class="badge log" title="${esc(p.discord_check.user.name)}">Discord ✓</span>` : ''}</td>
             <td><span class="badge ${p.used ? 'on' : 'off'}">${p.used ? 'Yes' : 'Pending'}</span></td>
             <td>${p.result ? `<span class="badge ${p.result === 'cheating' ? 'ban' : p.result === 'clean' ? 'on' : 'kick'}">${esc(p.result)}</span>` : '-'}</td>
             <td class="mono">${fmtDate(p.created_at)}</td>
             <td><div class="actions-cell">
               ${p.used && p.report ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}
+              ${!p.used ? `<button class="btn btn-ghost btn-sm" data-copypin="${esc(location.origin)}/dl/${esc(p.pin)}">Link</button>` : ''}
               <button class="btn btn-ghost btn-sm" data-copypin="${esc(p.pin)}">Copy</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">No PINs yet.</div>'}
       </div>`;
   }
 
-  // ---------- scan report (HeRo Scanner v4) ----------
+  // ---------- scan report (HeRo Scanner v4) — napse-style ----------
   const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
     'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream'];
-  const SEV = ['Low', 'Medium', 'High'];
+  const SEV = ['low', 'medium', 'high'];
+  const discordIcon = (g) => g.icon ? `https://cdn.discordapp.com/icons/${g.id || g.guild_id}/${g.icon}.png?size=64` : '';
 
-  function renderPinReport(view, pin, tab) {
+  function ensureReportCss() {
+    if (document.getElementById('rp-css')) return;
+    const st = document.createElement('style');
+    st.id = 'rp-css';
+    st.textContent = `
+      .rp { display:grid; grid-template-columns:270px 1fr; gap:18px; align-items:start }
+      @media (max-width:900px){ .rp { grid-template-columns:1fr } .rp-side { position:static !important } }
+      .rp > section { padding:0 !important; margin:0 !important; min-height:0 !important; min-width:0 }
+      .rp-side { position:sticky; top:16px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px }
+      .rp-side h4 { display:flex; gap:8px; align-items:center; font-size:15px; margin:0 0 4px }
+      .rp-side .sub { color:var(--dim); font-size:12px; margin-bottom:12px }
+      .rp-cat { width:100%; display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; border:1px solid transparent;
+                background:none; color:var(--muted); font:500 13.5px var(--font); cursor:pointer; text-align:left }
+      .rp-cat:hover { background:rgba(255,255,255,.03); color:var(--text) }
+      .rp-cat.on { background:rgba(125,180,255,.07); border-color:var(--line-strong); color:var(--text) }
+      .rp-cat .dot { width:8px; height:8px; border-radius:50%; flex:none }
+      .rp-cat .n { margin-left:auto; min-width:24px; text-align:center; font-size:11.5px; font-weight:700; padding:2px 7px; border-radius:7px; background:rgba(255,255,255,.05); color:var(--muted) }
+      .rp-cat .n.red { background:rgba(244,63,94,.15); color:#fb7185 } .rp-cat .n.orange { background:rgba(245,158,11,.15); color:#fbbf24 }
+      .rp-cat .n.green { background:rgba(16,185,129,.15); color:#34d399 } .rp-cat .n.yellow { background:rgba(234,179,8,.14); color:#facc15 }
+      .rp-cat .n.purple { background:rgba(168,85,247,.15); color:#c084fc } .rp-cat .n.blue { background:rgba(59,130,246,.15); color:#93c5fd }
+      .rp-sep { height:1px; background:var(--line); margin:8px 4px }
+      .rp-head { display:flex; align-items:center; gap:10px; margin:2px 0 14px; font:600 17px var(--font) }
+      .rp-head .cnt { color:var(--dim); font-weight:500; font-size:13px }
+      .rp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px }
+      .rp-card { position:relative; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px 14px; overflow:hidden }
+      .rp-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--c) }
+      .rp-card.red { --c:#f43f5e; border-color:rgba(244,63,94,.28); background:linear-gradient(180deg,rgba(244,63,94,.07),transparent 60%),var(--card) }
+      .rp-card.orange { --c:#f59e0b; border-color:rgba(245,158,11,.26); background:linear-gradient(180deg,rgba(245,158,11,.06),transparent 60%),var(--card) }
+      .rp-card.yellow { --c:#eab308; border-color:rgba(234,179,8,.22) } .rp-card.green { --c:#10b981; border-color:rgba(16,185,129,.24) }
+      .rp-card.purple { --c:#a855f7; border-color:rgba(168,85,247,.24) } .rp-card.blue { --c:#3b82f6; border-color:rgba(59,130,246,.24) }
+      .rp-card.grey { --c:#5a6276 }
+      .rp-top { display:flex; align-items:flex-start; gap:10px }
+      .rp-ic { width:34px; height:34px; flex:none; border-radius:10px; display:grid; place-items:center; background:color-mix(in srgb,var(--c) 16%,transparent); color:var(--c) }
+      .rp-ic svg { width:18px; height:18px }
+      .rp-title { font-weight:600; font-size:14px; line-height:1.35; word-break:break-word; flex:1; padding-top:2px }
+      .rp-tag { flex:none; font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:7px; border:1px solid color-mix(in srgb,var(--c) 45%,transparent); color:var(--c); background:color-mix(in srgb,var(--c) 10%,transparent); white-space:nowrap }
+      .rp-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px }
+      .rp-chip { font-size:11px; padding:2px 8px; border-radius:6px; background:rgba(255,255,255,.05); color:var(--muted) }
+      .rp-txt { color:var(--muted); font-size:12.5px; margin-top:8px; line-height:1.5 }
+      .rp-code { margin-top:8px; font:11.5px ui-monospace,Consolas,monospace; color:var(--dim); background:rgba(0,0,0,.25); border:1px solid var(--line); border-radius:8px; padding:7px 9px; word-break:break-all; line-height:1.5 }
+      .rp-rows { display:flex; flex-direction:column; gap:8px }
+      .rp-row { position:relative; display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 14px 10px 16px; font:12.5px ui-monospace,Consolas,monospace; color:var(--muted); word-break:break-all }
+      .rp-row::before { content:''; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:3px; background:var(--c,#5a6276) }
+      .rp-row.red{--c:#f43f5e;color:#fecdd3} .rp-row.orange{--c:#f59e0b} .rp-row.yellow{--c:#eab308} .rp-row.green{--c:#10b981} .rp-row.purple{--c:#a855f7} .rp-row.blue{--c:#3b82f6}
+      .rp-row .r { margin-left:auto; flex:none; font-family:var(--font); font-size:11px; color:var(--dim) }
+      .rp-verdict { display:flex; align-items:center; gap:16px; padding:18px 20px; border-radius:16px; border:1px solid var(--c); background:linear-gradient(90deg,color-mix(in srgb,var(--c) 14%,transparent),transparent),var(--card); margin-bottom:16px; --c:#10b981 }
+      .rp-verdict.cheating{--c:#f43f5e} .rp-verdict.suspicious{--c:#f59e0b}
+      .rp-verdict .big { font:800 26px var(--display); color:var(--c); text-transform:uppercase; letter-spacing:.04em }
+      .rp-verdict .who { color:var(--muted); font-size:13px }
+      .rp-verdict .pin { margin-left:auto; font:600 13px ui-monospace,monospace; color:var(--dim); text-align:right }
+      .rp-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:16px }
+      .rp-stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px }
+      .rp-stat b { display:block; font:700 22px var(--display); color:var(--c,var(--text)) } .rp-stat span { color:var(--dim); font-size:12px }
+      .rp-kv { display:grid; grid-template-columns:150px 1fr; gap:8px 14px; font-size:13px } .rp-kv span { color:var(--dim) } .rp-kv b { font:500 12.5px ui-monospace,monospace; word-break:break-all }
+      .rp-empty { padding:40px 20px; text-align:center; color:var(--dim); border:1px dashed var(--line); border-radius:14px }
+      .rp-guild { display:flex; align-items:center; gap:12px }
+      .rp-guild img, .rp-guild .gi { width:38px; height:38px; border-radius:12px; flex:none; background:#1e2130; display:grid; place-items:center; font-weight:700; color:var(--muted) }
+      .rp-filter { width:100%; margin-bottom:12px }
+    `;
+    document.head.appendChild(st);
+  }
+
+  const IC = {
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>',
+    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>',
+    disc: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.5 19.5 0 0 0-4.9 1.4C.6 9.1-.3 13.6.2 18.1A19.8 19.8 0 0 0 6.2 21l1.3-2.1a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.7 19.7 0 0 0 6-3c.6-5.2-.9-9.7-3.5-13.6Z"/></svg>',
+  };
+
+  async function renderPinReport(view, pin, tab, q) {
+    ensureReportCss();
     const row = (state.pins || []).find((p) => p.pin === pin);
     const r = row && row.report ? row.report : {};
-    // the scanner sends PascalCase; accept camelCase too
     const R = (k) => r[k] ?? r[k[0].toLowerCase() + k.slice(1)];
     const F = (o, k) => (o ? (o[k] ?? o[k[0].toLowerCase() + k.slice(1)]) : undefined);
     const L = (k) => R(k) || [];
     const s = R('System') || {};
     const S = (k) => F(s, k);
 
-    const dets = L('Detections'), warns = L('Warnings'), mods = L('Mods'), susp = L('Suspicious');
+    // the owner's cheat-server list (cached for the session)
+    if (!state.cheatServers) { try { state.cheatServers = (await api('/api/cheat-servers')).servers || []; } catch { state.cheatServers = []; } }
+    const cheatIds = new Map(state.cheatServers.map((c) => [String(c.guild_id), c]));
+
+    const dets = L('Detections').slice().sort((a, b) => (F(b, 'Severity') || 0) - (F(a, 'Severity') || 0));
+    const warns = L('Warnings'), mods = L('Mods'), suspAll = L('Suspicious');
+    const entropy = suspAll.filter((x) => /entropy/i.test(F(x, 'Kind') || ''));
+    const susp = suspAll.filter((x) => !/entropy/i.test(F(x, 'Kind') || ''));
     const executed = L('ExecutedPrograms'), cmds = L('Commands'), deleted = L('DeletedFiles');
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
-    const recent = L('RecentFiles'), conns = L('NetworkConnections'), events = L('EventLogEntries'), fw = L('FirewallRules');
+    const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
+    const events = L('EventLogEntries').filter((e) => !(F(e, 'Category') === 'ServiceInstall' && /microsoft|system32\\drivers|\\windows\\/i.test(F(e, 'Message') || '')));
     const verdict = R('Verdict') || (row && row.result) || 'clean';
     const shot = R('ScreenshotJpegBase64');
-    const vColor = verdict === 'cheating' ? 'var(--red)' : verdict === 'suspicious' ? 'var(--orange)' : 'var(--green)';
+    const dc = row && row.discord_check;
+    const guilds = (dc && dc.guilds) || [];
+    const cheatGuilds = guilds.filter((g) => cheatIds.has(String(g.id)));
+    const localDiscord = R('DiscordId');
 
     const flaggedRuns = executed.filter((e) => F(e, 'Flagged'));
-    const suspStartup = startup.filter((x) => F(x, 'Suspicious'));
-    const suspTasks = tasks.filter((x) => F(x, 'Suspicious'));
-    const suspDrivers = drivers.filter((x) => F(x, 'Suspicious'));
-    const suspConns = conns.filter((x) => F(x, 'Suspicious'));
-    const suspCmds = cmds.filter((x) => F(x, 'Suspicious'));
-
-    const flag = (on, label = 'suspicious') => (on ? `<span class="badge ban">${label}</span>` : '');
-    const table = (head, rows, empty) => rows.length
-      ? `<div class="table-wrap"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`
-      : `<div class="empty">${empty}</div>`;
-    const td = (v, mono) => `<td${mono ? ' class="mono" style="word-break:break-all"' : ''}>${esc(v ?? '-')}</td>`;
-    const byCat = warns.reduce((m, w) => { const c = F(w, 'Category') || 'System'; (m[c] = m[c] || []).push(w); return m; }, {});
-
-    const tabs = [
-      ['overview', 'Overview', ''],
-      ['detects', 'Detections', dets.length],
-      ['warnings', 'Warnings', warns.length],
-      ['exec', 'Execution', flaggedRuns.length || executed.length],
-      ['persist', 'Startup & tasks', suspStartup.length + suspTasks.length],
-      ['drivers', 'Drivers', suspDrivers.length],
-      ['network', 'Network', suspConns.length + fw.length],
-      ['files', 'Files', susp.length + deleted.length],
-      ['cmds', 'Commands', suspCmds.length],
-      ['events', 'Event log', events.length],
-      ['pc', 'PC & accounts', ''],
+    const has = (re) => warns.some((w) => re.test(F(w, 'Title') || ''));
+    const av = L('Antivirus');
+    const integrity = [
+      ['Prefetch history is intact', !has(/prefetch/i)],
+      ['Event logs were not cleared', !has(/event log|log looks cleared|logs were cleared/i)],
+      ['Execution history present', executed.length >= 8 && !has(/very little execution|bam\) almost empty/i)],
+      ['AmCache / Recent files not wiped', !has(/amcache|recent files list/i)],
+      ['Antivirus real-time protection on', av.length ? av.some((a) => /\(on\)/.test(a)) && !has(/defender.*(disabled|turned off)|protection is off/i) : !has(/defender/i)],
+      ['No Defender exclusions', !has(/defender exclusion/i)],
+      ['Test-signing / debug mode off', !has(/test-signing|debug mode|signature enforcement/i)],
+      ['No injection hooks (AppInit / IFEO)', !has(/appinit|ifeo/i)],
+      ['Not a virtual machine', !S('IsVirtualMachine')],
+      ['Hardware IDs look real', !S('SpooferFlag')],
+      ['Hosts file normal', !/MODIFIED/i.test(S('HostsFileStatus') || '')],
+      ['Secure Boot on', !!S('SecureBoot')],
+      ['Clock not changed by hand', !has(/clock changed/i)],
+      ['Discord connected', !!dc],
     ];
-    tab = tab || 'overview';
+    const passed = integrity.filter((i) => i[1]).length;
+
+    const sevC = (d) => (F(d, 'Severity') === 2 ? 'red' : F(d, 'Severity') === 1 ? 'orange' : 'yellow');
+    const warnC = (w) => (/cleaning|injection|evasion/i.test(F(w, 'Category') || '') ? 'orange' : 'yellow');
+    const card = (c, icon, title, tag, inner = '') => `<div class="rp-card ${c}"><div class="rp-top"><div class="rp-ic">${icon}</div>
+        <div class="rp-title">${title}</div>${tag ? `<span class="rp-tag">${tag}</span>` : ''}</div>${inner}</div>`;
+    const rowL = (c, text, right = '') => `<div class="rp-row ${c}"><span>${text}</span>${right ? `<span class="r">${right}</span>` : ''}</div>`;
+    const grid = (items, empty) => (items.length ? `<div class="rp-grid">${items.join('')}</div>` : `<div class="rp-empty">${empty}</div>`);
+    const rows = (items, empty) => (items.length ? `<div class="rp-rows">${items.join('')}</div>` : `<div class="rp-empty">${empty}</div>`);
+    const head = (title, n, sub = '') => `<div class="rp-head">${title} <span class="cnt">${n !== '' ? n + ' entries' : ''}</span></div>${sub ? `<p style="color:var(--dim);font-size:12.5px;margin:-8px 0 14px">${sub}</p>` : ''}`;
+    const qf = (q || '').toLowerCase();
+    const match = (...xs) => !qf || xs.some((x) => String(x || '').toLowerCase().includes(qf));
+
+    const cats = [
+      ['overview', 'Overview', '', 'blue'],
+      ['detects', 'Detects', dets.length, 'red'],
+      ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
+      ['warnings', 'Warnings', warns.length, 'orange'],
+      ['suspicious', 'Suspicious', susp.length, 'yellow'],
+      ['entropy', 'Entropy', entropy.length, 'purple'],
+      ['discord', 'Discord', dc ? (cheatGuilds.length ? cheatGuilds.length + ' cheat' : guilds.length) : '–', cheatGuilds.length ? 'red' : dc ? 'blue' : 'orange'],
+      'sep',
+      ['exec', 'Execution', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
+      ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
+      ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
+      ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
+      ['files', 'Files & mods', deleted.length + recent.filter((x) => F(x, 'Flagged')).length + mods.length, 'blue'],
+      ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
+      ['events', 'Event log', events.length, 'blue'],
+      ['pc', 'PC & accounts', '', 'blue'],
+    ];
+    tab = tab || (dets.length ? 'detects' : 'overview');
+    const total = dets.length + warns.length + susp.length + entropy.length;
 
     const panes = {
-      overview: `
-        <div class="grid-2">
-          <div class="card panel">
-            <h3>Summary</h3>
-            ${[['Cheat detections', dets.length, dets.length ? 'var(--red)' : ''],
-               ['Warnings', warns.length, warns.length >= 3 ? 'var(--orange)' : ''],
-               ['Known cheats that ran', flaggedRuns.length, flaggedRuns.length ? 'var(--red)' : ''],
-               ['Suspicious startup / tasks', suspStartup.length + suspTasks.length, suspStartup.length + suspTasks.length ? 'var(--orange)' : ''],
-               ['Suspicious drivers', suspDrivers.length, suspDrivers.length ? 'var(--orange)' : ''],
-               ['Suspicious commands', suspCmds.length, suspCmds.length ? 'var(--orange)' : ''],
-               ['Suspicious files', susp.length, ''],
-               ['Files scanned', fmtNum(R('FilesScanned')), ''],
-               ['Scan time', (R('DurationSeconds') || 0) + ' s', ''],
-               ['Scanner version', R('ScannerVersion') || '-', '']]
-              .map(([k, v, c]) => `<div class="top-row"><span>${k}</span><b${c ? ` style="color:${c}"` : ''}>${esc(v)}</b></div>`).join('')}
-          </div>
-          <div class="card panel">
-            <h3>Most important</h3>
-            ${dets.slice(0, 6).map((d) => `<div class="top-row"><span>${esc(F(d, 'Signature'))}</span><span class="badge ${F(d, 'Severity') === 2 ? 'ban' : 'kick'}">${esc(METHODS[F(d, 'Method')] || '')}</span></div>`).join('')}
-            ${warns.slice(0, Math.max(0, 8 - Math.min(dets.length, 6))).map((w) => `<div class="top-row"><span>${esc(F(w, 'Title'))}</span><span class="cat">${esc(F(w, 'Category') || 'System')}</span></div>`).join('')}
-            ${!dets.length && !warns.length ? '<div class="empty">Nothing found — the PC looks clean.</div>' : ''}
-          </div>
+      overview: () => `
+        <div class="rp-stats">
+          ${[['Detects', dets.length, dets.length ? '#fb7185' : ''], ['Warnings', warns.length, warns.length ? '#fbbf24' : ''],
+             ['Suspicious', susp.length, ''], ['Integrity', `${passed}/${integrity.length}`, passed === integrity.length ? '#34d399' : ''],
+             ['Cheat servers', dc ? cheatGuilds.length : '–', cheatGuilds.length ? '#fb7185' : ''], ['Files scanned', fmtNum(R('FilesScanned')), ''],
+             ['Scan time', (R('DurationSeconds') || 0) + 's', ''], ['Scanner', 'v' + (R('ScannerVersion') || '?'), '']]
+            .map(([k, v, c]) => `<div class="rp-stat" style="${c ? `--c:${c}` : ''}"><b>${esc(v)}</b><span>${k}</span></div>`).join('')}
         </div>
-        ${shot ? `<div class="card panel" style="margin-top:16px"><h3>Screenshot at the end of the scan</h3><img src="${esc(shot)}" style="width:100%;border-radius:10px" alt="Player screen"></div>` : ''}`,
+        <div class="rp-head">Most important</div>
+        ${grid([
+          ...dets.slice(0, 6).map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')), F(d, 'Deleted') ? 'File deleted' : esc(METHODS[F(d, 'Method')] || ''))),
+          ...cheatGuilds.slice(0, 4).map((g) => card('red', IC.disc, 'In cheat Discord: ' + esc(g.name), 'Discord')),
+          ...warns.slice(0, 6).map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'))),
+        ], 'Nothing found — the PC looks clean.')}
+        ${shot ? `<div class="rp-head" style="margin-top:18px">Screenshot at the end of the scan</div><img src="${esc(shot)}" alt="Player screen" style="width:100%;border-radius:14px;border:1px solid var(--line)">` : ''}`,
 
-      detects: `<div class="card panel"><h3>Cheat detections (${dets.length})</h3>
-        ${dets.length ? dets.map((d) => `
-          <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <b>${esc(F(d, 'Signature'))}</b>
-              <span class="badge ${F(d, 'Severity') === 2 ? 'ban' : F(d, 'Severity') === 1 ? 'kick' : 'off'}">${SEV[F(d, 'Severity')] || ''}</span>
-              <span class="cat">${esc(METHODS[F(d, 'Method')] || '')}</span>
-              ${F(d, 'Deleted') ? '<span class="badge kick">file deleted</span>' : ''}
-              ${(F(d, 'Features') || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}
-              <span class="mono" style="margin-left:auto;color:var(--dim)">${esc(F(d, 'When'))}</span>
-            </div>
-            <div style="color:var(--muted);font-size:13px;margin-top:6px">${esc(F(d, 'Explain'))}</div>
-            <div class="mono" style="color:var(--dim);font-size:12px;margin-top:4px;word-break:break-all">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? ' · SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>
-          </div>`).join('') : '<div class="empty">No cheat files found.</div>'}</div>`,
+      detects: () => head('Detects Logs', dets.length) + grid(dets.map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')),
+          F(d, 'Deleted') ? 'File deleted' : F(d, 'Method') === 0 ? 'Running' : 'On disk',
+          `<div class="rp-meta"><span class="rp-chip">${SEV[F(d, 'Severity')] || ''}</span><span class="rp-chip">${esc(METHODS[F(d, 'Method')] || '')}</span>
+            ${(F(d, 'Features') || []).slice(0, 5).map((f) => `<span class="rp-chip">${esc(f)}</span>`).join('')}<span class="rp-chip">${esc(F(d, 'When'))}</span></div>
+           <div class="rp-txt">${esc(F(d, 'Explain'))}</div>
+           <div class="rp-code">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? '<br>SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>`)), 'No cheat found.'),
 
-      warnings: `<div class="card panel"><h3>Warnings (${warns.length})</h3>
-        ${warns.length ? Object.entries(byCat).map(([cat, list]) => `
-          <h4 style="margin:14px 0 6px;color:var(--cyan);font-size:13px;letter-spacing:.08em;text-transform:uppercase">${esc(cat)} (${list.length})</h4>
-          ${list.map((w) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${esc(F(w, 'Title'))}</b>
-            <div style="color:var(--muted);font-size:13px;margin-top:3px">${esc(F(w, 'Detail'))}</div></div>`).join('')}`).join('')
-          : '<div class="empty">No warnings.</div>'}</div>`,
+      integrity: () => head('Integrity checks', `${passed}/${integrity.length} passed`, 'Green = normal. Red = something was changed, disabled or cleaned before the check.')
+        + grid(integrity.map(([t, ok]) => card(ok ? 'green' : 'red', ok ? IC.check : IC.x, t, ok ? 'Passed' : 'Failed')), ''),
 
-      exec: `<div class="card panel"><h3>Programs Windows recorded running (${executed.length})</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">From Prefetch, BAM, PCA, UserAssist, MUICache and ShimCache. Shows programs even after they were deleted. Known cheats are listed first.</p>
-        ${table(['Program', 'Last run', 'Source', 'Path', ''], executed.slice(0, 400).map((e) =>
-          `<tr>${td(F(e, 'Name'), true)}${td(F(e, 'LastRun'))}${td(F(e, 'Source'))}${td(F(e, 'Path'), true)}<td>${flag(F(e, 'Flagged'), 'known cheat')}</td></tr>`), 'No execution history (may have been wiped).')}</div>`,
+      warnings: () => head('Warnings Logs', warns.length) + grid(warns.map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'),
+          `<div class="rp-txt">${esc(F(w, 'Detail'))}</div>`)), 'No warnings.'),
 
-      persist: `<div class="card panel" style="margin-bottom:16px"><h3>Starts with Windows (${startup.length})</h3>
-        ${table(['Name', 'Where', 'Command', ''], startup.map((x) =>
-          `<tr>${td(F(x, 'Name'))}${td(F(x, 'Location'))}${td(F(x, 'Command'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No startup entries.')}</div>
-        <div class="card panel"><h3>Scheduled tasks — non-Microsoft (${tasks.length})</h3>
-        ${table(['Task', 'Status', 'Last run', 'Command', ''], tasks.map((x) =>
-          `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'Status'))}${td(F(x, 'LastRun'))}${td(F(x, 'Command'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No third-party scheduled tasks.')}</div>`,
+      suspicious: () => head('Suspicious Logs', susp.length, 'Not proof on their own — files worth a look.')
+        + rows(susp.filter((x) => match(F(x, 'Kind'), F(x, 'Path'))).map((x) => rowL('yellow', esc(F(x, 'Path')), esc(F(x, 'Kind')))), 'Nothing suspicious.'),
 
-      drivers: `<div class="card panel"><h3>Loaded kernel drivers — non-Microsoft (${drivers.length})</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Kernel cheats need a driver. Flagged: unsigned, running from a user folder, or a known exploitable driver (some RGB / motherboard tools use these too, so ask the player).</p>
-        ${table(['Driver', 'Name', 'Signed', 'Path', ''], drivers.map((x) =>
-          `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'DisplayName'))}<td><span class="badge ${F(x, 'Signed') ? 'on' : 'ban'}">${F(x, 'Signed') ? 'yes' : 'NO'}</span></td>${td(F(x, 'Path'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No third-party drivers loaded.')}</div>`,
+      entropy: () => head('Entropy', entropy.length, 'Programs whose content is packed / encrypted (entropy > 7.2 of 8) and unsigned — cheats do this to hide their strings.')
+        + rows(entropy.map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
 
-      network: `<div class="card panel" style="margin-bottom:16px"><h3>Live connections (${conns.length})</h3>
-        ${table(['Process', 'PID', 'Remote', 'State', ''], conns.map((x) =>
-          `<tr>${td(F(x, 'Process'), true)}${td(F(x, 'Pid'))}${td(F(x, 'RemoteAddress'), true)}${td(F(x, 'State'))}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No outside connections.')}</div>
-        <div class="card panel"><h3>Firewall rules blocking FiveM / game (${fw.length})</h3>
-        ${fw.length ? fw.map((x) => `<div class="top-row"><span class="mono" style="word-break:break-all">${esc(x)}</span></div>`).join('') : '<div class="empty">None.</div>'}
-        <div class="top-row" style="margin-top:8px"><span>Hosts file</span><b class="mono" style="${/MODIFIED/i.test(S('HostsFileStatus') || '') ? 'color:var(--red)' : ''}">${esc(S('HostsFileStatus') || 'normal')}</b></div></div>`,
-
-      files: `<div class="card panel" style="margin-bottom:16px"><h3>Suspicious files (${susp.length})</h3>
-        ${table(['Why', 'Path'], susp.map((x) => `<tr>${td(F(x, 'Kind'))}${td(F(x, 'Path'), true)}</tr>`), 'No suspicious files.')}</div>
-        <div class="grid-2">
-          <div class="card panel"><h3>Recycle bin (${deleted.length})</h3>
-            ${table(['File', 'Deleted', ''], deleted.map((x) => `<tr>${td(F(x, 'File'), true)}${td(F(x, 'When'))}<td>${F(x, 'Executable') ? '<span class="badge kick">exe</span>' : ''}</td></tr>`), 'Empty.')}</div>
-          <div class="card panel"><h3>Recently opened (${recent.length})</h3>
-            ${table(['File', 'When', ''], recent.slice(0, 120).map((x) => `<tr>${td(F(x, 'Name'), true)}${td(F(x, 'When'))}<td>${flag(F(x, 'Flagged'), 'cheat')}</td></tr>`), 'Nothing (list may have been cleared).')}</div>
-        </div>
-        <div class="card panel" style="margin-top:16px"><h3>Game mods (${mods.length})</h3>
-          ${table(['File', 'Size', 'Path'], mods.slice(0, 300).map((m) => `<tr>${td(F(m, 'File'), true)}${td((F(m, 'SizeMb') || 0) + ' MB')}${td(F(m, 'Path'), true)}</tr>`), 'No mods.')}</div>`,
-
-      cmds: `<div class="card panel"><h3>PowerShell / CMD / Run history (${cmds.length})</h3>
-        ${table(['Source', 'Command', ''], [...suspCmds, ...cmds.filter((x) => !F(x, 'Suspicious'))].slice(0, 400).map((x) =>
-          `<tr>${td(F(x, 'Source'))}${td(F(x, 'Text'), true)}<td>${flag(F(x, 'Suspicious'))}</td></tr>`), 'No command history.')}</div>`,
-
-      events: `<div class="card panel"><h3>Windows event log (${events.length})</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Driver/service installs, cleared logs, Defender alerts, clock changes.</p>
-        ${table(['When', 'Type', 'ID', 'Message'], events.map((x) =>
-          `<tr>${td(F(x, 'When'))}${td(F(x, 'Category'))}${td(F(x, 'EventId'))}${td(F(x, 'Message'))}</tr>`), 'No relevant events.')}</div>`,
-
-      pc: `<div class="grid-2">
-        <div class="card panel"><h3>PC information</h3>
-          ${[['System', (S('Os') || '-') + ' ' + (S('WinBuild') || '')], ['CPU', S('Cpu')], ['GPU', S('Gpu')], ['RAM', S('RamGb')],
-             ['Motherboard', S('Motherboard')], ['Time zone', S('TimeZone')], ['Windows installed', S('WindowsInstall')],
-             ['Boot', S('BootTime')], ['Uptime', S('Uptime')], ['FiveM last launch', S('FiveMLastLaunch')], ['Recycle bin', S('RecycleModified')],
-             ['Secure Boot', S('SecureBoot') ? 'On' : 'Off'], ['Virtual machine', S('IsVirtualMachine') ? 'YES — ' + (S('VmPlatform') || '') : 'No'],
-             ['HWID spoof', S('SpooferFlag') || 'none'], ['Antivirus', L('Antivirus').join(', ')],
-             ['Disabled services', (S('DisabledServices') || []).join(', ') || 'none']]
-            .map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-word">${esc(v || '-')}</b></div>`).join('')}
-        </div>
-        <div>
-          <div class="card panel" style="margin-bottom:16px"><h3>Hardware IDs (for bans)</h3>
-            ${[['HWID', S('Hwid')], ['UUID', S('Uuid')], ['Machine GUID', S('MachineGuid')], ['BIOS serial', S('BiosSerial')],
-               ['Disk serials', S('DiskSerials')], ['MAC', S('MacAddresses')], ['Windows SID', S('Sid')]]
-              .map(([k, v]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-all">${esc(v || '-')}</b></div>`).join('')}
+      discord: () => {
+        if (!dc) return head('Discord', '') + `<div class="rp-card orange"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
+            <div class="rp-title">The player did not connect Discord</div><span class="rp-tag">Not verified</span></div>
+            <div class="rp-txt">The scanner opens the page automatically. You can also send this link to the player:</div>
+            <div class="rp-code">${esc(location.origin)}/verify?pin=${esc(pin)}</div>
+            ${localDiscord ? `<div class="rp-txt">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}</div>`;
+        const u = dc.user || {};
+        const mismatch = localDiscord && u.id && String(localDiscord) !== String(u.id);
+        const gcard = (g) => {
+          const c = cheatIds.get(String(g.id));
+          return `<div class="rp-card ${c ? 'red' : 'grey'}"><div class="rp-guild">${discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc((g.name || '?')[0])}</div>`}
+            <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name)}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id)}${g.owner ? ' · owner' : ''}</div></div>
+            ${c ? '<span class="rp-tag">CHEAT SERVER</span>' : ''}</div></div>`;
+        };
+        return `<div class="rp-card ${cheatGuilds.length ? 'red' : 'green'}" style="margin-bottom:16px"><div class="rp-guild">
+            ${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="border-radius:50%">` : `<div class="gi">${IC.disc}</div>`}
+            <div style="flex:1"><div class="rp-title" style="padding:0">${esc(u.name)} <span style="color:var(--dim);font-weight:400">@${esc(u.username)}</span></div>
+              <div class="mono" style="color:var(--dim);font-size:11.5px">${esc(u.id)} · account created ${esc((u.created || '').slice(0, 10))} · connected ${fmtDate(dc.at)}</div></div>
+            <span class="rp-tag">${cheatGuilds.length ? cheatGuilds.length + ' cheat server' + (cheatGuilds.length > 1 ? 's' : '') : 'No cheat servers'}</span></div>
+            ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one connected here — the player may be hiding his main account.</div>` : ''}
           </div>
-          <div class="card panel"><h3>Linked accounts</h3>
-            ${[['Discord', R('DiscordId') ? [R('DiscordId')] : []], ['Steam', L('SteamAccounts')], ['Rockstar', L('RockstarAccounts')],
-               ['Epic Games', L('EpicAccounts')], ['Browsers', L('Browsers')], ['USB devices', L('UsbDevices')]]
-              .map(([k, list]) => `<div class="top-row"><span>${k}</span><b class="mono" style="text-align:right;word-break:break-word">${list.length ? list.map(esc).join('<br>') : '-'}</b></div>`).join('')}
-          </div>
-        </div>
-      </div>`,
+          ${head(`${guilds.length} servers found`, '', state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Add more on the Discord check page.` : 'Add cheat-server invite links on the Discord check page to flag them here.')}
+          ${grid([...cheatGuilds, ...guilds.filter((g) => !cheatIds.has(String(g.id)))].map(gcard), 'The player is in no servers.')}`;
+      },
+
+      exec: () => head('Execution history', executed.length, 'Programs Windows recorded running (Prefetch, BAM, PCA, UserAssist, ShimCache) — even if deleted since.')
+        + `<input class="input rp-filter" data-rpq placeholder="Filter…" value="${esc(q || '')}">`
+        + rows(executed.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
+          rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), `${esc(F(e, 'LastRun'))} · ${esc(F(e, 'Source'))}`)), 'No execution history — it may have been wiped.'),
+
+      persist: () => head('Starts with Windows', startup.length) + rows(startup.map((x) =>
+          rowL(F(x, 'Suspicious') ? 'orange' : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Command'))}`, esc(F(x, 'Location')))), 'No startup entries.')
+        + '<div style="height:18px"></div>' + head('Scheduled tasks (non-Microsoft)', tasks.length) + rows(tasks.map((x) =>
+          rowL(F(x, 'Suspicious') ? 'orange' : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Command'))}`, esc(F(x, 'LastRun')))), 'None.'),
+
+      drivers: () => head('Kernel drivers (non-Microsoft)', drivers.length, 'Kernel cheats need a driver. Orange = unsigned, from a user folder, or an exploitable driver (some RGB tools use them too — ask).')
+        + rows(drivers.map((x) => rowL(F(x, 'Suspicious') ? (F(x, 'Signed') ? 'orange' : 'red') : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Path'))}`,
+          F(x, 'Signed') ? 'signed' : 'UNSIGNED')), 'No third-party drivers.'),
+
+      network: () => head('Live connections', conns.length) + rows(conns.map((x) => rowL(F(x, 'Suspicious') ? 'red' : '', `${esc(F(x, 'Process'))} → ${esc(F(x, 'RemoteAddress'))}`, esc(F(x, 'State')))), 'No outside connections.')
+        + '<div style="height:18px"></div>' + head('Firewall / hosts', fw.length) + rows([
+          ...fw.map((x) => rowL('orange', esc(x))),
+          rowL(/MODIFIED/i.test(S('HostsFileStatus') || '') ? 'red' : 'green', 'hosts file: ' + esc(S('HostsFileStatus') || 'normal')),
+        ], ''),
+
+      files: () => head('Recycle bin', deleted.length) + rows(deleted.map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
+        + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(recent.slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
+        + '<div style="height:18px"></div>' + head('Game mods', mods.length) + rows(mods.slice(0, 300).map((m) => rowL('blue', esc(F(m, 'Path') || F(m, 'File')), (F(m, 'SizeMb') || 0) + ' MB')), 'No mods.'),
+
+      cmds: () => head('PowerShell / CMD / Run history', cmds.length) + rows([...cmds.filter((x) => F(x, 'Suspicious')), ...cmds.filter((x) => !F(x, 'Suspicious'))].slice(0, 400)
+          .map((x) => rowL(F(x, 'Suspicious') ? 'orange' : '', esc(F(x, 'Text')), esc(F(x, 'Source')))), 'No command history.'),
+
+      events: () => head('Windows event log', events.length, 'Third-party driver/service installs, cleared logs, Defender alerts, clock changes.')
+        + rows(events.map((x) => rowL(/clear/i.test(F(x, 'Category')) ? 'red' : F(x, 'Category') === 'Defender' ? 'orange' : 'blue',
+          `<b style="color:var(--text)">${esc(F(x, 'Category'))} ${esc(F(x, 'EventId'))}</b> &nbsp;${esc(F(x, 'Message'))}`, esc((F(x, 'When') || '').slice(0, 16).replace('T', ' ')))), 'No relevant events.'),
+
+      pc: () => {
+        const kv = (list) => `<div class="rp-kv">${list.map(([k, v]) => `<span>${k}</span><b>${esc(v || '-')}</b>`).join('')}</div>`;
+        return `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">
+          <div class="rp-card blue"><div class="rp-head" style="font-size:15px">PC information</div>${kv([
+            ['System', (S('Os') || '-') + ' ' + (S('WinBuild') || '')], ['CPU', S('Cpu')], ['GPU', S('Gpu')], ['RAM', S('RamGb')], ['Motherboard', S('Motherboard')],
+            ['Time zone', S('TimeZone')], ['Windows installed', S('WindowsInstall')], ['Boot', S('BootTime')], ['Uptime', S('Uptime')],
+            ['FiveM last launch', S('FiveMLastLaunch')], ['Recycle bin', S('RecycleModified')], ['Antivirus', av.join(', ')],
+            ['Disabled services', (S('DisabledServices') || []).join(', ') || 'none']])}</div>
+          <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Hardware IDs (for bans)</div>${kv([
+            ['HWID', S('Hwid')], ['UUID', S('Uuid')], ['Machine GUID', S('MachineGuid')], ['BIOS serial', S('BiosSerial')],
+            ['Disk serials', S('DiskSerials')], ['MAC', S('MacAddresses')], ['Windows SID', S('Sid')]])}</div>
+          <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Linked accounts</div>${kv([
+            ['Discord (PC)', localDiscord], ['Discord (connected)', dc && dc.user ? `${dc.user.name} · ${dc.user.id}` : 'not connected'],
+            ['Steam', L('SteamAccounts').join(', ')], ['Rockstar', L('RockstarAccounts').join(', ')], ['Epic Games', L('EpicAccounts').join(', ')],
+            ['Browsers', L('Browsers').join(', ')], ['USB devices', L('UsbDevices').join(', ')]])}</div>
+        </div>`;
+      },
     };
 
     view.innerHTML = `
-      <button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:16px">← Back to PINs</button>
-      <div class="card panel" style="margin-bottom:16px">
-        <h3 style="margin:0">Player is <span style="color:${vColor}">${esc(verdict)}</span>
-          <span class="mono" style="color:var(--dim)">PIN ${esc(pin)}${row && row.player ? ' · ' + esc(row.player) : ''}</span></h3>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">
-        ${tabs.map(([id, label, n]) => `<button class="btn btn-sm ${id === tab ? 'btn-primary' : 'btn-ghost'}" data-rtab="${id}">${label}${n !== '' ? ` <span style="opacity:.7">${n}</span>` : ''}</button>`).join('')}
-      </div>
-      <div>${panes[tab] || panes.overview}</div>`;
+      <button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:14px">← Back to PINs</button>
+      <div class="rp-verdict ${esc(verdict)}"><div class="rp-ic" style="width:46px;height:46px">${IC.shield}</div>
+        <div><div class="big">${esc(verdict)}</div><div class="who">${row && row.player ? esc(row.player) + ' · ' : ''}${esc(S('Os') || '')}</div></div>
+        <div class="pin">PIN ${esc(pin)}<br>${fmtDate(row && row.created_at)}</div></div>
+      <div class="rp">
+        <aside class="rp-side">
+          <h4>${IC.shield.replace('<svg', '<svg style="width:18px;height:18px;color:var(--cyan)"')} Detection Results</h4>
+          <div class="sub">${total} total logs found</div>
+          ${cats.map((c) => c === 'sep' ? '<div class="rp-sep"></div>' : `<button class="rp-cat ${c[0] === tab ? 'on' : ''}" data-rtab="${c[0]}">
+            <span class="dot" style="background:${{ red: '#f43f5e', orange: '#f59e0b', green: '#10b981', yellow: '#eab308', purple: '#a855f7', blue: '#3b82f6' }[c[3]]}"></span>${c[1]}
+            ${c[2] !== '' ? `<span class="n ${c[2] && c[2] !== 0 && c[2] !== '–' ? c[3] : ''}">${esc(c[2])}</span>` : ''}</button>`).join('')}
+        </aside>
+        <section>${(panes[tab] || panes.overview)()}</section>
+      </div>`;
 
-    view.querySelectorAll('[data-rtab]').forEach((b) =>
-      b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
+    view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
+    const qi = view.querySelector('[data-rpq]');
+    if (qi) {
+      qi.addEventListener('input', () => { clearTimeout(qi._t); qi._t = setTimeout(() => { renderPinReport(view, pin, tab, qi.value).then(() => { const n = view.querySelector('[data-rpq]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }); }, 250); });
+    }
   }
 
   async function renderScannerGui(view) {
@@ -720,8 +831,50 @@
           Only servers your bot has joined are visible — this never reads someone's full server list.</p>
       </div>
 
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Cheat Discord servers <span style="color:var(--dim);font-weight:500;font-size:13px">(your watch-list)</span></h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+          Paste invite links of cheat / seller servers (one per line). When a player connects his Discord during a check,
+          every server from this list he is in shows <b style="color:var(--red)">red</b> in his report.</p>
+        <textarea id="cs-links" class="input" rows="3" style="width:100%;resize:vertical;font-family:ui-monospace,monospace"
+          placeholder="https://discord.gg/xxxxxx&#10;discord.gg/yyyyyy&#10;123456789012345678 (server ID)"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px"><button class="btn btn-primary" data-csadd>Add servers</button><span id="cs-msg" style="color:var(--muted);font-size:13px;align-self:center"></span></div>
+        <div id="cs-list" style="margin-top:14px"></div>
+      </div>
+
       <div id="disc-out"></div>`;
+    await renderCheatServerList();
+    view.querySelector('[data-csadd]').addEventListener('click', async (ev) => {
+      const links = $('#cs-links').value.trim();
+      if (!links) return toast('Paste at least one invite link', true);
+      ev.target.disabled = true; $('#cs-msg').textContent = 'Checking links…';
+      try {
+        const r = await api('/api/cheat-servers', { method: 'POST', body: { links } });
+        $('#cs-msg').textContent = `${r.added.length} added${r.failed.length ? ` · ${r.failed.length} not valid / expired: ${r.failed.join(', ')}` : ''}`;
+        $('#cs-links').value = '';
+        state.cheatServers = null;
+        await renderCheatServerList();
+      } catch (e) { $('#cs-msg').textContent = e.message; }
+      ev.target.disabled = false;
+    });
     if (id) await runDiscordCheck(id);
+  }
+
+  async function renderCheatServerList() {
+    ensureReportCss();
+    const box = $('#cs-list'); if (!box) return;
+    const { servers } = await api('/api/cheat-servers');
+    state.cheatServers = servers;
+    box.innerHTML = servers.length ? `<div class="rp-grid">${servers.map((g) => `<div class="rp-card red"><div class="rp-guild">
+        ${g.icon ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc((g.name || '?')[0])}</div>`}
+        <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name || 'Server ' + g.guild_id)}</div>
+          <div class="mono" style="color:var(--dim);font-size:11px">${esc(g.guild_id)}${g.invite ? ' · ' + esc(g.invite.replace('https://', '')) : ''}</div></div>
+        <button class="btn btn-danger btn-sm" data-csdel="${esc(g.id)}">Remove</button></div></div>`).join('')}</div>`
+      : '<div class="empty">No cheat servers yet.</div>';
+    box.querySelectorAll('[data-csdel]').forEach((b) => b.addEventListener('click', async () => {
+      try { await api(`/api/cheat-servers?id=${encodeURIComponent(b.dataset.csdel)}`, { method: 'DELETE' }); state.cheatServers = null; renderCheatServerList(); }
+      catch (e) { toast(e.message, true); }
+    }));
   }
 
   async function runDiscordInvestigate(id) {
@@ -741,6 +894,7 @@
     out.innerHTML = loading();
     try {
       const d = await api(`/api/data?server=${state.server}&type=lookup&id=${encodeURIComponent(id)}`);
+      if (!state.cheatServers) { try { state.cheatServers = (await api('/api/cheat-servers')).servers || []; } catch { state.cheatServers = []; } }
       const total = d.bans.length + d.detections.length + d.scans.length;
       const verdict = d.bans.some((b) => b.active) ? ['BANNED', 'var(--red)']
         : total === 0 ? ['NO RECORD', 'var(--dim)']
@@ -765,6 +919,21 @@
             <td>${esc(x.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(x.info)}</div></td>
             <td><span class="badge ${esc(x.action)}">${esc(x.action)}</span></td>
             <td class="mono">${fmtDate(x.created_at)}</td></tr>`).join(''), d.detections.length)}
+        ${(() => {
+          const cheat = new Map((state.cheatServers || []).map((c) => [String(c.guild_id), c]));
+          const seen = new Map();
+          d.scans.forEach((sc) => ((sc.discord_check && sc.discord_check.guilds) || []).forEach((g) => seen.set(String(g.id), g)));
+          const list = [...seen.values()].sort((a, b) => (cheat.has(String(b.id)) ? 1 : 0) - (cheat.has(String(a.id)) ? 1 : 0));
+          const nCheat = list.filter((g) => cheat.has(String(g.id))).length;
+          if (!list.length) return `<div class="card panel" style="margin-bottom:14px"><h3>Discord servers</h3><div class="empty">No connected Discord for this ID yet — servers show after the player connects Discord during a check.</div></div>`;
+          ensureReportCss();
+          return `<div class="card panel" style="margin-bottom:14px"><h3>${list.length} servers found
+              ${nCheat ? `<span class="badge ban" style="margin-left:8px">${nCheat} cheat server${nCheat > 1 ? 's' : ''}</span>` : '<span class="badge on" style="margin-left:8px">no cheat servers</span>'}</h3>
+            <div class="rp-grid">${list.map((g) => `<div class="rp-card ${cheat.has(String(g.id)) ? 'red' : 'grey'}"><div class="rp-guild">
+              ${g.icon ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc((g.name || '?')[0])}</div>`}
+              <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name)}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id)}</div></div>
+              ${cheat.has(String(g.id)) ? '<span class="rp-tag">CHEAT</span>' : ''}</div></div>`).join('')}</div></div>`;
+        })()}
         ${rowsTbl('Screenshare scans', '<th>PIN</th><th>Player</th><th>Result</th><th>Date</th>',
           d.scans.map((s) => `<tr><td class="mono" style="color:var(--cyan)">${esc(s.pin)}</td><td>${esc(s.player) || '-'}</td>
             <td>${s.result ? `<span class="badge ${s.result === 'cheating' ? 'ban' : s.result === 'clean' ? 'on' : 'kick'}">${esc(s.result)}</span>` : '-'}</td>
@@ -780,8 +949,8 @@
         <h3>How a screenshare works (HeRo Check)</h3>
         <ol style="display:flex;flex-direction:column;gap:16px;padding-left:22px;margin:0">
           ${step('Set your scanner background (once)', 'Scanner GUI → choose an image → Save. Every PIN you generate after that shows this image in the scanner automatically.')}
-          ${step('Generate a PIN', 'Scan PINs → type the player name → Generate PIN → Copy. It appears in Recent PINs right away.')}
-          ${step('Send the scanner + PIN to the player', 'The player downloads the scanner (Download scanner page), runs it and types the PIN. Your background loads as soon as the PIN is accepted.')}
+          ${step('Generate a PIN', 'Scan PINs → type the player name → Generate PIN → <b>Copy link</b>. It appears in Recent PINs right away.')}
+          ${step('Send the link to the player', 'The player opens the link — the scanner downloads with his PIN already inside (HeRoShield-PIN.exe). He runs it and clicks Accept, no PIN to type. Your background and the Discord check load by themselves.')}
           ${step('Player accepts the check', 'The scan takes 1–3 minutes and reads the whole PC: execution history (even deleted cheats), drivers, startup, tasks, network, event logs, files.')}
           ${step('Open the result', 'Scan PINs → View (or paste the PIN in "View a result by PIN"). Check the tabs: Detections, Warnings, Execution, Startup &amp; tasks, Drivers, Network, Files…')}
           ${step('Add your own strings', 'Signatures → add cheat file names, C2 domains, SHA-256 hashes. The next scan uses them live.')}
@@ -1149,7 +1318,7 @@
       return runDiscordInvestigate(id);
     }
     if (t.dataset.copypin) {
-      try { await navigator.clipboard.writeText(t.dataset.copypin); toast('PIN copied'); } catch { toast('Copy failed', true); }
+      try { await navigator.clipboard.writeText(t.dataset.copypin); toast(t.dataset.copypin.includes('/') ? 'Link copied' : 'PIN copied'); } catch { toast('Copy failed', true); }
       return;
     }
 
@@ -1234,9 +1403,17 @@
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');
         out.hidden = false;
-        out.innerHTML = `<div class="license-box"><code class="show" style="font-size:18px;letter-spacing:3px">${esc(pin.pin)}</code>
-          <button class="btn btn-ghost btn-sm" data-copypin="${esc(pin.pin)}">Copy</button></div>
-          <p style="color:var(--muted);font-size:13px;margin-top:8px">Give this PIN to the player. They type it in the scanner.</p>`;
+        const dl = `${location.origin}/dl/${pin.pin}`;
+        out.innerHTML = `
+          <div style="color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:6px">DOWNLOAD LINK — SEND THIS TO THE PLAYER</div>
+          <div class="license-box"><code class="show" style="font-size:15px;color:var(--cyan)">${esc(dl)}</code>
+            <button class="btn btn-primary btn-sm" data-copypin="${esc(dl)}">Copy link</button></div>
+          <p style="color:var(--muted);font-size:13px;margin-top:8px">The player opens the link, the scanner downloads with the PIN already inside — he just runs it and clicks Accept. Discord check opens by itself.</p>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--dim);font-size:12.5px;align-items:center">
+            <span>PIN <b class="mono" style="color:var(--text);letter-spacing:2px">${esc(pin.pin)}</b></span>
+            <button class="btn btn-ghost btn-sm" data-copypin="${esc(pin.pin)}">Copy PIN</button>
+            <button class="btn btn-ghost btn-sm" data-copypin="${esc(location.origin)}/verify?pin=${esc(pin.pin)}">Copy Discord link</button>
+          </div>`;
       } else if (t.dataset.addsig !== undefined) {
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();

@@ -90,6 +90,13 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
+    // per-player scanner download (PIN baked into the .exe)
+    const dl = /^\/dl\/([A-Za-z0-9]{4,12})\/?$/.exec(pathname);
+    if (dl && req.method === 'GET') {
+      const { handleDownload } = await import(pathToFileURL(path.join(ROOT, 'api', '_download.js')).href);
+      return await handleDownload(req, res, dl[1]);
+    }
+
     if (pathname.startsWith('/api/')) {
       const handler = await getHandler(pathname.slice(5).replace(/\/$/, ''));
       wrapRes(res);

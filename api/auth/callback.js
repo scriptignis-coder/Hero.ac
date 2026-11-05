@@ -1,4 +1,4 @@
-import { parseCookies, setSession } from '../_lib.js';
+import { parseCookies, setSession, sb, enc } from '../_lib.js';
 
 const fail = (res, code) => {
   res.writeHead(302, { Location: `/dashboard?error=${code}` });
@@ -8,6 +8,8 @@ const fail = (res, code) => {
 export default async function handler(req, res) {
   try {
     const { code, state } = req.query || {};
+    // player Discord check (started from /verify) — not a dashboard login
+    if (String(state || '').startsWith('p.')) return playerCallback(req, res, String(code || ''), String(state));
     const saved = parseCookies(req).hs_state;
     if (!code || !state || !saved || state !== saved) return fail(res, 'state');
 
@@ -45,5 +47,54 @@ export default async function handler(req, res) {
   } catch (e) {
     console.error(e);
     fail(res, 'server');
+  }
+}
+
+async function playerCallback(req, res, code, state) {
+  const [, nonce, pin] = state.split('.');
+  const back = (q) => {
+    res.setHeader('Set-Cookie', 'hs_pstate=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    res.writeHead(302, { Location: `/verify?pin=${encodeURIComponent(pin || '')}&${q}` });
+    res.end();
+  };
+  try {
+    if (!code || !nonce || !pin || parseCookies(req).hs_pstate !== nonce) return back('error=state');
+    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID,
+        client_secret: process.env.DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.DISCORD_REDIRECT_URI,
+      }),
+    });
+    if (!tokenRes.ok) return back('error=token');
+    const { access_token } = await tokenRes.json();
+    const H = { Authorization: `Bearer ${access_token}` };
+    const [meRes, gRes] = await Promise.all([
+      fetch('https://discord.com/api/users/@me', { headers: H }),
+      fetch('https://discord.com/api/users/@me/guilds', { headers: H }),
+    ]);
+    if (!meRes.ok) return back('error=user');
+    const u = await meRes.json();
+    const guilds = gRes.ok ? await gRes.json() : [];
+    const discord_check = {
+      at: new Date().toISOString(),
+      user: {
+        id: String(u.id), name: u.global_name || u.username, username: u.username,
+        avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128` : null,
+        created: new Date(Number((BigInt(u.id) >> 22n) + 1420070400000n)).toISOString(),
+      },
+      guilds: (Array.isArray(guilds) ? guilds : []).slice(0, 250).map((g) => ({
+        id: String(g.id), name: g.name, icon: g.icon || null, owner: !!g.owner,
+      })),
+    };
+    await sb(`scan_pins?pin=eq.${enc(pin)}`, { method: 'PATCH', body: { discord_check } });
+    return back('done=1');
+  } catch (e) {
+    console.error('player discord check', e);
+    return back('error=server');
   }
 }
