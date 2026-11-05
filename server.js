@@ -12,7 +12,9 @@ const TYPES = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
   '.json': 'application/json', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8',
 };
-const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'supabase.sql', '.git'];
+const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json'];
+// never serve database scripts, notes or env files
+const BLOCKED_EXT = /\.(sql|md|env|example|cs|csproj|bat|yml|yaml|log)$/i;
 
 const handlers = new Map();
 async function getHandler(route) {
@@ -30,8 +32,11 @@ async function getHandler(route) {
 function readBody(req) {
   return new Promise((resolve) => {
     let data = '';
-    req.on('data', (c) => { data += c; if (data.length > 6e6) req.destroy(); });
+    let big = false;
+    // scan reports can be a few MB (screenshot + lists) — allow 30 MB, answer 413 instead of cutting the connection
+    req.on('data', (c) => { if (big) return; data += c; if (data.length > 30e6) { big = true; data = ''; } });
     req.on('end', () => {
+      if (big) return resolve({ __tooLarge: true });
       if (!data) return resolve({});
       try { resolve(JSON.parse(data)); } catch { resolve(data); }
     });
@@ -103,12 +108,13 @@ const server = http.createServer(async (req, res) => {
       if (!handler) return res.status(404).json({ error: 'Not found' });
       req.query = Object.fromEntries(url.searchParams);
       req.body = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) ? await readBody(req) : {};
+      if (req.body && req.body.__tooLarge) return res.status(413).json({ error: 'Request too large' });
       return await handler(req, res);
     }
 
     if (pathname === '/') pathname = '/index.html';
     const first = pathname.split('/')[1];
-    if (BLOCKED.includes(first)) { res.statusCode = 404; return res.end('Not found'); }
+    if (BLOCKED.includes(first) || first.startsWith('.') || BLOCKED_EXT.test(pathname)) { res.statusCode = 404; return res.end('Not found'); }
 
     let file = path.join(ROOT, pathname);
     if (!file.startsWith(ROOT)) { res.statusCode = 403; return res.end(); }

@@ -1,7 +1,7 @@
 // Per-player scanner download:  GET /dl/ABCD2345
 // Streams the scanner .exe named "HeRoShield-ABCD2345.exe" with "HEROPIN:ABCD2345|API:<this site>"
 // appended at the end, so the player just runs it — no PIN to type.
-// The .exe comes from SCANNER_EXE_URL (default: the GitHub release) and is cached on disk for 30 min.
+// The .exe comes from SCANNER_EXE_URL (default: the GitHub release) and is cached on disk for 10 min.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,7 +12,7 @@ import { sb, enc } from './_lib.js';
 const SRC = () => process.env.SCANNER_EXE_URL
   || 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
 const CACHE = path.join(os.tmpdir(), 'heroshield-scanner.exe');
-const MAX_AGE = 30 * 60 * 1000;
+const MAX_AGE = 10 * 60 * 1000; // a new release is picked up within 10 minutes
 let inflight = null;
 
 async function getExe() {

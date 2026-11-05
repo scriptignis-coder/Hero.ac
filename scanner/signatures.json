@@ -1,0 +1,19 @@
+[
+  {"name": "Eulen", "fileNames": ["eulen.exe", "eulen.dll", "eulenloader.exe", "eulencheats.exe"], "features": ["Aimbot", "No recoil", "ESP", "Spawn menu", "God mode"], "severity": "high"},
+  {"name": "RedENGINE", "fileNames": ["redengine.exe", "re_loader.exe", "redengine.dll", "red_loader.exe"], "features": ["Aimbot", "No recoil", "No bush", "No water", "ESP"], "severity": "high"},
+  {"name": "TZ / TZX", "fileNames": ["tz.exe", "tzx.exe", "tzx_cl.exe", "tzexternal.exe"], "features": ["ESP", "No recoil", "Infinite stamina"], "severity": "high"},
+  {"name": "Susano", "fileNames": ["susano.exe", "susano.dll", "susano_v3.dll", "susanoo.exe"], "features": ["Aimbot", "ESP", "Fast reload", "Spawn menu"], "severity": "high"},
+  {"name": "Impact", "fileNames": ["impact.exe", "impactmenu.exe", "impact.dll"], "features": ["Aimbot", "ESP", "No recoil"], "severity": "high"},
+  {"name": "Hammafia", "fileNames": ["hammafia.dll", "hamma.exe", "hammafia.exe"], "features": ["Aimbot", "No recoil", "Fast reload"], "severity": "high"},
+  {"name": "Skript.gg", "fileNames": ["skript.exe", "skriptgg.exe", "skript.dll"], "features": ["Aimbot", "ESP", "Spawn menu"], "severity": "high"},
+  {"name": "Lumia", "fileNames": ["lumia.exe", "lumiamenu.exe", "lumia.dll"], "features": ["Aimbot", "ESP"], "severity": "high"},
+  {"name": "Desudo", "fileNames": ["desudo.exe", "desudo.dll"], "features": ["Spawn menu", "God mode", "ESP"], "severity": "high"},
+  {"name": "D3D / overlay hook", "fileNames": ["d3d11hook.dll", "dxhook.dll", "overlay64.dll", "gameoverlay.dll"], "features": ["ESP", "Aimbot assist"], "severity": "medium"},
+  {"name": "Modified textures (no-bush / no-water)", "fileNames": ["nobush.ytd", "no_bush.ytd", "nowater.ytd", "clearwater.ymap", "novegetation.rpf", "lowtrees.ytd"], "features": ["No bush", "No water"], "severity": "medium"},
+  {"name": "Manual-map injector", "fileNames": ["inject64.exe", "injector.exe", "manualmap.exe", "xenos64.exe", "extreme-injector.exe"], "features": ["Injector"], "severity": "medium"},
+  {"name": "YimMenu", "fileNames": ["yimmenu.dll", "yimmenu.exe"], "features": ["Mod menu", "Spawn menu", "God mode"], "severity": "high"},
+  {"name": "Kiddion's Modest Menu", "fileNames": ["modest-menu.exe", "modestmenu.exe"], "features": ["Mod menu", "Teleport", "God mode"], "severity": "high"},
+  {"name": "Lua executor", "fileNames": ["luaexecutor.exe", "lua_executor.exe", "fivemexecutor.exe", "executor.dll"], "features": ["Lua executor", "Resource stopper"], "severity": "high"},
+  {"name": "Cheat Engine", "fileNames": ["cheatengine-x86_64.exe", "cheatengine-x86_64-sse4-avx2.exe", "cheatengine-i386.exe", "cheatengine.exe"], "features": ["Memory editor"], "severity": "medium"},
+  {"name": "Extreme Injector", "fileNames": ["extreme injector v3.exe", "extremeinjector.exe"], "features": ["DLL injector"], "severity": "medium"}
+]

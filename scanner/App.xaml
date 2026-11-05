@@ -1,0 +1,18 @@
+<Application x:Class="HeRoShield.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- palette -->
+        <Color x:Key="AccentColor">#FF2FE3C6</Color>
+        <SolidColorBrush x:Key="Accent" Color="#FF2FE3C6"/>
+        <SolidColorBrush x:Key="AccentDim" Color="#FF15B89D"/>
+        <SolidColorBrush x:Key="Bad" Color="#FFFF5277"/>
+        <SolidColorBrush x:Key="Fg" Color="#FFE8EEF6"/>
+        <SolidColorBrush x:Key="Muted" Color="#FF7C8BA3"/>
+        <SolidColorBrush x:Key="Faint" Color="#FF55637A"/>
+        <SolidColorBrush x:Key="Line" Color="#FF1D2735"/>
+        <SolidColorBrush x:Key="Surface" Color="#FF0B111B"/>
+        <FontFamily x:Key="Mono">Consolas</FontFamily>
+    </Application.Resources>
+</Application>

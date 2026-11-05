@@ -2,18 +2,52 @@ import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
 
 // Receives the finished scan report from the HeRo Scanner (no session — the
 // player's PC posts it). Matches the PIN and stores the result on the row.
+
+// Postgres jsonb refuses "\u0000" (and lone surrogates) — strings read from the
+// registry / binaries often contain them. Clean every string, cap huge lists.
+const BAD = /[\u0000\ud800-\udfff]/g;
+function clean(v, depth = 0) {
+  if (typeof v === 'string') return v.replace(BAD, '').slice(0, v.startsWith('data:image') ? 4_000_000 : 4000);
+  if (Array.isArray(v)) return v.slice(0, 2000).map((x) => clean(x, depth + 1));
+  if (v && typeof v === 'object' && depth < 8) {
+    const o = {};
+    for (const [k, x] of Object.entries(v)) o[k.replace(BAD, '')] = clean(x, depth + 1);
+    return o;
+  }
+  return v;
+}
+
+// keep the stored row a sane size (screenshot + the most useful lists first)
+function shrink(r) {
+  const cap = { ExecutedPrograms: 400, Mods: 400, Suspicious: 300, Commands: 300, RecentFiles: 150, EventLogEntries: 100,
+    NetworkConnections: 150, ScheduledTasks: 150, LoadedDrivers: 200, StartupEntries: 150, ArtifactsCollected: 200 };
+  for (const [k, n] of Object.entries(cap)) if (Array.isArray(r[k]) && JSON.stringify(r).length > 4_500_000) r[k] = r[k].slice(0, n);
+  if (JSON.stringify(r).length > 6_000_000) delete r.ScreenshotJpegBase64;
+  return r;
+}
+
 export default wrap(async (req, res) => {
+  // the scanner checks the PIN BEFORE scanning:  GET /api/scan-report?pin=ABCD2345
+  if (req.method === 'GET') {
+    const pin = String(req.query.pin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used`) : [];
+    if (!rows || !rows.length) return send(res, 404, { error: 'unknown pin' });
+    if (rows[0].used) return send(res, 410, { error: 'pin already used' });
+    return send(res, 200, { ok: true });
+  }
   if (req.method !== 'POST') throw httpError(405, 'POST only');
-  const report = readBody(req);
-  const pin = String(report.Pin || report.pin || '').trim();
+  const raw = readBody(req);
+  if (!raw || typeof raw !== 'object' || !Object.keys(raw).length) throw httpError(400, 'empty or invalid report');
+  const report = shrink(clean(raw));
+  const pin = String(report.Pin || report.pin || '').trim().toUpperCase();
   if (!pin) throw httpError(400, 'missing pin');
 
   const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id`);
-  if (!rows || !rows.length) throw httpError(404, 'unknown pin');
+  if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
+  const dets = report.Detections || report.detections || [];
   const verdict = report.Verdict || report.verdict
-    || ((report.Detections || report.detections || []).some(
-         (d) => (d.Severity === 2 || d.Severity === 'High')) ? 'cheating' : 'clean');
+    || (dets.some((d) => d.Severity === 2 || d.Severity === 'High') ? 'cheating' : dets.length ? 'suspicious' : 'clean');
 
   await sb(`scan_pins?id=eq.${rows[0].id}`, {
     method: 'PATCH',
