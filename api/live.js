@@ -1,8 +1,8 @@
 // Dashboard: latest live screenshot of a player
-import { wrap, send, sb, enc, str, httpError, requireUser, requireOwnedServer } from './_lib.js';
+import { wrap, send, sb, enc, str, httpError, requireAccess, requireOwnedServer } from './_lib.js';
 
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const identifier = str(req.query.identifier, 120);
   if (!identifier) throw httpError(400, 'Missing player');

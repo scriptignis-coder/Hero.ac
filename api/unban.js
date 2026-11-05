@@ -1,5 +1,5 @@
 // Unban from dashboard (session) or FiveM (x-license)
-import { wrap, send, readBody, sb, enc, str, httpError, getSession, requireOwnedServer, requireLicense } from './_lib.js';
+import { wrap, send, readBody, sb, enc, str, httpError, getSession, getAccess, requireOwnedServer, requireLicense } from './_lib.js';
 
 export default wrap(async (req, res) => {
   if (req.method !== 'POST') throw httpError(405, 'POST only');
@@ -14,6 +14,7 @@ export default wrap(async (req, res) => {
   } else {
     const user = getSession(req);
     if (!user) throw httpError(401, 'Not logged in');
+    if (!(await getAccess(user)).heroshield) throw httpError(403, 'No HeRo Shield access for this account');
     serverId = (await requireOwnedServer(user, b.server)).id;
     fromDashboard = true;
   }

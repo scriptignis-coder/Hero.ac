@@ -1,4 +1,4 @@
-import { wrap, send, requireUser, requireOwnedServer, readBody, sb, enc, str, httpError } from './_lib.js';
+import { wrap, send, requireAccess, requireOwnedServer, readBody, sb, enc, str, httpError } from './_lib.js';
 import crypto from 'node:crypto';
 
 const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -6,7 +6,7 @@ const newPin = () => Array.from({ length: 8 }, () => ALPHA[crypto.randomInt(ALPH
 
 // Scan PINs for the screenshare scanner. Scoped to a server the user owns.
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'herocheck');
 
   if (req.method === 'GET') {
     const server = await requireOwnedServer(user, req.query.server);

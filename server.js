@@ -144,6 +144,7 @@ if (WebSocketServer) {
       if (url.pathname === '/ws/view') {
         const user = lib.getSession(req);
         if (!user) return socket.destroy();
+        if (!(await lib.getAccess(user)).heroshield) return socket.destroy();
         const srv = await lib.requireOwnedServer(user, url.searchParams.get('server'));
         const id = stream.streamId(srv.id, String(url.searchParams.get('identifier') || '').slice(0, 120));
         return wss.handleUpgrade(req, socket, head, (ws) => {

@@ -1,6 +1,6 @@
 // Scanner background: staff upload an image on the dashboard; the scanner .exe
 // fetches it by PIN and shows it behind the scan UI. Private to the owner's PINs.
-import { wrap, send, readBody, sb, enc, httpError, requireUser, requireOwnedServer, storageUpload, storageRemove } from './_lib.js';
+import { wrap, send, readBody, sb, enc, httpError, requireAccess, requireOwnedServer, storageUpload, storageRemove } from './_lib.js';
 
 export default wrap(async (req, res) => {
   // the scanner fetches its background by PIN (no session)
@@ -13,7 +13,7 @@ export default wrap(async (req, res) => {
     return send(res, 200, { bg });
   }
 
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'herocheck');
 
   if (req.method === 'GET') {
     const server = await requireOwnedServer(user, req.query.server);

@@ -1,5 +1,5 @@
 
-import { wrap, send, sb, enc, httpError, requireUser, requireOwnedServer } from './_lib.js';
+import { wrap, send, sb, enc, httpError, requireAccess, requireOwnedServer } from './_lib.js';
 
 const count = async (path) => {
   const rows = await sb(`${path}${path.includes('?') ? '&' : '?'}select=id`);
@@ -12,7 +12,8 @@ const search = (q, cols) => {
 };
 
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  // the Discord ID lookup is a screenshare (HeRo Check) page; everything else is anticheat
+  const user = await requireAccess(req, req.query.type === 'lookup' ? 'herocheck' : 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const sid = server.id;
   const type = req.query.type || 'overview';

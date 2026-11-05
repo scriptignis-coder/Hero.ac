@@ -1,6 +1,6 @@
 // GET (dashboard): proof of a ban | POST (FiveM, x-license): save proof links
 import {
-  wrap, send, readBody, sb, enc, httpError, requireUser, requireOwnedServer, requireLicense,
+  wrap, send, readBody, sb, enc, httpError, requireAccess, requireOwnedServer, requireLicense,
   storageList, publicUrl,
 } from './_lib.js';
 
@@ -22,7 +22,7 @@ export default wrap(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'heroshield');
   const server = await requireOwnedServer(user, req.query.server);
   const banId = cleanId(req.query.banId);
   if (!banId) throw httpError(400, 'Missing banId');

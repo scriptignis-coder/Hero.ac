@@ -9,7 +9,8 @@
   const TITLES = {
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
-    scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team',
+    scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
+    discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
   };
   const SCANNER_URL = 'https://github.com/midouff030-blip/HeRo-Shield/releases/latest/download/HeRoShieldScanner.exe';
   const ERRORS = {
@@ -144,7 +145,7 @@
     const acc = state.user.access || { heroshield: true, herocheck: true };
     if (!acc.heroshield && !acc.herocheck) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = 'Your account has no access. Ask the owner for a role.';
+      $('#login-error').textContent = `Your account has no access yet. Send your Discord ID ${state.user.id} to the owner so he can give you HeRo Shield or HeRo Check.`;
       $('#login-error').hidden = false;
       return;
     }
@@ -161,8 +162,7 @@
     state.access = acc;
     document.querySelectorAll('[data-perm]').forEach(el => {
       const p = el.dataset.perm;
-      if (p === 'heroshield' && !acc.heroshield) el.hidden = true;
-      if (p === 'herocheck' && !acc.herocheck) el.hidden = true;
+      el.hidden = !acc[p];
     });
     await loadServers();
     const hash = location.hash.slice(1);
@@ -188,7 +188,8 @@
   const PERM_MAP = {
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
-    scanner:'herocheck', pins:'herocheck', signatures:'herocheck'
+    scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
+    access:'admin'
   };
   function canAccess(tab) {
     if (!TITLES[tab]) return false;
@@ -205,7 +206,7 @@
     $('#search').value = '';
     state.cat = '';
     $('#search').hidden = !['detections', 'bans', 'players', 'logs'].includes(tab);
-    $('#server-select').style.display = ['servers', 'scanner', 'signatures', 'staff'].includes(tab) ? 'none' : '';
+    $('#server-select').style.display = ['servers', 'scanner', 'signatures', 'staff', 'access', 'tutorial', 'changelogs'].includes(tab) ? 'none' : '';
     $('#page-title').textContent = TITLES[tab];
     $$('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     history.replaceState(null, '', `#${tab}`);
@@ -218,6 +219,9 @@
     if (state.tab === 'scanner') return renderScanner(view);
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
+    if (state.tab === 'tutorial') return renderTutorial(view);
+    if (state.tab === 'changelogs') return renderChangelogs(view);
+    if (state.tab === 'access') return renderAccess(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
         <p style="margin-bottom:16px">You don't have a server yet.</p>
@@ -231,6 +235,8 @@
       else if (state.tab === 'stream') await window.HSConfig.renderStream(view, { api, toast, state, modal });
       else if (state.tab === 'logs') await renderLogs(view);
       else if (state.tab === 'pins') await renderPins(view);
+      else if (state.tab === 'discord') await renderDiscordCheck(view);
+      else if (state.tab === 'scannergui') await renderScannerGui(view);
       else await renderTable(view, state.tab);
     } catch (e) {
       view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
@@ -420,6 +426,15 @@
           <button class="btn btn-primary" data-newpin>Generate PIN</button>
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
+      </div>
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>View a result by PIN</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">Paste the PIN you gave the player to open its scan result.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="pin-lookup" class="input" style="flex:1;min-width:180px;text-transform:uppercase;letter-spacing:2px"
+                 placeholder="e.g. ABCD1234" maxlength="8">
+          <button class="btn btn-primary" data-lookuppin>View result</button>
+        </div>
       </div>
       <div class="card panel"><h3>Recent PINs</h3>
         ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
@@ -620,6 +635,187 @@
       b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
   }
 
+  async function renderScannerGui(view) {
+    const { bg } = await api(`/api/scanner-bg?server=${state.server}`);
+    state.scanbg = bg || '';
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Scanner background</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
+          Upload an image shown behind your scanner window while a PIN scan runs. PNG / JPG / GIF, best 500×300.
+          It shows automatically on <b>every</b> PIN of this server — as soon as the player types the PIN.</p>
+        <div class="grid-2">
+          <div>
+            <div id="sg-preview" style="position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#07090d;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">
+              ${bg ? `<img src="${esc(bg)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : '<span style="color:var(--dim)">No background — default storm</span>'}
+              <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>
+            </div>
+            <p style="color:var(--dim);font-size:11px;margin-top:8px">Preview — how the scanner looks while scanning.</p>
+          </div>
+          <div>
+            <label class="btn btn-ghost" style="display:block;text-align:center;cursor:pointer;margin-bottom:10px">
+              Choose image<input id="sg-file" type="file" accept="image/png,image/jpeg,image/gif" hidden></label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" data-sgsave disabled>Save background</button>
+              ${bg ? '<button class="btn btn-danger" data-sgremove>Remove</button>' : ''}
+            </div>
+            <p style="color:var(--dim);font-size:11px;margin-top:12px">Inappropriate images may get your account banned. Background is private to your PINs.</p>
+          </div>
+        </div>
+      </div>`;
+    const file = $('#sg-file'), saveBtn = $('[data-sgsave]');
+    file.addEventListener('change', () => {
+      const f = file.files && file.files[0]; if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        // downscale to 500x300 jpeg (gif kept as-is so it animates)
+        if (f.type === 'image/gif') { state.scannewbg = rd.result; showPrev(rd.result); saveBtn.disabled = false; return; }
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas'); c.width = 500; c.height = 300;
+          const x = c.getContext('2d'); x.drawImage(img, 0, 0, 500, 300);
+          state.scannewbg = c.toDataURL('image/jpeg', 0.85);
+          showPrev(state.scannewbg); saveBtn.disabled = false;
+        };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(f);
+    });
+    function showPrev(src) {
+      const p = $('#sg-preview');
+      p.innerHTML = `<img src="${src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">
+        <div style="position:relative;color:#7dd3fc;font-weight:700;font-size:26px;text-shadow:0 2px 10px #000">0%</div>`;
+    }
+  }
+
+  async function renderDiscordCheck(view, id) {
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Check a Discord ID</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+          Enter a player's Discord ID to see everything on record for them on this server:
+          anticheat bans, in-game detections and screenshare scan results.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="disc-id" class="input" style="flex:1;min-width:200px" inputmode="numeric"
+                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
+          <button class="btn btn-primary" data-disccheck>Check</button>
+        </div>
+        <p style="color:var(--dim);font-size:11px;margin-top:8px">
+          The scanner reads the Discord ID from the player's PC during a scan. This only searches
+          your own records — it cannot read someone's Discord servers or messages.</p>
+      </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Investigate Discord servers <span style="color:var(--dim);font-weight:500;font-size:13px">(via your bot)</span></h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:10px">
+          Checks which of <b>your bot's</b> servers the user is a member of, with join date and role count.
+          Add your bot to the cheat / community servers you want to monitor.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="disc-id2" class="input" style="flex:1;min-width:200px" inputmode="numeric"
+                 placeholder="e.g. 123456789012345678" value="${esc(id || '')}">
+          <button class="btn btn-primary" data-discinvest>Investigate</button>
+        </div>
+        <div id="disc-inv" style="margin-top:12px"></div>
+        <p style="color:var(--dim);font-size:11px;margin-top:8px">
+          Only servers your bot has joined are visible — this never reads someone's full server list.</p>
+      </div>
+
+      <div id="disc-out"></div>`;
+    if (id) await runDiscordCheck(id);
+  }
+
+  async function runDiscordInvestigate(id) {
+    const out = $('#disc-inv'); out.innerHTML = loading();
+    try {
+      const d = await api(`/api/discord-investigate?id=${encodeURIComponent(id)}`);
+      if (!d.found.length) { out.innerHTML = `<div class="empty">Not found in any of your bot's ${fmtNum(d.servers || 0)} servers.</div>`; return; }
+      out.innerHTML = `<div style="color:var(--cyan);font-weight:700;margin-bottom:10px">${d.found.length} server${d.found.length === 1 ? '' : 's'} found</div>
+        ${d.found.map((s) => `<div class="top-row" style="align-items:center">
+          <span><b>${esc(s.server)}</b><div class="mono" style="color:var(--dim);font-size:11px">joined ${esc((s.joined || '').slice(0, 10))}</div></span>
+          <span class="badge log">${s.roles} role${s.roles === 1 ? '' : 's'}</span></div>`).join('')}`;
+    } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  async function runDiscordCheck(id) {
+    const out = $('#disc-out');
+    out.innerHTML = loading();
+    try {
+      const d = await api(`/api/data?server=${state.server}&type=lookup&id=${encodeURIComponent(id)}`);
+      const total = d.bans.length + d.detections.length + d.scans.length;
+      const verdict = d.bans.some((b) => b.active) ? ['BANNED', 'var(--red)']
+        : total === 0 ? ['NO RECORD', 'var(--dim)']
+        : d.scans.some((s) => s.result === 'cheating') || d.detections.length ? ['FLAGGED', 'var(--orange)']
+        : ['SEEN', 'var(--green)'];
+      const rowsTbl = (title, head, body, n) => `<div class="card panel" style="margin-bottom:14px">
+        <h3>${title} <span style="color:var(--dim);font-weight:500">(${n})</span></h3>
+        ${n ? `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+            : '<div class="empty">None.</div>'}</div>`;
+      out.innerHTML = `
+        <div class="card panel" style="margin-bottom:14px;text-align:center">
+          <h3 style="margin:0">Discord <span class="mono" style="color:var(--cyan)">${esc(d.id)}</span>
+            — <span style="color:${verdict[1]}">${verdict[0]}</span></h3>
+        </div>
+        ${rowsTbl('Anticheat bans', '<th>Ban ID</th><th>Player</th><th>Reason</th><th>Status</th><th>Date</th>',
+          d.bans.map((b) => `<tr><td class="mono" style="color:var(--cyan)">${esc(b.ban_id)}</td><td>${esc(b.player)}</td>
+            <td>${esc(b.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(b.info)}</div></td>
+            <td><span class="badge ${b.active ? 'ban' : 'off'}">${b.active ? 'Active' : 'Removed'}</span></td>
+            <td class="mono">${fmtDate(b.created_at)}</td></tr>`).join(''), d.bans.length)}
+        ${rowsTbl('In-game detections', '<th>Player</th><th>Detection</th><th>Action</th><th>Date</th>',
+          d.detections.map((x) => `<tr><td>${esc(x.player)}</td>
+            <td>${esc(x.reason)}<div class="mono" style="color:var(--dim);font-size:11px">${esc(x.info)}</div></td>
+            <td><span class="badge ${esc(x.action)}">${esc(x.action)}</span></td>
+            <td class="mono">${fmtDate(x.created_at)}</td></tr>`).join(''), d.detections.length)}
+        ${rowsTbl('Screenshare scans', '<th>PIN</th><th>Player</th><th>Result</th><th>Date</th>',
+          d.scans.map((s) => `<tr><td class="mono" style="color:var(--cyan)">${esc(s.pin)}</td><td>${esc(s.player) || '-'}</td>
+            <td>${s.result ? `<span class="badge ${s.result === 'cheating' ? 'ban' : s.result === 'clean' ? 'on' : 'kick'}">${esc(s.result)}</span>` : '-'}</td>
+            <td class="mono">${fmtDate(s.created_at)}</td></tr>`).join(''), d.scans.length)}`;
+    } catch (e) { out.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
+  }
+
+
+  function renderTutorial(view) {
+    const step = (t, d) => `<li><b>${t}</b><p style="color:var(--muted);margin:4px 0 0">${d}</p></li>`;
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:16px">
+        <h3>How a screenshare works (HeRo Check)</h3>
+        <ol style="display:flex;flex-direction:column;gap:16px;padding-left:22px;margin:0">
+          ${step('Set your scanner background (once)', 'Scanner GUI → choose an image → Save. Every PIN you generate after that shows this image in the scanner automatically.')}
+          ${step('Generate a PIN', 'Scan PINs → type the player name → Generate PIN → Copy. It appears in Recent PINs right away.')}
+          ${step('Send the scanner + PIN to the player', 'The player downloads the scanner (Download scanner page), runs it and types the PIN. Your background loads as soon as the PIN is accepted.')}
+          ${step('Player accepts the check', 'The scan takes 1–3 minutes and reads the whole PC: execution history (even deleted cheats), drivers, startup, tasks, network, event logs, files.')}
+          ${step('Open the result', 'Scan PINs → View (or paste the PIN in "View a result by PIN"). Check the tabs: Detections, Warnings, Execution, Startup &amp; tasks, Drivers, Network, Files…')}
+          ${step('Add your own strings', 'Signatures → add cheat file names, C2 domains, SHA-256 hashes. The next scan uses them live.')}
+          ${step('Review the verdict', 'The scanner says <b style="color:var(--red)">cheating</b>, <b style="color:var(--orange)">suspicious</b> or <b style="color:var(--green)">clean</b>. Always review the evidence yourself before a ban.')}
+        </ol>
+      </div>
+      <div class="card panel">
+        <h3>Giving access to your staff</h3>
+        <ol style="display:flex;flex-direction:column;gap:16px;padding-left:22px;margin:0">
+          ${step('The staff member logs in once', 'They open this dashboard and log in with Discord. They see "no access" and their Discord ID — that is normal.')}
+          ${step('Option A — Render (fixed list)', 'Render → Environment: <span class="mono">HEROCHECK_IDS</span> = Discord IDs for screenshare, <span class="mono">HEROSHIELD_IDS</span> = Discord IDs for anticheat, <span class="mono">ADMIN_DISCORD_IDS</span> = you. Separate IDs with a comma. Save → Render restarts.')}
+          ${step('Option B — Access page (no restart)', 'Open Access (owner only). It lists everyone who logged in; you can also add someone by Discord ID before they log in.')}
+          ${step('Tick what they can open', '<b>HeRo Check</b> = screenshare (scanner, PINs, Discord check, Scanner GUI, signatures). <b>HeRo Shield</b> = in-game anticheat (overview, detections, bans, players, logs, live, configuration). Tick both for full access.')}
+          ${step('Done', 'They refresh the page and see only their tabs. Untick to remove access at any time — it applies immediately.')}
+        </ol>
+      </div>`;
+  }
+
+  function renderChangelogs(view) {
+    const log = [
+      ['4.0.0', 'Much stronger cheat detection: reads UTF-16 strings (C#/.NET cheats were invisible before), cheat score per program (menu features like triggerbot / silent aim / no recoil, FiveM executor code, injection APIs, ImGui overlay, unsigned, cheat-named folder), menu names found even in renamed loaders in Downloads/Temp/AppData, cheat-named programs that ran (even deleted), cheat files inside .zip archives, ReShade/ENB recognised. Startup &amp; scheduled-task persistence, loaded kernel drivers (unsigned / user-folder / exploitable), live network connections, ShimCache &amp; PCA execution history, Windows event log (cleared logs, driver installs, Defender alerts, clock changes), hosts file &amp; firewall blocking, hidden NTFS streams, VM detection, Rockstar / Epic accounts, cheat tools running (Cheat Engine, injectors, ReClass). Fewer false positives: RGB / motherboard drivers and normal apps (Discord, Steam) no longer flagged as cheating. Tabbed report on the dashboard.'],
+      ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
+      ['3.6.0', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import, domains &amp; hashes in signatures'],
+      ['3.5.0', 'False-positive guards: skip own project files, OneDrive, node_modules, recycle bin. Multi-match fix (3+ cheat names = list, not cheat)'],
+      ['3.4.0', 'PowerShell &amp; Run (Win+R) command history, bypass &amp; cleaning tells, UserAssist, MUICache'],
+      ['3.3.0', 'Whole-disk deep scan, script obfuscation detection (encoded PowerShell, base64 Lua), packer detection (Themida, VMProtect, Enigma, UPX)'],
+      ['3.2.0', 'Prefetch, BAM, PCA execution timeline. FiveM plugin scan. Recycle bin analysis'],
+      ['3.1.0', 'Running process scan, network/DNS indicators, drop folder scan'],
+      ['3.0.0', 'Initial release — system info, signature matching, screenshot capture, backend upload'],
+    ];
+    view.innerHTML = log.map(([ver, text]) => `<div class="card panel" style="margin-bottom:10px">
+        <b style="color:var(--cyan)">v${ver}</b><div style="margin-top:6px;color:var(--muted)">${text}</div></div>`).join('');
+  }
+
   async function renderSignatures(view) {
     const { signatures } = await api('/api/signatures');
     view.innerHTML = `
@@ -667,6 +863,60 @@
             <td><button class="btn btn-danger btn-sm" data-delstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No staff yet.</div>'}
       </div>`;
+  }
+
+  // ---------- access (admin only): who sees HeRo Shield / HeRo Check ----------
+  async function renderAccess(view) {
+    view.innerHTML = loading();
+    const { users } = await api('/api/access');
+    const box = (u, perm) => {
+      const fromEnv = perm === 'heroshield' ? u.envHeroshield : u.envHerocheck;
+      const label = perm === 'heroshield' ? 'HeRo Shield' : 'HeRo Check';
+      if (fromEnv) return `<label title="Set in Render: ${perm === 'heroshield' ? 'HEROSHIELD_IDS' : 'HEROCHECK_IDS'}" style="display:inline-flex;gap:6px;align-items:center;opacity:.85">
+        <input type="checkbox" checked disabled> ${label} <span class="badge log" style="font-size:10px">env</span></label>`;
+      return `<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">
+        <input type="checkbox" data-acc="${perm}" data-uid="${esc(u.discord_id)}" ${u[perm] ? 'checked' : ''}> ${label}</label>`;
+    };
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Give access</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px"><b>HeRo Shield</b> = anticheat tabs (overview, detections, bans, players, logs, live, configuration).
+          <b>HeRo Check</b> = screenshare tabs (scanner, scan PINs, Discord check, Scanner GUI, signatures). People appear below after their first login — or add them now by Discord ID.
+          IDs you put in Render (<span class="mono">HEROSHIELD_IDS</span> / <span class="mono">HEROCHECK_IDS</span>) show an <span class="badge log" style="font-size:10px">env</span> tag and can only be changed in Render.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <input id="acc-id" class="input" style="flex:1;min-width:200px" placeholder="Discord user ID (e.g. 123456789012345678)">
+          <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="acc-hs"> HeRo Shield</label>
+          <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="acc-hc" checked> HeRo Check</label>
+          <button class="btn btn-primary" data-addacc>Save</button>
+        </div>
+      </div>
+      <div class="card panel"><h3>Accounts (${users.length})</h3>
+        ${users.length ? `<div class="table-wrap"><table><thead><tr><th>User</th><th>Discord ID</th><th>Access</th><th>Last login</th><th></th></tr></thead>
+          <tbody>${users.map((u) => `<tr>
+            <td><div style="display:flex;gap:10px;align-items:center">${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="width:28px;height:28px;border-radius:50%">` : ''}<b>${esc(u.name) || '<span style="color:var(--dim)">not logged in yet</span>'}</b></div></td>
+            <td class="mono">${esc(u.discord_id)}</td>
+            <td>${u.admin ? '<span class="badge log">Owner — full access</span>' : `<div style="display:flex;gap:14px;flex-wrap:wrap">${box(u, 'heroshield')}${box(u, 'herocheck')}</div>`}</td>
+            <td class="mono">${u.last_login ? fmtDate(u.last_login) : 'never'}</td>
+            <td>${u.admin ? '' : `<button class="btn btn-danger btn-sm" data-delacc="${esc(u.discord_id)}">Remove</button>`}</td></tr>`).join('')}</tbody></table></div>`
+          : '<div class="empty">Nobody yet. Ask your staff to log in once, or add them by Discord ID.</div>'}
+      </div>`;
+
+    const save = async (body, msg) => {
+      try { await api('/api/access', { method: 'POST', body }); toast(msg); } catch (e) { toast(e.message, true); }
+    };
+    view.querySelectorAll('[data-acc]').forEach((cb) => cb.addEventListener('change', () =>
+      save({ discordId: cb.dataset.uid, [cb.dataset.acc]: cb.checked }, 'Access updated')));
+    view.querySelector('[data-addacc]').addEventListener('click', async () => {
+      const id = $('#acc-id').value.trim();
+      if (!/^\d{5,25}$/.test(id)) return toast('Enter a Discord user ID (numbers only)', true);
+      await save({ discordId: id, heroshield: $('#acc-hs').checked, herocheck: $('#acc-hc').checked }, 'Saved');
+      renderAccess(view);
+    });
+    view.querySelectorAll('[data-delacc]').forEach((b) => b.addEventListener('click', async () => {
+      if (!(await modal({ title: 'Remove access', text: `Remove all access for ${b.dataset.delacc}?`, ok: 'Remove', danger: true }))) return;
+      try { await api(`/api/access?id=${encodeURIComponent(b.dataset.delacc)}`, { method: 'DELETE' }); toast('Removed'); renderAccess(view); }
+      catch (e) { toast(e.message, true); }
+    }));
   }
 
   function renderServers(view) {
@@ -867,6 +1117,37 @@
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
     if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
+    if (t.dataset.lookuppin !== undefined) {
+      const code = ($('#pin-lookup').value || '').trim().toUpperCase();
+      if (!code) return toast('Enter a PIN', true);
+      const found = (state.pins || []).find((p) => p.pin === code);
+      if (!found) return toast('No PIN like that on this server', true);
+      if (!(found.used && found.report)) return toast('No result yet for ' + code + ' — the player has not finished the scan', true);
+      return renderPinReport($('#view'), code);
+    }
+    if (t.dataset.sgsave !== undefined) {
+      if (!state.scannewbg) return toast('Choose an image first', true);
+      t.disabled = true; t.textContent = 'Saving…';
+      try { await api('/api/scanner-bg', { method: 'POST', body: { server: state.server, image: state.scannewbg } });
+        toast('Background saved — it shows on every PIN'); state.scannewbg = null; renderScannerGui($('#view')); }
+      catch (e) { toast(e.message, true); t.disabled = false; t.textContent = 'Save background'; }
+      return;
+    }
+    if (t.dataset.sgremove !== undefined) {
+      try { await api(`/api/scanner-bg?server=${state.server}`, { method: 'DELETE' }); toast('Background removed'); renderScannerGui($('#view')); }
+      catch (e) { toast(e.message, true); }
+      return;
+    }
+    if (t.dataset.disccheck !== undefined) {
+      const id = ($('#disc-id').value || '').replace(/[^0-9]/g, '');
+      if (!id) return toast('Enter a Discord ID', true);
+      return runDiscordCheck(id);
+    }
+    if (t.dataset.discinvest !== undefined) {
+      const id = ($('#disc-id2').value || '').replace(/[^0-9]/g, '');
+      if (!id) return toast('Enter a Discord ID', true);
+      return runDiscordInvestigate(id);
+    }
     if (t.dataset.copypin) {
       try { await navigator.clipboard.writeText(t.dataset.copypin); toast('PIN copied'); } catch { toast('Copy failed', true); }
       return;
@@ -950,13 +1231,12 @@
         const player = $('#pin-player').value.trim();
         const { pin } = await api('/api/pins', { method: 'POST', body: { server: state.server, player } });
         t.disabled = false;
+        await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');
         out.hidden = false;
         out.innerHTML = `<div class="license-box"><code class="show" style="font-size:18px;letter-spacing:3px">${esc(pin.pin)}</code>
           <button class="btn btn-ghost btn-sm" data-copypin="${esc(pin.pin)}">Copy</button></div>
           <p style="color:var(--muted);font-size:13px;margin-top:8px">Give this PIN to the player. They type it in the scanner.</p>`;
-        $('#pin-player').value = '';
-        renderPins($('#view'));
       } else if (t.dataset.addsig !== undefined) {
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();

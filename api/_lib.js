@@ -171,6 +171,58 @@ export function requireUser(req) {
 }
 
 
+// ---------- Permissions: HeRo Shield (anticheat) / HeRo Check (screenshare) ----------
+// Set in Render → Environment (Discord user IDs, comma separated):
+//   ADMIN_DISCORD_IDS = full access + the Access page
+//   HEROSHIELD_IDS    = anticheat tabs
+//   HEROCHECK_IDS     = screenshare / scan tabs
+// You can ALSO tick people on the Access page (table user_access) — env OR page = access.
+// If none of the three variables is set, everyone has full access (old behaviour).
+export const PERMS = ['heroshield', 'herocheck'];
+const idList = (k) => String(process.env[k] || '').split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+const adminIds = () => idList('ADMIN_DISCORD_IDS');
+export const envIds = () => ({ admin: adminIds(), heroshield: idList('HEROSHIELD_IDS'), herocheck: idList('HEROCHECK_IDS') });
+const gatingOn = () => { const e = envIds(); return e.admin.length + e.heroshield.length + e.herocheck.length > 0; };
+export const isAdmin = (user) => !!user && adminIds().includes(String(user.id));
+
+const accessCache = new Map(); // discord id -> { at, access }
+export function clearAccessCache(id) { if (id) accessCache.delete(String(id)); else accessCache.clear(); }
+
+export async function getAccess(user) {
+  if (!user) return { heroshield: false, herocheck: false, admin: false };
+  const id = String(user.id);
+  if (isAdmin(user)) return { heroshield: true, herocheck: true, admin: true };
+  if (!gatingOn()) return { heroshield: true, herocheck: true, admin: false };
+  const hit = accessCache.get(id);
+  if (hit && Date.now() - hit.at < 30000) return hit.access;
+  const env = envIds();
+  const access = { heroshield: env.heroshield.includes(id), herocheck: env.herocheck.includes(id), admin: false };
+  if (!access.heroshield || !access.herocheck) {
+    try {
+      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck`);
+      if (rows && rows[0]) {
+        access.heroshield = access.heroshield || !!rows[0].heroshield;
+        access.herocheck = access.herocheck || !!rows[0].herocheck;
+      }
+    } catch (e) {
+      console.error('user_access lookup failed (run supabase-access.sql):', e.message);
+    }
+  }
+  accessCache.set(id, { at: Date.now(), access });
+  return access;
+}
+
+// Logged in AND has the permission ('heroshield' | 'herocheck' | 'admin'), else 403.
+export async function requireAccess(req, perm) {
+  const user = requireUser(req);
+  const access = await getAccess(user);
+  if (!access[perm]) {
+    const label = perm === 'heroshield' ? 'HeRo Shield' : perm === 'herocheck' ? 'HeRo Check' : 'admin';
+    throw httpError(403, `No ${label} access for this account`);
+  }
+  return user;
+}
+
 export async function requireLicense(req) {
   const license = String(req.headers['x-license'] || '').trim();
   if (!license) throw httpError(401, 'Missing license');

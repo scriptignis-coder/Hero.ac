@@ -1,12 +1,12 @@
 // Dashboard: send a command to the FiveM server (screenshot / kick / ban)
-import { wrap, send, readBody, sb, str, httpError, requireUser, requireOwnedServer, publicUrl } from './_lib.js';
+import { wrap, send, readBody, sb, str, httpError, requireAccess, requireOwnedServer, publicUrl } from './_lib.js';
 
 const TYPES = ['screenshot', 'kick', 'ban', 'stream'];
 const safe = (v) => String(v || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 
 export default wrap(async (req, res) => {
   if (req.method !== 'POST') throw httpError(405, 'POST only');
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'heroshield');
   const b = readBody(req);
   const server = await requireOwnedServer(user, b.server);
   if (!TYPES.includes(b.type)) throw httpError(400, 'Invalid command');

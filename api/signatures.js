@@ -1,4 +1,4 @@
-import { wrap, send, requireUser, readBody, sb, enc, str, httpError } from './_lib.js';
+import { wrap, send, requireAccess, readBody, sb, enc, str, httpError } from './_lib.js';
 
 const toList = (v) => Array.isArray(v)
   ? v.map((x) => str(x, 120)).filter(Boolean)
@@ -6,7 +6,7 @@ const toList = (v) => Array.isArray(v)
 
 // Cheat signatures the scanner matches. Owner-scoped (apply to all the owner's servers).
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'herocheck');
 
   if (req.method === 'GET') {
     const rows = await sb(`signatures?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);
