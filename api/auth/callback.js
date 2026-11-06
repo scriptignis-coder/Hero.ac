@@ -95,6 +95,10 @@ async function playerCallback(req, res, code, state) {
     return back('done=1');
   } catch (e) {
     console.error('player discord check', e);
+    const m = String((e && e.message) || e);
+    // most common cause: the database was created before the Discord check existed
+    if (/discord_check|column|schema cache|PGRST204|42703/i.test(m)) return back('error=db');
+    if (/SUPABASE|unreachable|fetch failed|ENOTFOUND|ECONN/i.test(m)) return back('error=dbconn');
     return back('error=server');
   }
 }

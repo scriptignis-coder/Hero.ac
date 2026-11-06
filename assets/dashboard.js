@@ -558,6 +558,8 @@
     const guilds = (dc && dc.guilds) || [];
     const cheatGuilds = guilds.filter((g) => cheatIds.has(String(g.id)));
     const localDiscord = R('DiscordId');
+    const fivem = L('FiveM').slice().sort((a, b) => (F(b, 'Level') || 0) - (F(a, 'Level') || 0));
+    const fivemBad = fivem.filter((x) => F(x, 'Level') === 2).length, fivemLook = fivem.filter((x) => F(x, 'Level') === 1).length;
 
     const flaggedRuns = executed.filter((e) => F(e, 'Flagged'));
     const has = (re) => warns.some((w) => re.test(F(w, 'Title') || ''));
@@ -589,7 +591,8 @@
     const rows = (items, empty) => (items.length ? `<div class="rp-rows">${items.join('')}</div>` : `<div class="rp-empty">${empty}</div>`);
     const head = (title, n, sub = '') => `<div class="rp-head">${title} <span class="cnt">${n !== '' ? n + ' entries' : ''}</span></div>${sub ? `<p style="color:var(--dim);font-size:12.5px;margin:-8px 0 14px">${sub}</p>` : ''}`;
     const qf = (q || '').toLowerCase();
-    const match = (...xs) => !qf || xs.some((x) => String(x || '').toLowerCase().includes(qf));
+    const match = (...xs) => !qf || xs.some((x) => String(Array.isArray(x) ? x.join(' ') : x || '').toLowerCase().includes(qf));
+    const fl = (list, ...keys) => list.filter((o) => match(...(typeof o === 'string' ? [o] : keys.map((k) => F(o, k)))));
 
     const cats = [
       ['overview', 'Overview', '', 'blue'],
@@ -598,6 +601,7 @@
       ['warnings', 'Warnings', warns.length, 'orange'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
       ['entropy', 'Entropy', entropy.length, 'purple'],
+      ['fivem', 'FiveM', fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
       ['discord', 'Discord', dc ? (cheatGuilds.length ? cheatGuilds.length + ' cheat' : guilds.length) : '–', cheatGuilds.length ? 'red' : dc ? 'blue' : 'orange'],
       'sep',
       ['exec', 'Execution', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
@@ -624,12 +628,13 @@
         <div class="rp-head">Most important</div>
         ${grid([
           ...dets.slice(0, 6).map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')), F(d, 'Deleted') ? 'File deleted' : esc(METHODS[F(d, 'Method')] || ''))),
+          ...fivem.filter((x) => F(x, 'Level') === 2).slice(0, 4).map((x) => card('red', IC.alert, 'FiveM mod: ' + esc(F(x, 'Name')), 'FiveM')),
           ...cheatGuilds.slice(0, 4).map((g) => card('red', IC.disc, 'In cheat Discord: ' + esc(g.name), 'Discord')),
           ...warns.slice(0, 6).map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'))),
         ], 'Nothing found — the PC looks clean.')}
         ${shot ? `<div class="rp-head" style="margin-top:18px">Screenshot at the end of the scan</div><img src="${esc(shot)}" alt="Player screen" style="width:100%;border-radius:14px;border:1px solid var(--line)">` : ''}`,
 
-      detects: () => head('Detects Logs', dets.length) + grid(dets.map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')),
+      detects: () => head('Detects Logs', dets.length) + grid(fl(dets, 'Signature', 'Path', 'Explain', 'Features', 'Sha256').map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')),
           F(d, 'Deleted') ? 'File deleted' : F(d, 'Method') === 0 ? 'Running' : 'On disk',
           `<div class="rp-meta"><span class="rp-chip">${SEV[F(d, 'Severity')] || ''}</span><span class="rp-chip">${esc(METHODS[F(d, 'Method')] || '')}</span>
             ${(F(d, 'Features') || []).slice(0, 5).map((f) => `<span class="rp-chip">${esc(f)}</span>`).join('')}<span class="rp-chip">${esc(F(d, 'When'))}</span></div>
@@ -639,14 +644,14 @@
       integrity: () => head('Integrity checks', `${passed}/${integrity.length} passed`, 'Green = normal. Red = something was changed, disabled or cleaned before the check.')
         + grid(integrity.map(([t, ok]) => card(ok ? 'green' : 'red', ok ? IC.check : IC.x, t, ok ? 'Passed' : 'Failed')), ''),
 
-      warnings: () => head('Warnings Logs', warns.length) + grid(warns.map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'),
+      warnings: () => head('Warnings Logs', warns.length) + grid(fl(warns, 'Title', 'Detail', 'Category').map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'),
           `<div class="rp-txt">${esc(F(w, 'Detail'))}</div>`)), 'No warnings.'),
 
       suspicious: () => head('Suspicious Logs', susp.length, 'Not proof on their own — files worth a look.')
         + rows(susp.filter((x) => match(F(x, 'Kind'), F(x, 'Path'))).map((x) => rowL('yellow', esc(F(x, 'Path')), esc(F(x, 'Kind')))), 'Nothing suspicious.'),
 
       entropy: () => head('Entropy', entropy.length, 'Programs whose content is packed / encrypted (entropy > 7.2 of 8) and unsigned — cheats do this to hide their strings.')
-        + rows(entropy.map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
+        + rows(fl(entropy, 'Path', 'Kind').map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
 
       discord: () => {
         if (!dc) return head('Discord', '') + `<div class="rp-card orange"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
@@ -670,38 +675,51 @@
             ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one connected here — the player may be hiding his main account.</div>` : ''}
           </div>
           ${head(`${guilds.length} servers found`, '', state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Add more on the Discord check page.` : 'Add cheat-server invite links on the Discord check page to flag them here.')}
-          ${grid([...cheatGuilds, ...guilds.filter((g) => !cheatIds.has(String(g.id)))].map(gcard), 'The player is in no servers.')}`;
+          ${grid([...cheatGuilds, ...guilds.filter((g) => !cheatIds.has(String(g.id)))].filter((g) => match(g.name, g.id)).map(gcard), 'The player is in no servers.')}`;
+      },
+
+      fivem: () => {
+        const lvC = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : 'green');
+        const lvT = (x) => (F(x, 'Level') === 2 ? 'CHEAT' : F(x, 'Level') === 1 ? 'Check' : 'OK');
+        const folders = fivem.filter((x) => F(x, 'Kind') === 'Folder');
+        const items = fl(fivem.filter((x) => F(x, 'Kind') !== 'Folder'), 'Kind', 'Name', 'Path', 'Detail', 'Files');
+        return head('FiveM files & mods', items.length, 'Every mod in the FiveM folders is opened and read — .rpf archives (weapons.meta, visualsettings, timecycle, nested archives), plugins, scripts and proxy DLLs. Red = cheat mod (also listed in Detects). Orange = changes game settings, check it. Green = normal.')
+          + (folders.length ? `<div class="rp-meta" style="margin-bottom:14px">${folders.map((f) => `<span class="rp-chip">${esc(F(f, 'Path') || F(f, 'Name'))}${F(f, 'Detail') ? ' · ' + esc(F(f, 'Detail')) : ''}</span>`).join('')}</div>` : '')
+          + grid(items.map((x) => card(lvC(x), lvC(x) === 'green' ? IC.check : IC.alert, esc(F(x, 'Name')), lvT(x),
+            `<div class="rp-meta"><span class="rp-chip">${esc(F(x, 'Kind'))}</span>${F(x, 'SizeMb') ? `<span class="rp-chip">${esc(F(x, 'SizeMb'))} MB</span>` : ''}${F(x, 'When') ? `<span class="rp-chip">${esc(F(x, 'When'))}</span>` : ''}</div>
+             ${F(x, 'Detail') ? `<div class="rp-txt">${esc(F(x, 'Detail'))}</div>` : ''}
+             <div class="rp-code">${esc(F(x, 'Path'))}${(F(x, 'Files') || []).length ? '<br>' + (F(x, 'Files') || []).slice(0, 8).map(esc).join('<br>') + ((F(x, 'Files') || []).length > 8 ? `<br>… +${(F(x, 'Files') || []).length - 8} more` : '') : ''}</div>`)),
+            R('FiveM') ? 'No mods found in the FiveM folders.' : 'This report has no FiveM section — the player used an older scanner (needs v4.1+).');
       },
 
       exec: () => head('Execution history', executed.length, 'Programs Windows recorded running (Prefetch, BAM, PCA, UserAssist, ShimCache) — even if deleted since.')
-        + `<input class="input rp-filter" data-rpq placeholder="Filter…" value="${esc(q || '')}">`
         + rows(executed.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
           rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), `${esc(F(e, 'LastRun'))} · ${esc(F(e, 'Source'))}`)), 'No execution history — it may have been wiped.'),
 
-      persist: () => head('Starts with Windows', startup.length) + rows(startup.map((x) =>
+      persist: () => head('Starts with Windows', startup.length) + rows(fl(startup, 'Name', 'Command', 'Location').map((x) =>
           rowL(F(x, 'Suspicious') ? 'orange' : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Command'))}`, esc(F(x, 'Location')))), 'No startup entries.')
-        + '<div style="height:18px"></div>' + head('Scheduled tasks (non-Microsoft)', tasks.length) + rows(tasks.map((x) =>
+        + '<div style="height:18px"></div>' + head('Scheduled tasks (non-Microsoft)', tasks.length) + rows(fl(tasks, 'Name', 'Command').map((x) =>
           rowL(F(x, 'Suspicious') ? 'orange' : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Command'))}`, esc(F(x, 'LastRun')))), 'None.'),
 
       drivers: () => head('Kernel drivers (non-Microsoft)', drivers.length, 'Kernel cheats need a driver. Orange = unsigned, from a user folder, or an exploitable driver (some RGB tools use them too — ask).')
-        + rows(drivers.map((x) => rowL(F(x, 'Suspicious') ? (F(x, 'Signed') ? 'orange' : 'red') : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Path'))}`,
+        + rows(fl(drivers, 'Name', 'Path').map((x) => rowL(F(x, 'Suspicious') ? (F(x, 'Signed') ? 'orange' : 'red') : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Path'))}`,
           F(x, 'Signed') ? 'signed' : 'UNSIGNED')), 'No third-party drivers.'),
 
-      network: () => head('Live connections', conns.length) + rows(conns.map((x) => rowL(F(x, 'Suspicious') ? 'red' : '', `${esc(F(x, 'Process'))} → ${esc(F(x, 'RemoteAddress'))}`, esc(F(x, 'State')))), 'No outside connections.')
+      network: () => head('Live connections', conns.length) + rows(fl(conns, 'Process', 'RemoteAddress', 'State').map((x) => rowL(F(x, 'Suspicious') ? 'red' : '', `${esc(F(x, 'Process'))} → ${esc(F(x, 'RemoteAddress'))}`, esc(F(x, 'State')))), 'No outside connections.')
         + '<div style="height:18px"></div>' + head('Firewall / hosts', fw.length) + rows([
-          ...fw.map((x) => rowL('orange', esc(x))),
+          ...fl(fw).map((x) => rowL('orange', esc(x))),
           rowL(/MODIFIED/i.test(S('HostsFileStatus') || '') ? 'red' : 'green', 'hosts file: ' + esc(S('HostsFileStatus') || 'normal')),
         ], ''),
 
-      files: () => head('Recycle bin', deleted.length) + rows(deleted.map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
-        + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(recent.slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
-        + '<div style="height:18px"></div>' + head('Game mods', mods.length) + rows(mods.slice(0, 300).map((m) => rowL('blue', esc(F(m, 'Path') || F(m, 'File')), (F(m, 'SizeMb') || 0) + ' MB')), 'No mods.'),
+      files: () => head('Recycle bin', deleted.length) + rows(fl(deleted, 'File').map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
+        + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(fl(recent, 'Name', 'Path').slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
+        + '<div style="height:18px"></div>' + head('Game mods', mods.length) + rows(fl(mods, 'Path', 'File').slice(0, 300).map((m) => rowL('blue', esc(F(m, 'Path') || F(m, 'File')), (F(m, 'SizeMb') || 0) + ' MB')), 'No mods.'),
 
-      cmds: () => head('PowerShell / CMD / Run history', cmds.length) + rows([...cmds.filter((x) => F(x, 'Suspicious')), ...cmds.filter((x) => !F(x, 'Suspicious'))].slice(0, 400)
+      cmds: () => head('PowerShell / CMD / Run history', cmds.length) + rows(fl([...cmds.filter((x) => F(x, 'Suspicious')), ...cmds.filter((x) => !F(x, 'Suspicious'))], 'Text', 'Source').slice(0, 400)
           .map((x) => rowL(F(x, 'Suspicious') ? 'orange' : '', esc(F(x, 'Text')), esc(F(x, 'Source')))), 'No command history.'),
 
       events: () => head('Windows event log', events.length, 'Third-party driver/service installs, cleared logs, Defender alerts, clock changes.')
-        + rows(events.map((x) => rowL(/clear/i.test(F(x, 'Category')) ? 'red' : F(x, 'Category') === 'Defender' ? 'orange' : 'blue',
+        + rows(fl(events, 'Category', 'EventId', 'Message').map((x) => rowL(/clear/i.test(F(x, 'Category')) ? 'red' : F(x, 'Category') === 'Defender' ? 'orange' : 'blue',
           `<b style="color:var(--text)">${esc(F(x, 'Category'))} ${esc(F(x, 'EventId'))}</b> &nbsp;${esc(F(x, 'Message'))}`, esc((F(x, 'When') || '').slice(0, 16).replace('T', ' ')))), 'No relevant events.'),
 
       pc: () => {
@@ -736,7 +754,7 @@
             <span class="dot" style="background:${{ red: '#f43f5e', orange: '#f59e0b', green: '#10b981', yellow: '#eab308', purple: '#a855f7', blue: '#3b82f6' }[c[3]]}"></span>${c[1]}
             ${c[2] !== '' ? `<span class="n ${c[2] && c[2] !== 0 && c[2] !== '–' ? c[3] : ''}">${esc(c[2])}</span>` : ''}</button>`).join('')}
         </aside>
-        <section>${(panes[tab] || panes.overview)()}</section>
+        <section>${['overview', 'integrity', 'pc'].includes(tab) || !panes[tab] ? '' : `<input class="input rp-filter" data-rpq placeholder="Filter this tab…" value="${esc(q || '')}">`}${(panes[tab] || panes.overview)()}</section>
       </div>`;
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
@@ -971,6 +989,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['4.1.0', 'New FiveM tab in the scan report: every mod in the FiveM folders is opened and read, including .rpf archives (and archives inside archives). No-recoil / no-spread / damage-boosted weapons.meta and no-bush / no-grass / no-water visibility mods are shown as red lines, in the FiveM tab and in Detects. Graphics mods (visualsettings, timecycle) are orange, ReShade / ENB green. Plugins and scripts are judged by their code, not their name. Filter box on every report tab.'],
       ['4.0.0', 'Much stronger cheat detection: reads UTF-16 strings (C#/.NET cheats were invisible before), cheat score per program (menu features like triggerbot / silent aim / no recoil, FiveM executor code, injection APIs, ImGui overlay, unsigned, cheat-named folder), menu names found even in renamed loaders in Downloads/Temp/AppData, cheat-named programs that ran (even deleted), cheat files inside .zip archives, ReShade/ENB recognised. Startup &amp; scheduled-task persistence, loaded kernel drivers (unsigned / user-folder / exploitable), live network connections, ShimCache &amp; PCA execution history, Windows event log (cleared logs, driver installs, Defender alerts, clock changes), hosts file &amp; firewall blocking, hidden NTFS streams, VM detection, Rockstar / Epic accounts, cheat tools running (Cheat Engine, injectors, ReClass). Fewer false positives: RGB / motherboard drivers and normal apps (Discord, Steam) no longer flagged as cheating. Tabbed report on the dashboard.'],
       ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
       ['3.6.0', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import, domains &amp; hashes in signatures'],

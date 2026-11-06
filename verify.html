@@ -43,7 +43,9 @@
   const disc = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18 18 0 0 0-5.6 0L8.6 3a19.5 19.5 0 0 0-4.9 1.4C.6 9.1-.3 13.6.2 18.1A19.8 19.8 0 0 0 6.2 21l1.3-2.1a12.8 12.8 0 0 1-2-1l.5-.4a14 14 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.7 19.7 0 0 0 6-3c.6-5.2-.9-9.7-3.5-13.6ZM8.5 15.3c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm7 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg>';
   const ERR = { pin: 'This PIN does not exist. Ask staff for a new one.', state: 'The link expired. Click the button again.',
                 token: 'Discord did not accept the login. Try again.', user: 'Could not read your Discord account. Try again.',
-                server: 'Server error. Try again in a minute.' };
+                server: 'Server error. Try again in a minute.',
+                db: 'The site database is not up to date (missing column scan_pins.discord_check). Staff: run supabase-all.sql in Supabase → SQL Editor, then try again.',
+                dbconn: 'The site cannot reach its database. Staff: check SUPABASE_URL / SUPABASE_SERVICE_KEY on Render.' };
 
   if (q.get('done')) {
     box.innerHTML = `${logo}<div class="ok">✓</div><h1>Discord connected</h1>
