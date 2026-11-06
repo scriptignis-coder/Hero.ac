@@ -10,7 +10,6 @@
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
-    browserhistory: 'Browser Search History', browserdownloads: 'Browser Downloads',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
@@ -189,7 +188,7 @@
   const PERM_MAP = {
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
-    scanner:'herocheck', pins:'herocheck', browserhistory:'herocheck', browserdownloads:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
+    scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
     access:'admin'
   };
   function canAccess(tab) {
@@ -236,7 +235,6 @@
       else if (state.tab === 'stream') await window.HSConfig.renderStream(view, { api, toast, state, modal });
       else if (state.tab === 'logs') await renderLogs(view);
       else if (state.tab === 'pins') await renderPins(view);
-      else if (state.tab === 'browserhistory' || state.tab === 'browserdownloads') await renderBrowserTab(view, state.tab);
       else if (state.tab === 'discord') await renderDiscordCheck(view);
       else if (state.tab === 'scannergui') await renderScannerGui(view);
       else await renderTable(view, state.tab);
@@ -417,37 +415,6 @@
       </div>`;
   }
 
-  // Browser tabs are permission-gated by the existing HeRo Check access system.
-  // Only display browser records that a consented scanner has explicitly included
-  // in an existing scan report. No browser collection or upload is initiated here.
-  async function renderBrowserTab(view, tab) {
-    const downloads = tab === 'browserdownloads';
-    const title = downloads ? 'Browser Downloads' : 'Browser Search History';
-    const fields = downloads ? ['BrowserDownloads', 'browserDownloads'] : ['BrowserSearchHistory', 'browserSearchHistory'];
-    const data = await api(`/api/pins?server=${encodeURIComponent(state.server)}`);
-    const pins = data.pins || [];
-    const reports = pins.filter(p => p.used && p.report);
-    const options = reports.map(p => `<option value="${esc(p.pin)}">${esc(p.player || 'Player')} — ${esc(p.pin)}</option>`).join('');
-    view.innerHTML = `<div class="card panel"><h3>${title}</h3>
-      <p style="color:var(--muted);margin:10px 0 18px">Browser information is sensitive. Only review data explicitly shared with consent during a scan. Search or download history alone is not proof of cheating.</p>
-      ${reports.length ? `<label for="browser-pin">Scan report</label><select id="browser-pin" style="max-width:420px;width:100%;margin:8px 0 20px">${options}</select><div id="browser-records"></div>` : `<div class="empty">No completed scan reports yet.</div>`}
-      <p style="color:var(--dim);font-size:12px;margin-top:16px">This dashboard does not collect browser data or transmit local-only scanner results. Older scans may not contain these fields.</p></div>`;
-    if (!reports.length) return;
-    const selector = $('#browser-pin'), target = $('#browser-records');
-    function draw() {
-      const selected = reports.find(p => p.pin === selector.value);
-      const r = selected?.report || {};
-      const entries = fields.map(k => r[k]).find(Array.isArray) || [];
-      target.innerHTML = entries.length ? `<div style="display:grid;gap:10px">${entries.slice(0,300).map(e => {
-        const obj = e && typeof e === 'object' ? e : { Value: e };
-        const content = Object.entries(obj).slice(0,8).map(([k,v]) => `<div style="overflow-wrap:anywhere"><b>${esc(k)}:</b> ${esc(String(v ?? ''))}</div>`).join('');
-        return `<div class="card" style="padding:12px">${content}</div>`;
-      }).join('')}</div>` : `<div class="empty">No ${downloads ? 'browser downloads' : 'browser search history'} shared in this scan report.</div>`;
-    }
-    selector.addEventListener('change', draw);
-    draw();
-  }
-
   async function renderPins(view) {
     const { pins } = await api(`/api/pins?server=${state.server}`);
     state.pins = pins;
@@ -584,6 +551,8 @@
     const executed = L('ExecutedPrograms'), cmds = L('Commands'), deleted = L('DeletedFiles');
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
     const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
+    const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
+    const browserDownloads = Array.isArray(R('BrowserDownloads')) ? R('BrowserDownloads') : [];
     const events = L('EventLogEntries').filter((e) => !(F(e, 'Category') === 'ServiceInstall' && /microsoft|system32\\drivers|\\windows\\/i.test(F(e, 'Message') || '')));
     const verdict = R('Verdict') || (row && row.result) || 'clean';
     const shot = R('ScreenshotJpegBase64');
@@ -690,11 +659,25 @@
       ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['events', 'Event log', events.length, 'blue'],
       ['pc', 'PC & accounts', '', 'blue'],
+      'sep',
+      ['browserhistory', 'Browser Search History', browserHistory.length, 'blue'],
+      ['browserdownloads', 'Browser Downloads', browserDownloads.length, 'blue'],
     ];
     tab = tab || (dets.length ? 'detects' : 'overview');
     const total = dets.length + warns.length + susp.length + entropy.length;
 
+    // Read only the browser data explicitly included in this PIN's report.
+    // No collection, upload, or cross-PIN access is initiated by these panels.
+    const browserPane = (entries, title) => head(title, entries.length,
+      'Only browser records shared with consent during this scan appear here. A search or download is not proof of cheating.')
+      + rows(entries.filter(e => match(typeof e === 'object' ? JSON.stringify(e) : String(e))).slice(0, 300).map(e => {
+        const obj = e && typeof e === 'object' ? e : { Value: e };
+        return rowL('blue', Object.entries(obj).slice(0, 10).map(([k, v]) =>
+          `<b>${esc(k)}:</b> ${esc(typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''))}`).join(' · '));
+      }), 'No browser records shared in this scan report.');
     const panes = {
+      browserhistory: () => browserPane(browserHistory, 'Browser Search History'),
+      browserdownloads: () => browserPane(browserDownloads, 'Browser Downloads'),
       overview: () => `
         <div class="rp-stats">
           ${[['Detects', dets.length, dets.length ? '#fb7185' : ''], ['Warnings', warns.length, warns.length ? '#fbbf24' : ''],
