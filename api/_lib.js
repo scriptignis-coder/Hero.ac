@@ -177,7 +177,7 @@ export function requireUser(req) {
 //   HEROSHIELD_IDS    = anticheat tabs
 //   HEROCHECK_IDS     = screenshare / scan tabs
 // You can ALSO tick people on the Access page (table user_access) — env OR page = access.
-// If none of the three variables is set, everyone has full access (old behaviour).
+// Security: no configured permissions means no dashboard access (fail closed).
 export const PERMS = ['heroshield', 'herocheck'];
 const idList = (k) => String(process.env[k] || '').split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
 const adminIds = () => idList('ADMIN_DISCORD_IDS');
@@ -192,7 +192,7 @@ export async function getAccess(user) {
   if (!user) return { heroshield: false, herocheck: false, admin: false };
   const id = String(user.id);
   if (isAdmin(user)) return { heroshield: true, herocheck: true, admin: true };
-  if (!gatingOn()) return { heroshield: true, herocheck: true, admin: false };
+  if (!gatingOn()) return { heroshield: false, herocheck: false, admin: false };
   const hit = accessCache.get(id);
   if (hit && Date.now() - hit.at < 30000) return hit.access;
   const env = envIds();

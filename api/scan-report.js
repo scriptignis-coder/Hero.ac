@@ -20,8 +20,7 @@ function clean(v, depth = 0) {
 // keep the stored row a sane size (screenshot + the most useful lists first)
 function shrink(r) {
   const cap = { ExecutedPrograms: 400, Mods: 400, Suspicious: 300, Commands: 300, RecentFiles: 150, EventLogEntries: 100,
-    NetworkConnections: 150, ScheduledTasks: 150, LoadedDrivers: 200, StartupEntries: 150, ArtifactsCollected: 200,
-    BrowserSearchHistory: 500, BrowserDownloads: 500 };
+    NetworkConnections: 150, ScheduledTasks: 150, LoadedDrivers: 200, StartupEntries: 150, ArtifactsCollected: 200 };
   for (const [k, n] of Object.entries(cap)) if (Array.isArray(r[k]) && JSON.stringify(r).length > 4_500_000) r[k] = r[k].slice(0, n);
   if (JSON.stringify(r).length > 6_000_000) delete r.ScreenshotJpegBase64;
   return r;

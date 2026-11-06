@@ -1,8 +1,8 @@
 
-import { wrap, send, readBody, sb, enc, str, httpError, requireUser, requireOwnedServer, newLicense } from './_lib.js';
+import { wrap, send, readBody, sb, enc, str, httpError, requireAccess, requireOwnedServer, newLicense } from './_lib.js';
 
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'heroshield');
 
   if (req.method === 'GET') {
     const rows = await sb(`servers?owner_discord=eq.${enc(user.id)}&select=id,name,license,last_seen,created_at&order=created_at.asc`);

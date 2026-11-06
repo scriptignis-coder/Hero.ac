@@ -1,8 +1,8 @@
-import { wrap, send, requireUser, readBody, sb, enc, str, httpError } from './_lib.js';
+import { wrap, send, requireAccess, readBody, sb, enc, str, httpError } from './_lib.js';
 
 // Staff team for the account. Owner-scoped.
 export default wrap(async (req, res) => {
-  const user = requireUser(req);
+  const user = await requireAccess(req, 'heroshield');
 
   if (req.method === 'GET') {
     const rows = await sb(`staff?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);
