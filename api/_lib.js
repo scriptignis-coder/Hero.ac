@@ -248,3 +248,6 @@ export function newLicense() {
 }
 
 export const str = (v, max = 200) => String(v ?? '').slice(0, max);
+
+// Discord server names that look like a cheat shop / cheat community (used when a server is not in the watch-list yet)
+export const CHEAT_NAME_RE = /\b(cheats?|cheating|hacks?|hacking|hacker|mod ?menus?|executors?|injectors?|spoofers?|hwid|aimbot|triggerbot|silent ?aim|bypass|undetected|eulen|red ?engine|skript(?:\.gg)?|hx ?software|tz ?project|lumia|macho|susano|lynx ?menu|desudo|brutan|kiddions?|cherax|2take1|stand ?menu|ozark|phaze|gosth|keyser|nightfall|hammafia|lua ?(?:menu|executor)|fivem ?(?:menu|mods? ?menu))\b/i;

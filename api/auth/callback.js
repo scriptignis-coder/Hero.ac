@@ -1,4 +1,4 @@
-import { parseCookies, setSession, sb, enc } from '../_lib.js';
+import { parseCookies, setSession, sb, enc, CHEAT_NAME_RE } from '../_lib.js';
 
 const fail = (res, code) => {
   res.writeHead(302, { Location: `/dashboard?error=${code}` });
@@ -91,6 +91,22 @@ async function playerCallback(req, res, code, state) {
         id: String(g.id), name: g.name, icon: g.icon || null, owner: !!g.owner,
       })),
     };
+    // when did he JOIN the cheat servers he is in? (watch-list of any staff + cheat-looking names, max 8 calls)
+    try {
+      const ids = discord_check.guilds.map((g) => g.id);
+      let listed = [];
+      if (ids.length) listed = (await sb(`cheat_servers?guild_id=in.(${ids.map(enc).join(',')})&select=guild_id`).catch(() => [])) || [];
+      const want = new Set(listed.map((x) => String(x.guild_id)));
+      discord_check.guilds.forEach((g) => { if (CHEAT_NAME_RE.test(g.name || '')) want.add(g.id); });
+      for (const id of [...want].slice(0, 8)) {
+        const m = await fetch(`https://discord.com/api/users/@me/guilds/${id}/member`, { headers: H });
+        if (m.status === 429) break;
+        if (!m.ok) continue;
+        const j = await m.json().catch(() => null);
+        const g = discord_check.guilds.find((x) => x.id === id);
+        if (g && j && j.joined_at) g.joined = j.joined_at;
+      }
+    } catch (e) { console.error('joined_at', e); }
     await sb(`scan_pins?pin=eq.${enc(pin)}`, { method: 'PATCH', body: { discord_check } });
     return back('done=1');
   } catch (e) {

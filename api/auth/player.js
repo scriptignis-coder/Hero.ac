@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { sb, enc } from '../_lib.js';
 
-// The PLAYER connects Discord during the check (scope: identify + guilds = their server list).
+// The PLAYER connects Discord during the check (scope: identify + guilds = their server list,
+// guilds.members.read = WHEN he joined the cheat servers he is in).
 // It does NOT log them into the dashboard — it only attaches their Discord to the scan PIN.
 export default async function handler(req, res) {
   const pin = String((req.query || {}).pin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
     client_id: process.env.DISCORD_CLIENT_ID || '',
     redirect_uri: process.env.DISCORD_REDIRECT_URI || '',
     response_type: 'code',
-    scope: 'identify guilds',
+    scope: 'identify guilds guilds.members.read',
     state: `p.${nonce}.${pin}`,
     prompt: 'consent',
   });

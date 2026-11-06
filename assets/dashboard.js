@@ -558,6 +558,51 @@
     const guilds = (dc && dc.guilds) || [];
     const cheatGuilds = guilds.filter((g) => cheatIds.has(String(g.id)));
     const localDiscord = R('DiscordId');
+    // ---- Discord history: servers he was in and LEFT (PC cache + his earlier checks) ----
+    const CHEAT_NAME = /\b(cheats?|cheating|hacks?|hacking|hacker|mod ?menus?|executors?|injectors?|spoofers?|hwid|aimbot|triggerbot|silent ?aim|bypass|undetected|eulen|red ?engine|skript(?:\.gg)?|hx ?software|tz ?project|lumia|macho|susano|lynx ?menu|desudo|brutan|kiddions?|cherax|2take1|stand ?menu|ozark|phaze|gosth|keyser|nightfall|hammafia|lua ?(?:menu|executor)|fivem ?(?:menu|mods? ?menu))\b/i;
+    const curIds = new Set(guilds.map((g) => String(g.id)));
+    const invCode = (u) => ((/(?:discord(?:app)?\.gg|invite)\/([A-Za-z0-9-]+)/i.exec(u || '') || [])[1] || '').toLowerCase();
+    const cheatByInvite = new Map(state.cheatServers.filter((c) => c.invite).map((c) => [invCode(c.invite), c]));
+    const traceMap = new Map();
+    for (const t of L('DiscordTraces')) {
+      const inv = String(F(t, 'Invite') || '').toLowerCase();
+      const listed = (F(t, 'GuildId') && cheatIds.get(String(F(t, 'GuildId')))) || (inv && cheatByInvite.get(inv)) || null;
+      const id = String(F(t, 'GuildId') || (listed && listed.guild_id) || '');
+      const key = id || 'inv:' + inv;
+      const name = F(t, 'Name') || (listed && listed.name) || (guilds.find((g) => String(g.id) === id) || {}).name || '';
+      const prev = traceMap.get(key);
+      const x = { id, inv, name: name || (prev && prev.name) || '', listed: listed || (prev && prev.listed), last: F(t, 'LastSeen') || '', first: F(t, 'FirstSeen') || '',
+        src: [...new Set([...(prev ? prev.src : []), ...(F(t, 'Sources') || [])])], inNow: !!id && curIds.has(id) };
+      if (prev && prev.last > x.last) x.last = prev.last;
+      traceMap.set(key, x);
+    }
+    const traces = [...traceMap.values()].map((x) => ({ ...x, nameHit: CHEAT_NAME.test(x.name) }));
+    const pastCheat = traces.filter((x) => (x.listed || x.nameHit) && !x.inNow).sort((a, b) => (b.listed ? 1 : 0) - (a.listed ? 1 : 0) || (b.last > a.last ? 1 : -1));
+    const pastOther = traces.filter((x) => !x.listed && !x.nameHit && !x.inNow && x.id);
+    const nameGuilds = guilds.filter((g) => !cheatIds.has(String(g.id)) && CHEAT_NAME.test(g.name || ''));
+    // his earlier checks (other PINs) with Discord connected → what he left / joined since
+    let history = [];
+    if (dc && dc.user && dc.user.id) {
+      state.discHist = state.discHist || {};
+      if (!state.discHist[dc.user.id]) {
+        try { state.discHist[dc.user.id] = ((await api(`/api/data?server=${state.server}&type=lookup&id=${encodeURIComponent(dc.user.id)}`)).scans || []); }
+        catch { state.discHist[dc.user.id] = []; }
+      }
+      history = state.discHist[dc.user.id].filter((h) => h.pin !== pin && h.discord_check && Array.isArray(h.discord_check.guilds) && (h.discord_check.at || h.created_at) < dc.at);
+    }
+    const leftSince = new Map();   // guild id → { name, at (last check he was still in it) }
+    for (const h of history) for (const g of h.discord_check.guilds) {
+      const id = String(g.id), at = h.discord_check.at || h.created_at;
+      if (curIds.has(id)) continue;
+      const p = leftSince.get(id);
+      if (!p || p.at < at) leftSince.set(id, { id, name: g.name, icon: g.icon, at, pin: h.pin });
+    }
+    const lastHist = history.slice().sort((a, b) => ((b.discord_check.at || '') > (a.discord_check.at || '') ? 1 : -1))[0];
+    const joinedSince = lastHist ? guilds.filter((g) => !lastHist.discord_check.guilds.some((o) => String(o.id) === String(g.id))) : [];
+    const leftList = [...leftSince.values()].map((x) => ({ ...x, listed: cheatIds.get(x.id), nameHit: CHEAT_NAME.test(x.name || '') }));
+    const leftCheat = leftList.filter((x) => x.listed || x.nameHit);
+    const discRed = cheatGuilds.length + pastCheat.filter((x) => x.listed).length + leftCheat.filter((x) => x.listed && !pastCheat.some((p) => p.id === x.id)).length;
+    const discOrange = nameGuilds.length + pastCheat.filter((x) => !x.listed).length + leftCheat.filter((x) => !x.listed && !pastCheat.some((p) => p.id === x.id)).length;
     const fivem = L('FiveM').slice().sort((a, b) => (F(b, 'Level') || 0) - (F(a, 'Level') || 0));
     const fivemBad = fivem.filter((x) => F(x, 'Level') === 2).length, fivemLook = fivem.filter((x) => F(x, 'Level') === 1).length;
 
@@ -602,7 +647,7 @@
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
       ['entropy', 'Entropy', entropy.length, 'purple'],
       ['fivem', 'FiveM', fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
-      ['discord', 'Discord', dc ? (cheatGuilds.length ? cheatGuilds.length + ' cheat' : guilds.length) : '–', cheatGuilds.length ? 'red' : dc ? 'blue' : 'orange'],
+      ['discord', 'Discord', discRed ? discRed + ' cheat' : discOrange ? discOrange + ' check' : dc ? guilds.length : '–', discRed ? 'red' : discOrange || !dc ? 'orange' : 'blue'],
       'sep',
       ['exec', 'Execution', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
@@ -630,6 +675,8 @@
           ...dets.slice(0, 6).map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')), F(d, 'Deleted') ? 'File deleted' : esc(METHODS[F(d, 'Method')] || ''))),
           ...fivem.filter((x) => F(x, 'Level') === 2).slice(0, 4).map((x) => card('red', IC.alert, 'FiveM mod: ' + esc(F(x, 'Name')), 'FiveM')),
           ...cheatGuilds.slice(0, 4).map((g) => card('red', IC.disc, 'In cheat Discord: ' + esc(g.name), 'Discord')),
+          ...pastCheat.filter((x) => x.listed).slice(0, 3).map((x) => card('red', IC.disc, 'Was in cheat Discord (left): ' + esc(x.name || x.id || x.inv), 'Discord · PC')),
+          ...leftCheat.filter((x) => x.listed && !pastCheat.some((p) => p.listed && p.id === x.id)).slice(0, 3).map((x) => card('red', IC.disc, 'Left cheat Discord: ' + esc(x.name), 'Discord · history')),
           ...warns.slice(0, 6).map((w) => card(warnC(w), IC.alert, esc(F(w, 'Title')), esc(F(w, 'Category') || 'System'))),
         ], 'Nothing found — the PC looks clean.')}
         ${shot ? `<div class="rp-head" style="margin-top:18px">Screenshot at the end of the scan</div><img src="${esc(shot)}" alt="Player screen" style="width:100%;border-radius:14px;border:1px solid var(--line)">` : ''}`,
@@ -654,28 +701,60 @@
         + rows(fl(entropy, 'Path', 'Kind').map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
 
       discord: () => {
-        if (!dc) return head('Discord', '') + `<div class="rp-card orange"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
+        const ago = (d) => (d ? fmtDate(d) : '?');
+        const icon = (g) => (discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc(((g && g.name) || '?')[0])}</div>`);
+        const gcard = (g, c, tag, sub = '') => `<div class="rp-card ${c}"><div class="rp-guild">${icon(g)}
+            <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name || 'Unknown server')}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id || (g.inv ? 'invite discord.gg/' + g.inv : ''))}${g.owner ? ' · owner' : ''}</div>
+            ${sub ? `<div style="color:var(--muted);font-size:12px;margin-top:4px">${sub}</div>` : ''}</div>
+            ${tag ? `<span class="rp-tag">${tag}</span>` : ''}</div></div>`;
+        const legend = state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Orange = the server name looks like a cheat shop — add its invite on the Discord check page to make it red.` : 'Add cheat-server invite links on the Discord check page — they turn red here. Orange = the server name looks like a cheat shop.';
+
+        // 1) servers he LEFT — from the PC (Discord / browser cache) and from his earlier checks
+        const leftCards = [
+          ...pastCheat.map((x) => gcard({ id: x.id, name: x.name, inv: x.inv }, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
+            `Not in it any more — found on this PC (${esc(x.src.slice(0, 3).join(', '))}) · last seen ${esc(ago(x.last))}${x.first && x.first !== x.last ? ' · first seen ' + esc(ago(x.first)) : ''}`)),
+          ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => gcard(x, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
+            `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — left since`)),
+        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
+        const leftSection = head('Cheat servers he LEFT', leftCards.length, 'Leaving a server does not erase it: Discord and the browsers keep the server icons, invite pages and channel links on the PC, and earlier checks keep his old server list.')
+          + grid(leftCards, L('DiscordTraces').length || history.length ? 'No cheat server found in his past servers.' : 'No Discord traces on the PC (cache cleared, or an older scanner) and no earlier check.');
+
+        // 2) all servers he was in before but not now (not cheat-looking)
+        const otherRows = [
+          ...[...leftList.filter((x) => !x.listed && !x.nameHit)].map((x) => rowL('', `<b style="color:var(--text)">${esc(x.name)}</b> &nbsp;<span class="mono">${esc(x.id)}</span>`, 'left after ' + esc(ago(x.at)))),
+          ...pastOther.filter((x) => !leftSince.has(x.id)).map((x) => rowL('', `${x.name ? `<b style="color:var(--text)">${esc(x.name)}</b> &nbsp;` : ''}<span class="mono">${esc(x.id)}</span>`, 'seen on PC ' + esc(ago(x.last)))),
+        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
+        const otherSection = `<div style="height:18px"></div>` + head('Other servers he is not in now', otherRows.length, 'Servers seen on the PC or in earlier checks that he is not in today. Without a name = only the server ID is known (open discord.com/channels/ID if you share it).')
+          + rows(otherRows.slice(0, 300), 'None.');
+
+        const joinedSection = joinedSince.length ? `<div style="height:18px"></div>` + head('Joined since his last check', joinedSince.length, `Servers he is in now but was not in at his check of ${esc(ago(lastHist.discord_check.at || lastHist.created_at))}.`)
+          + grid(joinedSince.filter((g) => match(g.name, g.id)).map((g) => gcard(g, cheatIds.has(String(g.id)) ? 'red' : CHEAT_NAME.test(g.name || '') ? 'orange' : 'grey', 'NEW')), '') : '';
+
+        if (!dc) return `<div class="rp-card orange" style="margin-bottom:16px"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
             <div class="rp-title">The player did not connect Discord</div><span class="rp-tag">Not verified</span></div>
             <div class="rp-txt">The scanner opens the page automatically. You can also send this link to the player:</div>
             <div class="rp-code">${esc(location.origin)}/verify?pin=${esc(pin)}</div>
-            ${localDiscord ? `<div class="rp-txt">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}</div>`;
+            ${localDiscord ? `<div class="rp-txt">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}</div>`
+          + `<p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>` + leftSection + otherSection;
+
         const u = dc.user || {};
         const mismatch = localDiscord && u.id && String(localDiscord) !== String(u.id);
-        const gcard = (g) => {
-          const c = cheatIds.get(String(g.id));
-          return `<div class="rp-card ${c ? 'red' : 'grey'}"><div class="rp-guild">${discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc((g.name || '?')[0])}</div>`}
-            <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name)}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id)}${g.owner ? ' · owner' : ''}</div></div>
-            ${c ? '<span class="rp-tag">CHEAT SERVER</span>' : ''}</div></div>`;
-        };
-        return `<div class="rp-card ${cheatGuilds.length ? 'red' : 'green'}" style="margin-bottom:16px"><div class="rp-guild">
+        const nowCards = [
+          ...cheatGuilds.map((g) => gcard(g, 'red', 'IN NOW · CHEAT SERVER', g.joined ? `Joined ${esc(ago(g.joined))}` : '')),
+          ...nameGuilds.map((g) => gcard(g, 'orange', 'IN NOW · looks like cheat', g.joined ? `Joined ${esc(ago(g.joined))}` : '')),
+          ...guilds.filter((g) => !cheatIds.has(String(g.id)) && !CHEAT_NAME.test(g.name || '')).map((g) => gcard(g, 'grey', '')),
+        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
+        return `<div class="rp-card ${discRed ? 'red' : discOrange ? 'orange' : 'green'}" style="margin-bottom:16px"><div class="rp-guild">
             ${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="border-radius:50%">` : `<div class="gi">${IC.disc}</div>`}
             <div style="flex:1"><div class="rp-title" style="padding:0">${esc(u.name)} <span style="color:var(--dim);font-weight:400">@${esc(u.username)}</span></div>
               <div class="mono" style="color:var(--dim);font-size:11.5px">${esc(u.id)} · account created ${esc((u.created || '').slice(0, 10))} · connected ${fmtDate(dc.at)}</div></div>
-            <span class="rp-tag">${cheatGuilds.length ? cheatGuilds.length + ' cheat server' + (cheatGuilds.length > 1 ? 's' : '') : 'No cheat servers'}</span></div>
+            <span class="rp-tag">${discRed ? discRed + ' cheat server' + (discRed > 1 ? 's' : '') + ' (now + left)' : discOrange ? discOrange + ' to check' : 'No cheat servers'}</span></div>
             ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one connected here — the player may be hiding his main account.</div>` : ''}
           </div>
-          ${head(`${guilds.length} servers found`, '', state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Add more on the Discord check page.` : 'Add cheat-server invite links on the Discord check page to flag them here.')}
-          ${grid([...cheatGuilds, ...guilds.filter((g) => !cheatIds.has(String(g.id)))].filter((g) => match(g.name, g.id)).map(gcard), 'The player is in no servers.')}`;
+          <p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>
+          ${head(`Servers he is in now`, guilds.length)}
+          ${grid(nowCards, 'The player is in no servers.')}
+          <div style="height:18px"></div>${leftSection}${joinedSection}${otherSection}`;
       },
 
       fivem: () => {
@@ -989,7 +1068,7 @@
 
   function renderChangelogs(view) {
     const log = [
-      ['4.1.0', 'New FiveM tab in the scan report: every mod in the FiveM folders is opened and read, including .rpf archives (and archives inside archives). No-recoil / no-spread / damage-boosted weapons.meta and no-bush / no-grass / no-water visibility mods are shown as red lines, in the FiveM tab and in Detects. Graphics mods (visualsettings, timecycle) are orange, ReShade / ENB green. Plugins and scripts are judged by their code, not their name. Filter box on every report tab.'],
+      ['4.1.0', 'New FiveM tab in the scan report: every mod in the FiveM folders is opened and read, including .rpf archives (and archives inside archives). No-recoil / no-spread / damage-boosted weapons.meta and no-bush / no-grass / no-water visibility mods are shown as red lines, in the FiveM tab and in Detects. Graphics mods (visualsettings, timecycle) are orange, ReShade / ENB green. Plugins and scripts are judged by their code, not their name. Filter box on every report tab. Discord tab: cheat servers he LEFT are shown too — found in the Discord / browser cache on his PC (server icons, invite pages, channel links) and in his earlier checks; the date he joined the cheat servers he is in; servers he joined since his last check; cheat-looking server names in orange.'],
       ['4.0.0', 'Much stronger cheat detection: reads UTF-16 strings (C#/.NET cheats were invisible before), cheat score per program (menu features like triggerbot / silent aim / no recoil, FiveM executor code, injection APIs, ImGui overlay, unsigned, cheat-named folder), menu names found even in renamed loaders in Downloads/Temp/AppData, cheat-named programs that ran (even deleted), cheat files inside .zip archives, ReShade/ENB recognised. Startup &amp; scheduled-task persistence, loaded kernel drivers (unsigned / user-folder / exploitable), live network connections, ShimCache &amp; PCA execution history, Windows event log (cleared logs, driver installs, Defender alerts, clock changes), hosts file &amp; firewall blocking, hidden NTFS streams, VM detection, Rockstar / Epic accounts, cheat tools running (Cheat Engine, injectors, ReClass). Fewer false positives: RGB / motherboard drivers and normal apps (Discord, Steam) no longer flagged as cheating. Tabbed report on the dashboard.'],
       ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
       ['3.6.0', 'C2 domain + DNS cache detection, SHA-256 hash matching, bulk string import, domains &amp; hashes in signatures'],
