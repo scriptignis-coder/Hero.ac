@@ -9,7 +9,7 @@
 <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 /* HeRo Shield — design system */
 [hidden] { display: none !important; }
@@ -78,7 +78,7 @@ img, svg { display: block; }
 }
 .btn:active { transform: scale(.97); }
 .btn-primary {
-  background: var(--grad); color: #04101f;
+  background: var(--grad); color: #061328;
   box-shadow: 0 8px 30px -8px rgba(34, 211, 238, 0.55);
 }
 .btn-primary:hover { box-shadow: 0 10px 40px -6px rgba(34, 211, 238, 0.75); transform: translateY(-1px); }
@@ -112,7 +112,7 @@ img, svg { display: block; }
   border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(59, 130, 246, .08);
   font-size: 13px; color: var(--muted); margin-bottom: 26px;
 }
-.pill span { background: var(--grad); color: #04101f; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+.pill span { background: var(--grad); color: #061328; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
 .hero h1 {
   font-family: var(--display); font-size: clamp(38px, 6.5vw, 76px); line-height: 1.05;
   letter-spacing: -0.03em; font-weight: 800; max-width: 900px; margin-inline: auto;
@@ -386,7 +386,7 @@ td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5
 .chips-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .chip-btn { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--line-strong); color: var(--muted); }
 .chip-btn:hover { color: var(--text); }
-.chip-btn.active { background: var(--grad); color: #04101f; border-color: transparent; }
+.chip-btn.active { background: var(--grad); color: #061328; border-color: transparent; }
 .cat { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; background: rgba(255,255,255,.06); color: var(--muted); }
 .cat-Startup, .cat-Revive { background: rgba(16,185,129,.12); color: var(--green); }
 .cat-ResourceStart, .cat-Join { background: rgba(34,211,238,.12); color: var(--cyan); }
@@ -486,6 +486,136 @@ textarea.input { color: var(--text); }
 .ms-player:hover { background: rgba(255,255,255,.04); color: var(--text); }
 .ms-player.active { background: linear-gradient(90deg, rgba(59,130,246,.2), rgba(34,211,238,.05)); color: var(--text); box-shadow: inset 2px 0 0 var(--cyan); }
 @media (max-width: 1000px) { .ms { grid-template-columns: 1fr; } .ms-side { max-height: 320px; order: -1; } .cfg-actions { width: 100%; } .cfg-actions .input { flex: 1; } }
+
+/* ==========================================================
+   HeRoShield // OBSIDIAN redesign — visual-only overrides.
+   Functional IDs, routes, data-perm and JS are left untouched.
+   ========================================================== */
+:root {
+  --bg:#060b19; --bg-2:#0b1428; --card:rgba(15,27,52,.92);
+  --card-solid:#101b32; --line:rgba(35,141,255,.12);
+  --line-strong:rgba(35,141,255,.26); --text:#edf5ff;
+  --muted:#9aaecb; --dim:#617799; --blue:#238dff;
+  --cyan:#65c6ff; --violet:#448cff;
+  --grad:linear-gradient(115deg,#7cd3ff 0%,#268eff 60%,#0065e8 100%);
+  --radius:18px; --display:'Space Grotesk','Sora',sans-serif;
+}
+body { background:#060b19; background-image:radial-gradient(ellipse 70% 35% at 50% 0%,rgba(35,141,255,.09),transparent 72%); }
+.bg-glow {background:radial-gradient(55% 40% at 50% 2%,rgba(35,141,255,.105),transparent 80%),radial-gradient(38% 30% at 100% 40%,rgba(35,95,190,.055),transparent 80%)}
+.bg-grid {opacity:.21; background-size:68px 68px}
+::selection {background:#238dff;color:#061328}
+.btn {border-radius:11px; font-weight:700; letter-spacing:-.01em;}
+.btn-primary {background:var(--grad);color:#061328;box-shadow:0 12px 42px rgba(35,141,255,.16)}
+.btn-primary:hover {box-shadow:0 14px 48px rgba(35,141,255,.31)}
+.btn-ghost {background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.14)}
+.btn-ghost:hover {background:rgba(35,141,255,.08);border-color:var(--line-strong)}
+.card,.panel {background:linear-gradient(145deg,rgba(16,28,54,.97),rgba(7,15,34,.97));border:1px solid rgba(104,151,222,.13);box-shadow:0 16px 55px rgba(0,0,0,.18);border-radius:18px}
+.brand {letter-spacing:-.045em;font-weight:800}
+.brand svg {filter:drop-shadow(0 0 14px rgba(35,141,255,.23))}
+.nav {background:rgba(7,10,8,.87);border-bottom:1px solid rgba(255,255,255,.09)}
+.nav-inner {height:78px}
+.nav-links {gap:32px;font-size:13px;letter-spacing:.025em}
+.nav-links a:hover {color:var(--cyan)}
+.pill {border:1px solid rgba(35,141,255,.23);background:rgba(35,141,255,.065);color:#dcecff;letter-spacing:.055em;text-transform:uppercase;font-size:11px;font-weight:700}
+.pill span {background:#238dff;color:#061328}
+.hero {padding:116px 0 48px}
+.hero h1 {font-family:var(--display);font-size:clamp(46px,7.1vw,94px);line-height:1.02;letter-spacing:-.067em;max-width:1000px;font-weight:800}
+.hero p {max-width:680px;color:#a5b9d4;line-height:1.8}
+.hero-meta {font-size:12px;letter-spacing:.02em}
+.hero-meta svg {color:#238dff}
+.preview {border-radius:19px;border:1px solid rgba(35,141,255,.26);background:#0b162d;box-shadow:0 50px 120px -30px rgba(0,0,0,.75),0 0 70px rgba(35,141,255,.065)}
+.preview-bar {background:#121e35;border-bottom:1px solid rgba(35,141,255,.12)}
+.preview-bar i {background:#28405e}
+.waves {opacity:.24;filter:hue-rotate(55deg) saturate(.5)}
+.stat strong {letter-spacing:-.055em}
+.section-head h2 {letter-spacing:-.045em}
+input,select,textarea {accent-color:#238dff}
+input:focus,select:focus,textarea:focus {outline-color:#238dff}
+@media(max-width:700px){.hero{padding-top:82px}.hero h1{font-size:clamp(40px,11vw,62px)}.nav-inner{height:68px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Dashboard-specific visual refinements. Permission attributes untouched. */
+.side {background:#0a0e0b!important;border-right:1px solid rgba(190,240,180,.12)!important}
+.side-link {border-radius:10px!important;transition:background .2s,color .2s}
+.side-link:hover {background:rgba(35,141,255,.07)!important}
+.side-link.active {background:linear-gradient(90deg,rgba(35,141,255,.16),rgba(35,141,255,.025))!important;box-shadow:inset 3px 0 0 #238dff!important;color:#eaf4ff!important}
+.side-label {color:#859985!important;font-size:10px!important;letter-spacing:.17em!important}
+.login-card {box-shadow:0 30px 120px rgba(0,0,0,.55),0 0 80px rgba(174,255,105,.06)}
+.dash {background:transparent}
+.panel h3 {letter-spacing:-.025em}
+button:focus-visible,a:focus-visible {outline:2px solid #238dff;outline-offset:3px}
+
+
+/* HeRoShield BLUE identity — user-provided magnifying glass logo */
+:root{--blue:#238dff;--cyan:#65c6ff;--violet:#448cff;--green:#21c78b;--grad:linear-gradient(115deg,#75d4ff 0%,#238dff 55%,#1554e8 100%);--line:rgba(35,141,255,.15);--line-strong:rgba(35,141,255,.32)}
+body{background-color:#060b19;background-image:radial-gradient(ellipse 65% 42% at 50% 0%,rgba(25,105,240,.13),transparent 75%)}
+.bg-glow{background:radial-gradient(55% 40% at 50% 2%,rgba(35,141,255,.13),transparent 80%),radial-gradient(40% 30% at 100% 45%,rgba(40,85,190,.06),transparent 80%)}
+.nav{background:rgba(6,12,28,.89)}
+.card,.panel{background:linear-gradient(145deg,rgba(16,28,54,.97),rgba(7,15,34,.97));border-color:rgba(105,155,230,.16)}
+.btn-primary{color:#061328;box-shadow:0 12px 42px rgba(35,141,255,.2)}
+.btn-primary:hover{box-shadow:0 14px 48px rgba(35,141,255,.33)}
+.brand{display:inline-flex;align-items:center;gap:10px}
+.brand .brand-mark{width:35px;height:35px;object-fit:contain;flex:none;border-radius:50%;filter:drop-shadow(0 0 12px rgba(35,141,255,.32))}
+.side-link.active{background:linear-gradient(90deg,rgba(35,141,255,.17),rgba(35,141,255,.025))!important;box-shadow:inset 3px 0 0 #238dff!important;color:#eaf4ff!important}
+button:focus-visible,a:focus-visible{outline:2px solid #238dff;outline-offset:3px}
+
+/* Forensic Edition dashboard — visual layer only; auth, API, permissions and events unchanged */
+:root{--bg:#030406;--bg-2:#07090d;--card:#0a0c11;--card-solid:#0b0d12;--line:rgba(229,237,255,.095);--line-strong:rgba(153,184,230,.21);--text:#f1f4fa;--muted:#999eac;--dim:#666f80;--blue:#438fff;--cyan:#7acaff;--violet:#6b99ff;--grad:linear-gradient(115deg,#4c9bff,#9fdcff);--radius:16px}
+body{background:#030406!important;background-image:radial-gradient(ellipse 70% 35% at 80% -10%,rgba(30,87,168,.095),transparent 80%)!important}
+.bg-glow{background:radial-gradient(ellipse at 50% 0%,rgba(30,84,171,.08),transparent 65%)}
+.bg-grid{opacity:.13;background-size:46px 46px}
+.card,.panel,.kpi,.modal-content{background:#0a0c11!important;border-color:#242934!important;box-shadow:none!important}
+.nav{background:rgba(5,6,9,.94)!important;border-bottom:1px solid #1d222b}
+.brand{font-size:15px}.brand b{color:#6dbdff;background:none;-webkit-text-fill-color:#6dbdff}
+.btn-primary{background:#bfe4ff;color:#061321;box-shadow:none}.btn-primary:hover{background:#e6f5ff;box-shadow:0 0 30px #378aff24}
+.btn-ghost{background:#0c0e13;border-color:#272c37}
+.side{background:#07090d!important;border-color:#20242d!important}
+.side-link{border-radius:10px!important;color:#9ca5b5!important}
+.side-link.active{background:rgba(54,132,255,.14)!important;color:#e4f1ff!important;border-color:rgba(71,151,255,.2)!important;box-shadow:inset 3px 0 #4d9cff!important}
+.side-link:hover{background:rgba(120,165,255,.07)!important;color:#f0f5ff!important}
+.main{background:transparent!important}
+input,select,textarea{background:#090c12!important;border-color:#292e38!important;color:#f3f5fb!important}
+input:focus,select:focus,textarea:focus{outline:2px solid #428fff;outline-offset:1px}
+.badge,.pill{border-radius:999px}
+button:focus-visible,a:focus-visible{outline:2px solid #5baaff;outline-offset:3px}
+
+/* HEROSHIELD DASHBOARD PREMIUM FINISH — presentation only */
+:root{--bg:#04060b;--bg-2:#080c13;--card:rgba(11,16,26,.93);--card-solid:#0b101a;--line:rgba(133,183,247,.12);--line-strong:rgba(133,183,247,.24);--blue:#45a4ff;--cyan:#8dd5ff}
+body{background:#04060b!important;background-image:radial-gradient(ellipse 75% 40% at 70% -10%,#14559a22,transparent 75%)!important}
+.sidebar,.side,.dashboard-sidebar{background:linear-gradient(180deg,#090e18,#05070d)!important;border-color:#223047!important}
+.card,.panel,.stat-card,.metric-card{border-color:#263247!important;box-shadow:0 10px 45px #0004!important}
+.card:hover,.panel:hover{border-color:#347ab855!important}
+button,a,input,select{transition:border-color .15s,background-color .15s}
+
+/* Workspace pages — consistent with HeRoShield cinematic blue theme */
+.workspace-hero{display:flex;align-items:center;gap:22px;padding:28px;margin-bottom:18px;background:linear-gradient(115deg,rgba(23,96,211,.20),rgba(7,12,24,.95));border:1px solid #243b61;border-radius:20px}
+.workspace-avatar{width:78px;height:78px;object-fit:cover;border-radius:22px;border:2px solid #3a88ee;background:#121d34}
+.workspace-avatar-fallback{width:78px;height:78px;display:grid;place-items:center;border-radius:22px;background:#163567;color:#c8e5ff;font-size:32px;font-weight:800}
+.workspace-hero h2{margin:0 0 6px;font-size:28px;letter-spacing:-.03em}
+.workspace-hero p{margin:0;color:#a2b3cd}
+.workspace-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:18px 0}
+.workspace-card{padding:22px;min-width:0;background:linear-gradient(160deg,#0d1729,#080d17);border:1px solid #22334e;border-radius:16px}
+.workspace-card small{display:block;color:#93a9c7;font-size:12px;margin-bottom:10px}
+.workspace-card strong{font-size:26px;overflow-wrap:anywhere;color:#e9f4ff}
+.workspace-section{padding:24px;margin:18px 0;border:1px solid #23334b;border-radius:18px;background:#080e19}
+.workspace-section h3{margin:0 0 16px}
+.workspace-table{width:100%;border-collapse:collapse}.workspace-table th,.workspace-table td{padding:13px 12px;border-bottom:1px solid #1b2b43;text-align:left}.workspace-table th{color:#8da5c6;font-size:12px}
+.workspace-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.workspace-note{color:#a6b9d2;line-height:1.7}
+@media(max-width:750px){.workspace-grid{grid-template-columns:1fr}.workspace-hero{padding:18px;gap:12px}.workspace-hero h2{font-size:21px}.workspace-avatar,.workspace-avatar-fallback{width:56px;height:56px}}
+</style>
+<style>
+
+/* V7 dashboard refinement; no permission or API changes */
+body{background:radial-gradient(ellipse 65% 35% at 70% 0%,rgba(0,112,225,.12),transparent 80%),#03060d!important}
+.bg-glow{opacity:.7}
+.sidebar{background:linear-gradient(180deg,rgba(5,14,30,.98),rgba(3,7,17,.98))!important;border-right:1px solid rgba(55,152,255,.18)!important}
+.panel{border-color:rgba(64,153,255,.17)!important;box-shadow:0 14px 45px rgba(0,0,0,.16);transition:border-color .2s,box-shadow .2s,transform .2s}
+.panel:hover{border-color:rgba(48,170,255,.38)!important;box-shadow:0 16px 55px rgba(0,99,211,.1)}
+.topbar{backdrop-filter:blur(20px);background:rgba(4,10,23,.82)!important;border-bottom:1px solid rgba(49,143,255,.16)!important}
+button,a{transition:background .2s,color .2s,border-color .2s}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important}}
+
 </style>
 </head>
 <body>
@@ -493,11 +623,11 @@ textarea.input { color: var(--text); }
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <linearGradient id="hsg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+    <linearGradient id="hsg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7cd3ff"/><stop offset="1" stop-color="#0065e8"/></linearGradient>
     <symbol id="logo" viewBox="0 0 32 32">
       <path d="M16 2 4 6.5v8.2c0 7.4 5.1 13.6 12 15.3 6.9-1.7 12-7.9 12-15.3V6.5L16 2Z" fill="url(#hsg)"/>
       <path d="M16 5.2 7 8.6v6.1c0 5.7 3.8 10.6 9 12.1V5.2Z" fill="#fff" fill-opacity=".18"/>
-      <path d="M11.5 10v12M20.5 10v12M11.5 16h9" stroke="#04101f" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M11.5 10v12M20.5 10v12M11.5 16h9" stroke="#061328" stroke-width="2.6" stroke-linecap="round"/>
     </symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z M12 10v4 M12 17h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -520,8 +650,8 @@ textarea.input { color: var(--text); }
 <!-- login screen -->
 <div id="login" class="login-screen" hidden>
   <div class="card login-card">
-    <a href="/" class="brand"><svg><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
-    <p>Log in with Discord to manage your servers, detections and bans.</p>
+    <a href="/" class="brand"><img src="/assets/logo.png" alt="HeRoShield magnifying glass logo" class="brand-mark"><span>HeRo <b>Shield</b></span></a>
+    <p>Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
     <p id="login-error" style="color:var(--red);margin-top:-12px" hidden></p>
     <a href="/api/auth/login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Log in with Discord</a>
     <a href="/" class="btn btn-ghost btn-sm" style="margin-top:14px">← Back to website</a>
@@ -531,16 +661,8 @@ textarea.input { color: var(--text); }
 <!-- ===== dashboard ===== -->
 <div id="app" class="dash" hidden>
   <aside class="side">
-    <a href="/" class="brand"><svg><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
-    <div class="side-label" data-perm="heroshield">Anti-Cheat</div>
-    <button class="side-link" data-tab="overview" data-perm="heroshield"><svg><use href="#i-home"/></svg>Overview</button>
-    <button class="side-link" data-tab="detections" data-perm="heroshield"><svg><use href="#i-alert"/></svg>Detections</button>
-    <button class="side-link" data-tab="bans" data-perm="heroshield"><svg><use href="#i-ban"/></svg>Bans</button>
-    <button class="side-link" data-tab="players" data-perm="heroshield"><svg><use href="#i-users"/></svg>Players</button>
-    <button class="side-link" data-tab="logs" data-perm="heroshield"><svg><use href="#i-logs"/></svg>Logs</button>
-    <button class="side-link" data-tab="stream" data-perm="heroshield"><svg><use href="#i-cam"/></svg>Multi Stream</button>
-    <button class="side-link" data-tab="settings" data-perm="heroshield"><svg><use href="#i-gear"/></svg>Configuration</button>
-    <div class="side-label" data-perm="herocheck">Screenshare</div>
+    <a href="/" class="brand"><img src="/assets/logo.png" alt="HeRoShield magnifying glass logo" class="brand-mark"><span>HeRo <b>Shield</b></span></a>
+    <div class="side-label" data-perm="herocheck">Scanner & Screenshare</div>
     <button class="side-link" data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Download scanner</button>
     <button class="side-link" data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan PINs</button>
     <button class="side-link" data-tab="discord" data-perm="herocheck"><svg><use href="#i-discord"/></svg>Discord check</button>
@@ -549,11 +671,15 @@ textarea.input { color: var(--text); }
     <div class="side-label">Help</div>
     <button class="side-link" data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button class="side-link" data-tab="changelogs"><svg><use href="#i-logs"/></svg>Changelogs</button>
+    <div class="side-label">Workspace</div>
+    <button class="side-link" data-tab="profile"><svg><use href="#i-users"/></svg>My Profile</button>
+    <button class="side-link" data-tab="subscription"><svg><use href="#i-key"/></svg>My License</button>    <button class="side-link" data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan Activity</button>
+    <button class="side-link" data-tab="quicktools"><svg><use href="#i-gear"/></svg>Quick Tools</button>
+    <button class="side-link" data-tab="ranking"><svg><use href="#i-users"/></svg>Leaderboard</button>
     <div class="side-label">Account</div>
     <button class="side-link" data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
-    <button class="side-link" data-tab="staff"><svg><use href="#i-users"/></svg>Staff team</button>
-    <button class="side-link" data-tab="servers"><svg><use href="#i-server"/></svg>My servers</button>
-    <div class="side-user">
+    <button class="side-link" data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team Directory</button>
+    <button class="side-link" data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff team</button>    <div class="side-user">
       <img id="u-avatar" alt="" hidden>
       <span id="u-fallback" class="avatar-fallback"></span>
       <div><strong id="u-name">—</strong><a href="/api/auth/logout">Log out</a></div>
@@ -562,34 +688,29 @@ textarea.input { color: var(--text); }
 
   <main class="main">
     <div class="topbar">
-      <h1 id="page-title">Overview</h1>
+      <h1 id="page-title">Scan PINs</h1>
       <div class="topbar-right">
         <input id="search" class="input" type="search" placeholder="Search..." hidden>
-        <select id="server-select" class="input" aria-label="Server"></select>
+        <select id="server-select" class="input" aria-label="Server" hidden></select>
         <button id="refresh" class="btn btn-ghost btn-sm" title="Refresh">↻</button>
       </div>
     </div>
     <div id="view"></div>
   </main>
 
-  <nav class="mobile-tabs">
-    <button data-tab="overview" data-perm="heroshield"><svg><use href="#i-home"/></svg>Home</button>
-    <button data-tab="detections" data-perm="heroshield"><svg><use href="#i-alert"/></svg>Alerts</button>
-    <button data-tab="bans" data-perm="heroshield"><svg><use href="#i-ban"/></svg>Bans</button>
-    <button data-tab="players" data-perm="heroshield"><svg><use href="#i-users"/></svg>Players</button>
-    <button data-tab="logs" data-perm="heroshield"><svg><use href="#i-logs"/></svg>Logs</button>
-    <button data-tab="stream" data-perm="heroshield"><svg><use href="#i-cam"/></svg>Live</button>
-    <button data-tab="settings" data-perm="heroshield"><svg><use href="#i-gear"/></svg>Settings</button>
-    <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
+  <nav class="mobile-tabs">    <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
     <button data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>PINs</button>
     <button data-tab="discord" data-perm="herocheck"><svg><use href="#i-discord"/></svg>Discord</button>
     <button data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-image"/></svg>GUI</button>
     <button data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Sigs</button>
+    <button data-tab="profile"><svg><use href="#i-users"/></svg>Profile</button>
+    <button data-tab="subscription"><svg><use href="#i-key"/></svg>License</button>    <button data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Activity</button>
+    <button data-tab="quicktools"><svg><use href="#i-gear"/></svg>Tools</button>
+    <button data-tab="ranking"><svg><use href="#i-users"/></svg>Ranking</button>
     <button data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
-    <button data-tab="staff"><svg><use href="#i-users"/></svg>Staff</button>
-    <button data-tab="servers"><svg><use href="#i-server"/></svg>Servers</button>
-  </nav>
+    <button data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team</button>
+    <button data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff</button>  </nav>
 </div>
 
 <!-- modal -->

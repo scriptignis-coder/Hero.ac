@@ -192,6 +192,7 @@ export async function getAccess(user) {
   if (!user) return { heroshield: false, herocheck: false, admin: false };
   const id = String(user.id);
   if (isAdmin(user)) return { heroshield: true, herocheck: true, admin: true };
+  // Database-granted staff can log in even when only the owner ID is configured.
   if (!gatingOn()) return { heroshield: false, herocheck: false, admin: false };
   const hit = accessCache.get(id);
   if (hit && Date.now() - hit.at < 30000) return hit.access;
@@ -219,6 +220,18 @@ export async function requireAccess(req, perm) {
   if (!access[perm]) {
     const label = perm === 'heroshield' ? 'HeRo Shield' : perm === 'herocheck' ? 'HeRo Check' : 'admin';
     throw httpError(403, `No ${label} access for this account`);
+  }
+  // Existing staff permissions remain mandatory. Paid entitlement is an additional requirement.
+  // Admin bypass is for the owner only; no paid plan grants staff permission automatically.
+  if (perm !== 'admin' && !access.admin) {
+    const { paidStatus } = await import('./_billing.js');
+    const paid = await paidStatus(String(user.id));
+    if (!paid.active) {
+      // Explicitly appointed staff can use the operator dashboard without buying a customer license.
+      // Never use the display name or an unverified Discord ID for this check.
+      const staff = await sb(`staff?discord_id=eq.${enc(String(user.id))}&select=id&limit=1`);
+      if (!staff?.length) throw httpError(402, 'Paid plan required or expired');
+    }
   }
   return user;
 }

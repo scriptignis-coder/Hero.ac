@@ -102,6 +102,12 @@ const server = http.createServer(async (req, res) => {
       return await handleDownload(req, res, dl[1]);
     }
 
+    if (pathname === '/api/billing-webhook' && req.method === 'POST') {
+      const chunks=[]; let size=0;
+      for await (const chunk of req) { size+=chunk.length; if(size>1024*1024){res.statusCode=413;return res.end('Too large');} chunks.push(chunk); }
+      req.rawBody=Buffer.concat(chunks).toString('utf8'); req.body={};
+      const handler=await getHandler('billing-webhook'); wrapRes(res); return await handler(req,res);
+    }
     if (pathname.startsWith('/api/')) {
       const handler = await getHandler(pathname.slice(5).replace(/\/$/, ''));
       wrapRes(res);

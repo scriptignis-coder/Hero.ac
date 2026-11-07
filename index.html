@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HeRo Shield - Free FiveM Anti-Cheat</title>
-<meta name="description" content="HeRo Shield: 100% free FiveM anti-cheat. ESX, QBCore, Qbox and standalone. Web dashboard, HWID bans, Discord logs.">
-<meta property="og:title" content="HeRo Shield - Free FiveM Anti-Cheat">
-<meta property="og:description" content="Protect your FiveM server for free: advanced detections, HWID bans, live dashboard.">
+<title>HeRoShield Scanner — PC Forensics & Screenshare</title>
+<meta name="description" content="HeRoShield Scanner: Windows PC forensic scanning, screenshare PIN sessions, evidence review and private reports.">>
+<meta property="og:title" content="HeRoShield Scanner — PC Forensics">>
+<meta property="og:description" content="PC forensic scanner, screenshare PINs and evidence-based reports.">>
 <meta name="theme-color" content="#05070f">
 <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 /* HeRo Shield — design system */
 [hidden] { display: none !important; }
@@ -81,7 +81,7 @@ img, svg { display: block; }
 }
 .btn:active { transform: scale(.97); }
 .btn-primary {
-  background: var(--grad); color: #04101f;
+  background: var(--grad); color: #061328;
   box-shadow: 0 8px 30px -8px rgba(34, 211, 238, 0.55);
 }
 .btn-primary:hover { box-shadow: 0 10px 40px -6px rgba(34, 211, 238, 0.75); transform: translateY(-1px); }
@@ -115,7 +115,7 @@ img, svg { display: block; }
   border: 1px solid var(--line-strong); border-radius: 999px; background: rgba(59, 130, 246, .08);
   font-size: 13px; color: var(--muted); margin-bottom: 26px;
 }
-.pill span { background: var(--grad); color: #04101f; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+.pill span { background: var(--grad); color: #061328; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
 .hero h1 {
   font-family: var(--display); font-size: clamp(38px, 6.5vw, 76px); line-height: 1.05;
   letter-spacing: -0.03em; font-weight: 800; max-width: 900px; margin-inline: auto;
@@ -364,6 +364,222 @@ td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5
   .mobile-tabs button.active { color: var(--cyan); }
 }
 
+
+/* ==========================================================
+   HeRoShield // OBSIDIAN redesign — visual-only overrides.
+   Functional IDs, routes, data-perm and JS are left untouched.
+   ========================================================== */
+:root {
+  --bg:#060b19; --bg-2:#0b1428; --card:rgba(15,27,52,.92);
+  --card-solid:#101b32; --line:rgba(35,141,255,.12);
+  --line-strong:rgba(35,141,255,.26); --text:#edf5ff;
+  --muted:#9aaecb; --dim:#617799; --blue:#238dff;
+  --cyan:#65c6ff; --violet:#448cff;
+  --grad:linear-gradient(115deg,#7cd3ff 0%,#268eff 60%,#0065e8 100%);
+  --radius:18px; --display:'Space Grotesk','Sora',sans-serif;
+}
+body { background:#060b19; background-image:radial-gradient(ellipse 70% 35% at 50% 0%,rgba(35,141,255,.09),transparent 72%); }
+.bg-glow {background:radial-gradient(55% 40% at 50% 2%,rgba(35,141,255,.105),transparent 80%),radial-gradient(38% 30% at 100% 40%,rgba(35,95,190,.055),transparent 80%)}
+.bg-grid {opacity:.21; background-size:68px 68px}
+::selection {background:#238dff;color:#061328}
+.btn {border-radius:11px; font-weight:700; letter-spacing:-.01em;}
+.btn-primary {background:var(--grad);color:#061328;box-shadow:0 12px 42px rgba(35,141,255,.16)}
+.btn-primary:hover {box-shadow:0 14px 48px rgba(35,141,255,.31)}
+.btn-ghost {background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.14)}
+.btn-ghost:hover {background:rgba(35,141,255,.08);border-color:var(--line-strong)}
+.card,.panel {background:linear-gradient(145deg,rgba(16,28,54,.97),rgba(7,15,34,.97));border:1px solid rgba(104,151,222,.13);box-shadow:0 16px 55px rgba(0,0,0,.18);border-radius:18px}
+.brand {letter-spacing:-.045em;font-weight:800}
+.brand svg {filter:drop-shadow(0 0 14px rgba(35,141,255,.23))}
+.nav {background:rgba(7,10,8,.87);border-bottom:1px solid rgba(255,255,255,.09)}
+.nav-inner {height:78px}
+.nav-links {gap:32px;font-size:13px;letter-spacing:.025em}
+.nav-links a:hover {color:var(--cyan)}
+.pill {border:1px solid rgba(35,141,255,.23);background:rgba(35,141,255,.065);color:#dcecff;letter-spacing:.055em;text-transform:uppercase;font-size:11px;font-weight:700}
+.pill span {background:#238dff;color:#061328}
+.hero {padding:116px 0 48px}
+.hero h1 {font-family:var(--display);font-size:clamp(46px,7.1vw,94px);line-height:1.02;letter-spacing:-.067em;max-width:1000px;font-weight:800}
+.hero p {max-width:680px;color:#a5b9d4;line-height:1.8}
+.hero-meta {font-size:12px;letter-spacing:.02em}
+.hero-meta svg {color:#238dff}
+.preview {border-radius:19px;border:1px solid rgba(35,141,255,.26);background:#0b162d;box-shadow:0 50px 120px -30px rgba(0,0,0,.75),0 0 70px rgba(35,141,255,.065)}
+.preview-bar {background:#121e35;border-bottom:1px solid rgba(35,141,255,.12)}
+.preview-bar i {background:#28405e}
+.waves {opacity:.24;filter:hue-rotate(55deg) saturate(.5)}
+.stat strong {letter-spacing:-.055em}
+.section-head h2 {letter-spacing:-.045em}
+input,select,textarea {accent-color:#238dff}
+input:focus,select:focus,textarea:focus {outline-color:#238dff}
+@media(max-width:700px){.hero{padding-top:82px}.hero h1{font-size:clamp(40px,11vw,62px)}.nav-inner{height:68px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+/* HeRoShield BLUE identity — user-provided magnifying glass logo */
+:root{--blue:#238dff;--cyan:#65c6ff;--violet:#448cff;--green:#21c78b;--grad:linear-gradient(115deg,#75d4ff 0%,#238dff 55%,#1554e8 100%);--line:rgba(35,141,255,.15);--line-strong:rgba(35,141,255,.32)}
+body{background-color:#060b19;background-image:radial-gradient(ellipse 65% 42% at 50% 0%,rgba(25,105,240,.13),transparent 75%)}
+.bg-glow{background:radial-gradient(55% 40% at 50% 2%,rgba(35,141,255,.13),transparent 80%),radial-gradient(40% 30% at 100% 45%,rgba(40,85,190,.06),transparent 80%)}
+.nav{background:rgba(6,12,28,.89)}
+.card,.panel{background:linear-gradient(145deg,rgba(16,28,54,.97),rgba(7,15,34,.97));border-color:rgba(105,155,230,.16)}
+.btn-primary{color:#061328;box-shadow:0 12px 42px rgba(35,141,255,.2)}
+.btn-primary:hover{box-shadow:0 14px 48px rgba(35,141,255,.33)}
+.brand{display:inline-flex;align-items:center;gap:10px}
+.brand .brand-mark{width:35px;height:35px;object-fit:contain;flex:none;border-radius:50%;filter:drop-shadow(0 0 12px rgba(35,141,255,.32))}
+.side-link.active{background:linear-gradient(90deg,rgba(35,141,255,.17),rgba(35,141,255,.025))!important;box-shadow:inset 3px 0 0 #238dff!important;color:#eaf4ff!important}
+button:focus-visible,a:focus-visible{outline:2px solid #238dff;outline-offset:3px}
+.hs-pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:16px;margin-top:26px}.hs-plan{padding:24px;display:flex;flex-direction:column;gap:14px}.hs-plan h3{font-size:27px;margin:0}.hs-plan p{color:var(--muted);min-height:62px}.hs-plan .btn{margin-top:auto;justify-content:center}.hs-price{font-weight:700;color:#5cbaff;font-size:18px}
+
+/* HE ROSHIELD FORENSIC EDITION — original design inspired by the provided visual references */
+:root{--bg:#030406;--bg-2:#090b10;--card:#0b0d12;--card-solid:#0b0d12;--line:rgba(220,232,255,.105);--line-strong:rgba(140,174,222,.22);--text:#f5f6fb;--muted:#9a9da9;--dim:#6d7280;--blue:#3c91ff;--cyan:#70c8ff;--violet:#6a8cff;--grad:linear-gradient(110deg,#f3f8ff,#65bbff);--radius:18px}
+body{background:#030406!important;background-image:radial-gradient(ellipse 65% 32% at 75% 2%,rgba(27,80,160,.085),transparent 80%)!important}
+.bg-glow{background:radial-gradient(ellipse 45% 30% at 70% 4%,rgba(25,86,183,.12),transparent 80%)}
+.bg-grid{opacity:.18;background-size:54px 54px}
+.container{width:min(1200px,100% - 44px)}
+.nav{top:10px;margin:0 auto;width:min(1260px,calc(100% - 24px));border:1px solid rgba(255,255,255,.10);border-radius:24px;background:rgba(5,6,9,.92)!important;box-shadow:0 15px 55px #0009}
+.nav-inner{height:66px;padding:0 14px}.nav-links{gap:24px;font-size:12px}.nav-links a{color:#989da9}.nav-links a:hover{color:#f4f8ff}
+.brand{font-size:15px}.brand .brand-mark{width:37px;height:37px;border-radius:12px}.brand b{color:#69bcff;background:none;-webkit-text-fill-color:#69bcff}
+.btn{border-radius:13px}.btn-primary{background:#eef7ff;color:#08101a;box-shadow:none}.btn-primary:hover{background:#b8e2ff;box-shadow:0 0 28px #268cff33}.btn-ghost{background:#0a0b0f;border-color:#242831;color:#d8dce8}
+.hs-hero{padding:120px 0 80px!important;min-height:710px;position:relative;overflow:hidden;text-align:left;background:radial-gradient(ellipse 50% 80% at 83% 25%,rgba(32,72,140,.13),transparent 75%)}
+.hs-hero:before{content:"";position:absolute;right:-13%;top:-45%;width:80%;height:150%;border-radius:48%;background:repeating-radial-gradient(ellipse at center,transparent 0 21px,rgba(126,171,247,.065) 22px 24px,transparent 26px 57px);transform:rotate(-24deg);pointer-events:none;mask-image:linear-gradient(90deg,transparent,#000 35%,#000 70%,transparent)}
+.hs-hero-layout{display:grid;grid-template-columns:1.06fr .94fr;align-items:center;gap:58px;position:relative;z-index:1}
+.hs-hero-copy{max-width:630px}.hs-kicker{display:inline-flex;align-items:center;gap:10px;padding:9px 15px;border:1px solid #272b36;border-radius:30px;background:#0b0c11;color:#b7bac8;font-size:10px;font-weight:800;letter-spacing:.12em}.hs-led{width:7px;height:7px;border-radius:50%;background:#64b6ff;box-shadow:0 0 12px #56a9ff}.hs-tags{display:flex;gap:8px;margin-top:28px}.hs-tags span{padding:7px 13px;border:1px solid #262936;border-radius:30px;font-size:10px;color:#aeb2c2;letter-spacing:.12em;font-weight:700}.hs-hero h1{font-size:clamp(64px,8vw,118px)!important;letter-spacing:-.085em!important;line-height:1.06!important;margin:24px 0 9px;font-weight:800!important;color:#fff;max-width:none}.hs-hero h1 span{color:#69b8ff;text-shadow:0 0 42px #278cff55}.hs-under-title{font-size:10px;letter-spacing:.38em;color:#828999;font-weight:800}.hs-hero-copy>p{margin:35px 0 26px!important;color:#a8abb6!important;font-size:17px!important;line-height:1.95!important;max-width:520px}.hs-cta{justify-content:flex-start!important}.hs-cta .btn{padding:15px 23px}.hs-support{font-size:9px;color:#666b77;letter-spacing:.1em;font-weight:800;margin-top:20px}.hs-support span{padding:0 10px}.hs-trust{display:flex;border:1px solid #1c2029;border-radius:20px;margin-top:45px;max-width:530px;background:#07090d}.hs-trust>div{flex:1;padding:19px 22px;border-right:1px solid #1c2029}.hs-trust>div:last-child{border:0}.hs-trust strong{display:block;font-size:14px;color:#f1f3f9}.hs-trust small{font-size:9px;letter-spacing:.09em;color:#686f7d}
+.hs-hero-visual{position:relative;min-height:345px;padding:26px 29px;border:1px solid #272c38;border-radius:24px;background:linear-gradient(145deg,#0b0d13,#050609);box-shadow:0 50px 90px #000b,0 0 65px #2279e511}.hs-visual-label{position:absolute;right:17px;top:-18px;display:flex;gap:8px;align-items:center;background:#0b0d13;border:1px solid #242936;border-radius:20px;padding:10px 14px;font-size:9px;letter-spacing:.12em;color:#b4b9c7}.hs-visual-header{display:flex;align-items:center;gap:10px}.hs-visual-header img{width:33px;height:33px;object-fit:contain}.hs-visual-header strong{font-size:12px;display:block}.hs-visual-header small{font-size:8px;color:#68b8ff;letter-spacing:.2em}.hs-visual-header>span{margin-left:auto;color:#8c99ba}.hs-orbit{height:170px;display:flex;justify-content:center;align-items:center;position:relative}.hs-orbit span{position:absolute;width:96px;height:96px;border-radius:50%;border:3px solid transparent;border-left-color:#3c9dff;border-bottom-color:#85d2ff;transform:rotate(-30deg);animation:hs-rotate 5s linear infinite}.hs-orbit span:nth-child(2){width:68px;height:68px;border-width:2px;animation-direction:reverse;animation-duration:3.5s}.hs-orbit span:nth-child(3){width:36px;height:36px;border-width:2px;animation-duration:2.5s}.hs-orbit>div{color:#a6dfff;font-size:33px}@keyframes hs-rotate{to{transform:rotate(330deg)}}.hs-analysis-caption{display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:.1em;color:#a9b2c4}.hs-analysis-caption span:last-child{color:#8dd1ff;font-size:14px}.hs-progress{height:9px;background:#020305;border:1px solid #191d26;border-radius:10px;margin-top:12px;overflow:hidden}.hs-progress i{display:block;width:46%;height:100%;border-radius:10px;background:linear-gradient(90deg,#176be8,#a1dfff)}.hs-visual-footer{display:flex;justify-content:space-between;margin-top:13px;font-size:8px;letter-spacing:.12em;color:#555d6e}
+.hs-showcase,.hs-workflow,.hs-story{padding:110px 0}.hs-section-intro{text-align:center;max-width:720px;margin:0 auto 48px}.hs-section-intro h2{font-size:clamp(32px,4.6vw,54px);line-height:1.13;letter-spacing:-.055em;margin:22px 0}.hs-section-intro h2 em{font-style:normal;color:#737781}.hs-section-intro p{font-size:15px;color:#9297a3;line-height:1.8}.hs-game-panel{min-height:520px;border:1px solid #242832;border-radius:24px;overflow:hidden;background:radial-gradient(ellipse at 78% 60%,#153052 0%,#090e19 40%,#050609 78%);position:relative}.hs-game-panel:after{content:"";position:absolute;right:7%;top:15%;width:38%;height:70%;border:1px solid #4d91e533;transform:skew(-20deg);box-shadow:0 0 100px #2667b933;pointer-events:none}.hs-game-top{font-size:10px;letter-spacing:.13em;color:#7cc3ff;padding:32px 38px}.hs-game-top span{color:#6b7280;padding-left:14px}.hs-game-body{padding:40px 38px}.hs-game-body>span{font-size:10px;letter-spacing:.15em;color:#858e9e}.hs-game-body h3{font-size:clamp(65px,12vw,145px);letter-spacing:-.08em;line-height:1.2;color:white}.hs-game-body p{max-width:460px;color:#9aa2b0;line-height:1.8;margin-bottom:24px}.hs-game-bottom{display:flex;gap:50px;padding:20px 38px;border-top:1px solid #20242c}.hs-game-bottom div{font-size:9px;letter-spacing:.1em;color:#737b89}.hs-game-bottom strong{display:block;font-size:12px;letter-spacing:0;color:#cbd3e2;margin-top:5px}.hs-steps{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:950px;margin:auto}.hs-steps>div{border:1px solid #252830;border-radius:19px;background:#08090c;padding:27px 30px;min-height:135px}.hs-steps>div:nth-child(even){transform:translateY(22px)}.hs-steps small{font-size:10px;color:#67b6ff;letter-spacing:.13em}.hs-steps h3{font-size:20px;margin:13px 0 6px}.hs-steps p{font-size:13px;color:#9298a5}.hs-story-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:30px;padding:20px;border:1px solid #242832;border-radius:23px;max-width:1050px;margin:auto}.hs-story-art{background:radial-gradient(ellipse at 50% 50%,#122b4a,#07090e 75%);border:1px solid #262a33;border-radius:19px;min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px}.hs-story-art img{width:160px;max-width:70%;filter:drop-shadow(0 0 40px #319bff55)}.hs-story-art span{font-size:9px;letter-spacing:.18em;color:#7a8596}.hs-story-copy{padding:30px 26px}.hs-story-copy h3{font-size:30px;letter-spacing:-.05em;margin-bottom:17px}.hs-story-copy p{font-size:14px;color:#a1a6b1;line-height:1.9;margin-bottom:15px}.hs-story-points{margin-top:25px;display:grid;gap:9px}.hs-story-points div{border:1px solid #232833;border-radius:12px;padding:12px;color:#c8d4e5;font-size:12px}
+.card,.panel{background:#090b10!important;border-color:#252a33!important;box-shadow:none!important}.section-head h2{color:#f6f7fa}.section-head p{color:#9297a3}.hs-plan{background:#090b10!important}.hs-price{color:#7dc8ff}
+@media(max-width:900px){.hs-hero-layout{grid-template-columns:1fr;gap:45px}.hs-hero{padding-top:85px!important}.hs-hero-copy{max-width:none}.hs-hero-visual{max-width:650px;width:100%;margin:auto}.hs-story-grid{grid-template-columns:1fr}.hs-game-panel{min-height:450px}}
+@media(max-width:620px){.container{width:calc(100% - 30px)}.nav{width:calc(100% - 12px)}.nav-inner{padding:0 9px}.brand{font-size:13px}.nav-cta .btn{font-size:11px;padding:8px}.hs-hero h1{font-size:clamp(52px,13vw,82px)!important}.hs-steps{grid-template-columns:1fr}.hs-steps>div:nth-child(even){transform:none}.hs-trust>div{padding:12px 10px}.hs-trust strong{font-size:12px}.hs-game-body{padding:20px}.hs-game-top,.hs-game-bottom{padding:20px}.hs-game-bottom{gap:22px}.hs-showcase,.hs-workflow,.hs-story{padding:70px 0}}
+@media(prefers-reduced-motion:reduce){.hs-orbit span{animation:none}}
+
+/* HEROSHIELD VISUAL UPGRADE — imagery and refined composition */
+.hs-hero{background:linear-gradient(90deg,#030406 0%,rgba(3,4,6,.94) 39%,rgba(3,4,6,.47) 100%),url('/assets/hero-waves.webp') center right/cover no-repeat!important;min-height:780px}
+.hs-hero:before{opacity:.30}
+.hs-hero-layout{gap:44px}
+.hs-hero-visual{backdrop-filter:blur(24px);background:linear-gradient(145deg,rgba(12,17,29,.94),rgba(3,5,10,.91))!important;box-shadow:0 35px 95px #000c,0 0 90px #1e8bff1c!important;transform:perspective(1200px) rotateY(-4deg);transition:transform .35s}
+.hs-hero-visual:hover{transform:perspective(1200px) rotateY(0deg) translateY(-5px)}
+.hs-game-panel{background:linear-gradient(90deg,rgba(3,5,10,.97) 0%,rgba(3,5,10,.83) 35%,rgba(3,5,10,.08) 100%),url('/assets/fivem-city.webp') center/cover no-repeat!important;min-height:510px!important;border:1px solid #273244!important;box-shadow:inset 0 0 80px #0009,0 25px 80px #0008}
+.hs-story-art{background:linear-gradient(0deg,rgba(0,5,14,.9),rgba(3,7,16,.12)),url('/assets/hero-waves.webp') center/cover no-repeat!important;min-height:430px}
+.hs-story-art img{width:170px!important;height:170px!important;object-fit:contain;filter:drop-shadow(0 0 45px #48aaff66)}
+.hs-section-intro h2{font-weight:800;letter-spacing:-.065em}
+.hs-steps>div{background:radial-gradient(circle at 90% 10%,rgba(30,105,207,.09),transparent 50%),#080a0e!important;border:1px solid #242c38!important;transition:transform .2s,border-color .2s}
+.hs-steps>div:hover{border-color:#398bd077!important;transform:translateY(-4px)}
+#features .card,#detections .card,.hs-plan{transition:transform .22s,border-color .22s,box-shadow .22s}
+#features .card:hover,#detections .card:hover,.hs-plan:hover{transform:translateY(-4px);border-color:#3479b966!important;box-shadow:0 16px 55px #0009!important}
+.hs-visual-header img{filter:drop-shadow(0 0 15px #3caaff77)}
+.hs-hero h1{font-size:clamp(67px,8.6vw,126px)!important}
+.hs-showcase,.hs-workflow,.hs-story{position:relative}
+.hs-showcase:before,.hs-story:before{content:'';position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#65b5ff07 1px,transparent 1px),linear-gradient(90deg,#65b5ff07 1px,transparent 1px);background-size:64px 64px}
+@media(max-width:900px){.hs-hero{background-position:62% center!important}.hs-hero-visual{transform:none}.hs-game-panel{background-position:60% center!important}}
+@media(max-width:620px){.hs-hero{min-height:auto;background:linear-gradient(90deg,#030406e8,#030406bf),url('/assets/hero-waves.webp') center/cover no-repeat!important}.hs-game-panel{min-height:390px!important}}
+@media(prefers-reduced-motion:reduce){.hs-hero-visual,.hs-steps>div,#features .card{transition:none!important}}
+
+/* HeRoShield cinematic design refresh — visual layer only */
+:root{--hs-ice:#b9eaff;--hs-neon:#44c7ff}
+html{scroll-behavior:smooth}
+body{background:#030508!important;color:#f5f8ff}
+.bg-grid{opacity:.22!important}
+.nav{background:rgba(3,6,11,.78)!important;backdrop-filter:blur(24px);border-bottom:1px solid rgba(119,187,255,.12)!important}
+.nav-inner{max-width:1320px!important}
+.nav-links a{font-size:12px!important;letter-spacing:.01em}
+.brand-mark{filter:drop-shadow(0 0 14px rgba(39,171,255,.55))}
+.hs-hero{position:relative;min-height:830px!important;isolation:isolate;overflow:hidden;background:linear-gradient(90deg,rgba(2,4,9,.98) 0%,rgba(3,6,13,.86) 43%,rgba(3,7,17,.33) 100%),url('/assets/hero-waves.webp') center center/cover no-repeat!important}
+.hs-hero:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 72% 45%,rgba(22,132,255,.18),transparent 48%),linear-gradient(0deg,#030508,transparent 24%)}
+.hs-hero:after{content:"";position:absolute;inset:0;z-index:-1;opacity:.25;background-image:linear-gradient(rgba(126,183,240,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(126,183,240,.1) 1px,transparent 1px);background-size:75px 75px;mask-image:linear-gradient(to bottom,black,transparent 85%)}
+.hs-hero-layout{min-height:770px;align-items:center!important;max-width:1280px!important}
+.hs-hero-copy h1{font-size:clamp(72px,9vw,145px)!important;line-height:.95!important;letter-spacing:-.09em!important;text-shadow:0 0 58px rgba(39,145,255,.32)}
+.hs-hero-copy h1 span{color:#c7eeff!important}
+.hs-hero-copy p{max-width:530px!important;font-size:17px!important;line-height:1.85!important;color:#aab7c8!important}
+.hs-kicker,.hs-tags span,.hs-under-title,.hs-support{letter-spacing:.14em!important}
+.hs-hero-visual{border:1px solid rgba(153,211,255,.22)!important;box-shadow:0 35px 110px rgba(0,0,0,.8),0 0 70px rgba(37,129,255,.13)!important;backdrop-filter:blur(24px);background:linear-gradient(145deg,rgba(12,18,32,.94),rgba(4,7,13,.94))!important;transform:perspective(1100px) rotateY(-5deg) rotateX(2deg);transition:transform .6s ease}
+.hs-hero-visual:hover{transform:perspective(1100px) rotateY(0) rotateX(0) translateY(-6px)}
+.hs-visual-label{background:rgba(3,7,14,.88)!important}
+.hs-showcase,.hs-workflow,.hs-story,#features,#detections,#pricing,#faq{position:relative}
+.hs-showcase:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 70% 30%,rgba(12,75,147,.11),transparent 55%)}
+.hs-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:10px;font-weight:800;letter-spacing:.17em;color:#a5c3dc}
+.hs-eyebrow i{height:7px;width:7px;background:#4ccaff;border-radius:50%;box-shadow:0 0 18px #4ccaff}
+.hs-experience{padding:135px 0 150px;background:linear-gradient(180deg,#030508,#060b12 50%,#030508)}
+.hs-exp-heading{display:flex;align-items:end;justify-content:space-between;gap:40px;margin-bottom:45px}
+.hs-exp-heading h2,.hs-workspace-head h2{font-size:clamp(43px,5.4vw,78px);line-height:1.03;letter-spacing:-.065em;margin:19px 0 0;font-weight:800}
+.hs-exp-heading h2 em,.hs-workspace-head h2 em{font-style:normal;color:#6f7b8b}
+.hs-exp-heading>p{max-width:345px;color:#8796aa;line-height:1.8;font-size:14px;padding-bottom:7px}
+.hs-exp-grid{display:grid;grid-template-columns:1fr 1fr;gap:17px}
+.hs-exp-card{min-height:380px;border:1px solid rgba(130,185,235,.16);border-radius:22px;overflow:hidden;position:relative;background:#0a1019;isolation:isolate;transition:transform .35s,border-color .35s}
+.hs-exp-card:hover{transform:translateY(-7px);border-color:rgba(93,202,255,.45)}
+.hs-exp-large{grid-column:1/-1;min-height:515px}
+.hs-exp-photo{position:absolute;inset:0;z-index:-2;background-position:center;background-size:cover;transition:transform .7s}
+.hs-exp-card:hover .hs-exp-photo{transform:scale(1.05)}
+.hs-photo-city{background-image:linear-gradient(90deg,rgba(3,6,12,.98) 2%,rgba(3,6,12,.8) 38%,rgba(3,6,12,.1) 100%),url('/assets/fivem-city.webp')}
+.hs-photo-waves{background-image:linear-gradient(0deg,rgba(3,6,12,.94),rgba(3,6,12,.3)),url('/assets/hero-waves.webp')}
+.hs-exp-content{position:absolute;left:42px;bottom:42px;right:30px;z-index:1;max-width:510px}
+.hs-exp-content>span{color:#70cbff;font-size:10px;font-weight:800;letter-spacing:.18em}
+.hs-exp-content h3{font-size:clamp(28px,3.6vw,52px);line-height:1.06;letter-spacing:-.05em;margin:15px 0}
+.hs-exp-small .hs-exp-content h3{font-size:34px}
+.hs-exp-content p{font-size:14px;line-height:1.8;color:#a4b3c7;max-width:440px}
+.hs-exp-content a{display:inline-flex;gap:20px;color:#dff5ff;font-size:12px;font-weight:700;text-decoration:none;margin-top:24px}
+.hs-exp-content a b{color:#48c7ff}
+.hs-exp-index{position:absolute;right:35px;top:26px;font-size:12px;color:#b1d6f7;letter-spacing:.1em}
+.hs-exp-metric{background:radial-gradient(circle at 55% 30%,rgba(21,117,210,.18),transparent 55%),#060b12}
+.hs-exp-graphic{position:absolute;inset:0 0 105px;display:flex;justify-content:center;align-items:center}
+.hs-radar{height:190px;width:190px;border-radius:50%;border:1px solid rgba(84,196,255,.22);position:relative;background:repeating-radial-gradient(circle,transparent 0 28px,rgba(64,177,250,.13) 29px 30px);box-shadow:0 0 70px rgba(19,123,220,.12)}
+.hs-radar:before,.hs-radar:after{content:"";position:absolute;background:rgba(68,190,255,.17)}
+.hs-radar:before{width:1px;top:0;bottom:0;left:50%}.hs-radar:after{height:1px;left:0;right:0;top:50%}
+.hs-radar-sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0deg,transparent 285deg,rgba(53,190,255,.22) 350deg,rgba(68,195,255,.65) 360deg);animation:hsRotate 6s linear infinite}
+.hs-radar i{position:absolute;height:7px;width:7px;border-radius:50%;background:#55caff;box-shadow:0 0 15px #55caff;top:30%;left:62%}.hs-radar i:nth-of-type(2){top:66%;left:23%}.hs-radar i:nth-of-type(3){top:51%;left:79%}
+@keyframes hsRotate{to{transform:rotate(360deg)}}
+.hs-exp-metric-label{position:absolute;right:28px;top:24px;font-size:10px;color:#8091a6;letter-spacing:.12em}.hs-exp-metric-label strong{color:#64e7c2;margin-left:12px}
+.hs-workspace{padding:125px 0 150px;background:radial-gradient(ellipse at 50% 55%,rgba(12,78,152,.12),transparent 60%),#030508}
+.hs-workspace-head{text-align:center;max-width:750px;margin:0 auto 55px}
+.hs-workspace-head p{color:#8e9bac;font-size:15px;line-height:1.8;max-width:540px;margin:20px auto 0}
+.hs-browser-shell{max-width:1120px;margin:auto;border:1px solid rgba(116,182,241,.24);border-radius:18px;overflow:hidden;background:#080d15;box-shadow:0 50px 120px rgba(0,0,0,.65),0 0 90px rgba(24,106,185,.1)}
+.hs-browser-top{height:42px;border-bottom:1px solid rgba(139,181,232,.12);display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:9px;letter-spacing:.14em;color:#64758a}
+.hs-browser-dots{display:flex;gap:6px}.hs-browser-dots i{width:8px;height:8px;border-radius:50%;background:#fb6c6c}.hs-browser-dots i:nth-child(2){background:#e6b85d}.hs-browser-dots i:nth-child(3){background:#50cda5}.hs-browser-status{color:#57dfb6}
+.hs-browser-body{display:grid;grid-template-columns:215px 1fr;min-height:460px}
+.hs-browser-sidebar{background:#060a11;border-right:1px solid rgba(139,181,232,.1);padding:23px 14px;color:#7d8ca0;font-size:12px}
+.hs-mini-brand{display:flex;align-items:center;gap:10px;color:#e6f5ff;font-weight:800;font-size:15px;margin-bottom:30px}.hs-mini-brand img{width:30px;height:30px;object-fit:contain}
+.hs-mini-label{display:block;color:#53667c;font-size:9px;letter-spacing:.15em;margin:25px 12px 12px}
+.hs-browser-sidebar>div:not(.hs-mini-brand){padding:12px;border-radius:8px}.hs-mini-active{background:rgba(50,156,250,.13);color:#6dcfff!important}
+.hs-browser-main{padding:28px}
+.hs-browser-welcome{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:25px}.hs-browser-welcome small{font-size:10px;color:#71839a;letter-spacing:.1em}.hs-browser-welcome h3{font-size:25px;letter-spacing:-.04em;margin-top:7px}.hs-browser-welcome>span{color:#60d6b3;font-size:10px;letter-spacing:.08em}
+.hs-browser-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.hs-browser-stats>div{padding:22px 18px;background:#0c131e;border:1px solid rgba(130,177,224,.12);border-radius:12px}.hs-browser-stats small{display:block;color:#7d91a9;font-size:9px;letter-spacing:.1em}.hs-browser-stats strong{display:block;font-size:31px;margin:15px 0 7px;color:#e5f5ff}.hs-browser-stats span{font-size:11px;color:#687b91}
+.hs-browser-lower{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-top:13px}.hs-browser-graph,.hs-browser-feed{background:#0c131e;border:1px solid rgba(130,177,224,.12);border-radius:12px;padding:20px;min-width:0}.hs-browser-panelhead{font-size:10px;color:#a5b8cd;letter-spacing:.09em;display:flex;justify-content:space-between}.hs-browser-panelhead span{color:#54677e}.hs-browser-graph svg{width:100%;height:145px;margin-top:15px}.hs-browser-feed>div:not(:first-child){display:flex;align-items:center;gap:8px;font-size:11px;padding:16px 0;border-bottom:1px solid rgba(139,181,232,.09);color:#c3d0df}.hs-browser-feed small{margin-left:auto;color:#788aa0}.hs-feed-dot{height:7px;width:7px;border-radius:50%;background:#44c7ff}.hs-feed-dot.amber{background:#ffc46d}.hs-feed-dot.green{background:#5de3a9}
+.hs-preview-note{text-align:center;color:#61758d;font-size:11px;margin-top:20px}
+@media(max-width:850px){.hs-hero{min-height:0!important}.hs-hero-layout{min-height:0;padding-top:95px;padding-bottom:90px}.hs-hero-visual{transform:none}.hs-exp-heading{display:block}.hs-exp-heading>p{margin-top:20px}.hs-browser-body{grid-template-columns:1fr}.hs-browser-sidebar{display:none}.hs-browser-main{padding:16px}.hs-browser-stats{gap:7px}.hs-browser-stats>div{padding:13px}.hs-browser-stats strong{font-size:21px}.hs-browser-lower{grid-template-columns:1fr}.hs-exp-grid{grid-template-columns:1fr}.hs-exp-large{grid-column:auto;min-height:480px}.hs-exp-small{min-height:390px}.hs-experience,.hs-workspace{padding:80px 0}.hs-exp-content{left:25px;bottom:30px}.hs-exp-heading h2,.hs-workspace-head h2{font-size:clamp(38px,8vw,64px)}}
+@media(max-width:480px){.hs-browser-welcome>span{display:none}.hs-browser-stats small{font-size:8px}.hs-browser-stats span{font-size:9px}.hs-exp-large{min-height:480px}.hs-exp-content h3{font-size:35px}.hs-exp-small .hs-exp-content h3{font-size:29px}.hs-hero-copy h1{font-size:clamp(57px,14vw,85px)!important}}
+@media(prefers-reduced-motion:reduce){.hs-radar-sweep{animation:none}.hs-exp-card,.hs-exp-photo,.hs-hero-visual{transition:none}}
+
+</style>
+<style>
+
+/* HeRoShield V7 — actual site design upgrade, decorative only; existing app logic preserved */
+:root{--hs-electric:#18b9ff;--hs-ice:#8be7ff;--hs-ink:#030713}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse 60% 22% at 50% -5%,rgba(0,123,255,.17),transparent 70%),#03060d!important}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(63,156,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(63,156,255,.035) 1px,transparent 1px);background-size:65px 65px;mask-image:linear-gradient(to bottom,#000,transparent 85%)}
+.nav{backdrop-filter:blur(26px) saturate(135%);-webkit-backdrop-filter:blur(26px);background:rgba(3,7,17,.83)!important;border-bottom:1px solid rgba(67,157,255,.17)!important}
+.nav-inner{border:1px solid rgba(87,167,255,.13);border-radius:19px;margin-top:10px;margin-bottom:10px;background:rgba(7,14,28,.55);box-shadow:0 14px 44px rgba(0,0,0,.3)}
+.nav-links a{transition:color .2s,text-shadow .2s}.nav-links a:hover{color:#92e6ff!important;text-shadow:0 0 20px rgba(18,174,255,.55)}
+.btn-primary{background:linear-gradient(110deg,#9ce8ff,#26baff 58%,#0879e7)!important;color:#041124!important;box-shadow:0 6px 30px rgba(0,152,255,.22),inset 0 1px 0 rgba(255,255,255,.5);transition:transform .2s,box-shadow .2s!important}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,152,255,.4)}
+.hs-hero{position:relative;isolation:isolate;overflow:hidden;min-height:720px;background:linear-gradient(90deg,rgba(2,6,15,.97) 0%,rgba(2,7,18,.91) 42%,rgba(2,10,25,.43) 100%),url('/assets/hero-waves.webp') center/cover no-repeat!important}
+.hs-hero:before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(circle at 72% 46%,rgba(0,158,255,.25),transparent 35%),linear-gradient(0deg,#03060d,transparent 32%)}
+.hs-hero:after{content:"";position:absolute;width:600px;height:600px;right:-220px;top:30px;border:1px solid rgba(25,155,255,.15);border-radius:50%;box-shadow:0 0 0 90px rgba(10,127,255,.025),0 0 0 180px rgba(10,127,255,.018);pointer-events:none}
+.hs-hero-copy h1{font-size:clamp(65px,8vw,136px)!important;letter-spacing:-.08em!important;line-height:.98!important;text-shadow:0 0 60px rgba(0,121,255,.2)}
+.hs-hero-copy h1 span{background:linear-gradient(120deg,#fff 0%,#9ce9ff 28%,#0aa5ff 70%,#1563e6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hs-hero-copy>p{max-width:570px;line-height:1.85}
+.hs-hero-visual{position:relative!important;border:1px solid rgba(68,185,255,.53)!important;box-shadow:0 0 0 1px rgba(4,124,255,.1),0 28px 110px rgba(0,83,207,.25),inset 0 0 80px rgba(5,47,100,.16)!important;backdrop-filter:blur(18px);transform:perspective(1000px) rotateY(-4deg);transition:transform .45s,box-shadow .45s}
+.hs-hero-visual:hover{transform:perspective(1000px) rotateY(0deg) translateY(-7px);box-shadow:0 30px 110px rgba(0,143,255,.32)!important}
+.hs-game-panel{border:1px solid rgba(68,158,255,.3)!important;box-shadow:0 30px 100px rgba(0,0,0,.45),0 0 90px rgba(0,111,255,.08);overflow:hidden}
+.hs-game-panel:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,5,14,.9),rgba(0,8,20,.35) 65%,rgba(0,8,20,.12));pointer-events:none}
+.hs-showcase,.hs-workflow,.hs-story,.hs-experience{position:relative}
+.hs-steps>div,.hs-story-grid,.hs-story-points>div,.hs-exp-heading,.hs-experience article{transition:transform .25s,border-color .25s,box-shadow .25s}
+.hs-steps>div:hover,.hs-story-points>div:hover{transform:translateY(-5px);border-color:rgba(33,176,255,.48)!important;box-shadow:0 15px 40px rgba(0,101,255,.12)}
+.hs-story-art{background:linear-gradient(130deg,rgba(0,14,39,.15),rgba(0,25,59,.45)),url('/assets/cinematic-operator.webp') center/cover no-repeat!important;overflow:hidden}
+.hs-story-art img{filter:drop-shadow(0 0 24px rgba(0,174,255,.7));max-width:150px!important}
+.hs-section-intro h2{letter-spacing:-.055em}
+.hs-section-intro h2 em{font-style:normal;background:linear-gradient(90deg,#fff,#5fcaff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hs-trust{box-shadow:0 10px 60px rgba(0,65,148,.15)}
+@keyframes hs-ambient{0%,100%{opacity:.7;transform:translateY(0)}50%{opacity:1;transform:translateY(-8px)}}
+.hs-visual-label,.hs-kicker{animation:hs-ambient 6s ease-in-out infinite}
+@media(max-width:760px){.nav-inner{margin:6px 10px;border-radius:14px}.hs-hero{min-height:auto;padding-bottom:50px;background-position:70% center!important}.hs-hero-copy h1{font-size:clamp(55px,15vw,85px)!important}.hs-hero-visual{transform:none!important}.hs-game-panel{min-height:450px}.hs-story-art{min-height:280px}}
+@media(prefers-reduced-motion:reduce){.hs-visual-label,.hs-kicker{animation:none!important}*,*:before,*:after{scroll-behavior:auto!important}}
+
 </style>
 </head>
 <body>
@@ -374,12 +590,12 @@ td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="hsg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#22d3ee"/>
+      <stop offset="0" stop-color="#7cd3ff"/><stop offset="1" stop-color="#0065e8"/>
     </linearGradient>
     <symbol id="logo" viewBox="0 0 32 32">
       <path d="M16 2 4 6.5v8.2c0 7.4 5.1 13.6 12 15.3 6.9-1.7 12-7.9 12-15.3V6.5L16 2Z" fill="url(#hsg)"/>
       <path d="M16 5.2 7 8.6v6.1c0 5.7 3.8 10.6 9 12.1V5.2Z" fill="#fff" fill-opacity=".18"/>
-      <path d="M11.5 10v12M20.5 10v12M11.5 16h9" stroke="#04101f" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M11.5 10v12M20.5 10v12M11.5 16h9" stroke="#061328" stroke-width="2.6" stroke-linecap="round"/>
     </symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </defs>
@@ -387,185 +603,158 @@ td.mono, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5
 
 <header class="nav">
   <div class="container nav-inner">
-    <a href="/" class="brand"><svg><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
+    <a href="/" class="brand"><img src="/assets/logo.png" alt="HeRoShield magnifying glass logo" class="brand-mark"><span>HeRo <b>Shield</b></span></a>
     <nav class="nav-links">
       <a href="#features">Features</a>
-      <a href="#detections">Detections</a>
-      <a href="#install">Installation</a>
+      <a href="#features">Scanner Tools</a>
+      <a href="#workflow">How It Works</a>
       <a href="#pricing">Pricing</a>
+      <a href="#leaderboard">Leaderboard</a>
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav-cta">
       <a href="/dashboard" class="btn btn-ghost btn-sm">Dashboard</a>
-      <a href="https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe" class="btn btn-primary btn-sm" download>Download</a>
+      <a href="#pricing" class="btn btn-primary btn-sm">Get Access ↗</a>
     </div>
   </div>
 </header>
 
 <main>
-  <section class="hero">
-    <div class="container">
-      <div class="pill"><span>v1.4</span> 100% free - for every FiveM server</div>
-      <h1>Protect your <span class="grad-text">FiveM</span> server from cheaters</h1>
-      <p>HeRo Shield detects and bans mod menus, godmode, noclip, spawns and explosions automatically. Live web dashboard. Free, no subscription.</p>
-      <div class="hero-cta">
-        <a href="https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe" class="btn btn-primary" download>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 5-5m-5 5-5-5M4 21h16"/></svg>
-          Download for free
-        </a>
-        <a href="/dashboard" class="btn btn-ghost">Open dashboard →</a>
+  <section class="hero hs-hero" id="home">
+    <div class="container hs-hero-layout">
+      <div class="hs-hero-copy">
+        <div class="hs-kicker"><span class="hs-led"></span> PC FORENSIC INTELLIGENCE <span>↗</span></div>
+        <div class="hs-tags"><span>GAME FORENSICS</span><span>PC CHECKER</span></div>
+        <h1>HeRo<span>Shield.</span></h1>
+        <div class="hs-under-title">PC FORENSICS & SCREENSHARE PLATFORM</div>
+        <p>Understand suspicious artifacts. Review player systems. Turn complex scan evidence into clear, actionable forensic reports.</p>
+        <div class="hero-cta hs-cta"><a href="#pricing" class="btn btn-primary">Explore Plans ↗</a><a href="/dashboard" class="btn btn-ghost">Open Dashboard →</a></div>
+        <div class="hs-support">WINDOWS 10 / 11 <span>·</span> 64-BIT <span>·</span> SECURE ACCESS</div>
+        <div class="hs-trust"><div><strong>Evidence</strong><small>FIRST REVIEW</small></div><div><strong>Discord</strong><small>SECURE SIGN-IN</small></div><div><strong>Staff</strong><small>PERMISSION CONTROL</small></div></div>
       </div>
-      <div class="hero-meta">
-        <div><svg><use href="#i-check"/></svg>ESX · QBCore · Qbox · Standalone</div>
-        <div><svg><use href="#i-check"/></svg>HWID bans</div>
-        <div><svg><use href="#i-check"/></svg>2-minute setup</div>
-      </div>
-    </div>
-
-    <div class="waves" aria-hidden="true">
-      <svg class="w1" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="url(#hsg)" d="M0 90c240 0 240-60 480-60s240 60 480 60 240-60 480-60 240 60 480 60 240-60 480-60 240 60 480 60v70H0Z"/></svg>
-      <svg class="w2" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="#3b82f6" d="M0 110c180 0 300-50 480-50s300 50 480 50 300-50 480-50 300 50 480 50 300-50 480-50 300 50 480 50v50H0Z"/></svg>
-      <svg class="w3" viewBox="0 0 2880 160" preserveAspectRatio="none"><path fill="#22d3ee" d="M0 70c240 0 240 50 480 50s240-50 480-50 240 50 480 50 240-50 480-50 240 50 480 50 240-50 480-50v90H0Z"/></svg>
-    </div>
-
-    <div class="container">
-      <div class="preview reveal" aria-hidden="true">
-        <div class="preview-bar"><i></i><i></i><i></i></div>
-        <div class="preview-body">
-          <div class="card kpi"><span><i class="dot" style="background:var(--cyan)"></i>Detections</span><strong>1 284</strong></div>
-          <div class="card kpi"><span><i class="dot" style="background:var(--red)"></i>Active bans</span><strong>312</strong></div>
-          <div class="card kpi"><span><i class="dot" style="background:var(--green)"></i>Online</span><strong>148</strong></div>
-          <div class="card kpi"><span><i class="dot" style="background:var(--violet)"></i>Players</span><strong>9 702</strong></div>
-          <div class="card preview-chart panel">
-            <div class="bars" style="height:120px">
-              <div class="bar-col"><div class="bar" style="height:40%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:65%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:30%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:85%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:55%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:100%"></div></div>
-              <div class="bar-col"><div class="bar" style="height:70%"></div></div>
-            </div>
-          </div>
-          <div class="preview-list"><div></div><div></div><div></div><div></div></div>
-        </div>
+      <div class="hs-hero-visual" aria-label="Illustrative forensic scanner preview">
+        <div class="hs-visual-label"><span class="hs-led"></span> LIVE ANALYSIS PREVIEW</div>
+        <div class="hs-visual-header"><img src="/assets/logo.png" alt=""/><div><strong>HeRoShield</strong><small>PC-CHECKER / DEMO</small></div><span>✦</span></div>
+        <div class="hs-orbit"><span></span><span></span><span></span><div>⌕</div></div>
+        <div class="hs-analysis-caption"><span>SYSTEM ANALYSIS</span><span>46%</span></div>
+        <div class="hs-progress"><i></i></div>
+        <div class="hs-visual-footer"><span>FORENSIC ENGINE</span><span>SCANNING PREVIEW</span></div>
       </div>
     </div>
   </section>
-
-  <section style="padding-top:60px">
-    <div class="container">
-      <div class="stats">
-        <div class="card stat reveal"><strong class="grad-text">15</strong><span>Detections</span></div>
-        <div class="card stat reveal"><strong class="grad-text">$0</strong><span>Forever</span></div>
-        <div class="card stat reveal"><strong class="grad-text">4</strong><span>Frameworks</span></div>
-        <div class="card stat reveal"><strong class="grad-text">24/7</strong><span>Protection</span></div>
-      </div>
+  <section class="hs-showcase">
+    <div class="container"><div class="hs-section-intro"><span class="hs-kicker">◈ SCANNER WORKFLOW</span><h2>Evidence-driven scanning<br/>for <em>confident reviews.</em></h2><p>Purpose-built scanning workflows for FiveM operators, with evidence-based review and controlled staff access.</p></div>
+      <div class="hs-game-panel"><div class="hs-game-top">● SCANNER READY <span>SECURITY PROFILE / 01</span></div><div class="hs-game-body"><span>FIVEM SCREENSHARE & PC FORENSICS</span><h3>FIVEM</h3><p>Focused PC scanning, evidence review and safer decisions for community moderators.</p><a href="#detections" class="btn btn-ghost btn-sm">Explore protection →</a></div><div class="hs-game-bottom"><div>ENVIRONMENT<strong>FiveM</strong></div><div>PROFILE<strong>HS-01</strong></div><div>STATUS<strong>Available</strong></div></div></div>
     </div>
   </section>
+  <section class="hs-workflow" id="workflow"><div class="container"><div class="hs-section-intro"><span class="hs-kicker">◉ SCANNER WORKFLOW</span><h2>Simple 6-step process</h2><p>From account access to forensic reports, every step is designed to be clear and operator-ready.</p></div><div class="hs-steps">
+    <div><small>01 / ACCESS</small><h3>Choose a plan</h3><p>Select your preferred license duration.</p></div><div><small>02 / CONNECT</small><h3>Sign in</h3><p>Authenticate securely with Discord.</p></div><div><small>03 / SESSION</small><h3>Generate PIN</h3><p>Staff create a session for the check.</p></div><div><small>04 / CLIENT</small><h3>Download</h3><p>Open the scanner with a valid PIN.</p></div><div><small>05 / SCAN</small><h3>Analyze</h3><p>Collect permitted forensic indicators.</p></div><div><small>06 / REVIEW</small><h3>Read report</h3><p>Review findings in the dashboard.</p></div>
+  </div></div></section>
+  <section class="hs-story"><div class="container"><div class="hs-section-intro"><span class="hs-kicker">◈ OUR APPROACH</span><h2>Built for serious<br/>game forensics</h2><p>Less noise. More context. Clearer decisions.</p></div><div class="hs-story-grid"><div class="hs-story-art"><img src="/assets/logo.png" alt="HeRoShield logo"/><span>HEROSHIELD / FORENSIC PLATFORM</span></div><div class="hs-story-copy"><h3>Our mission</h3><p>HeRoShield helps review teams understand technical scan results without treating every keyword or unsigned file as proof of cheating.</p><p>We focus on explainable findings, permissions, evidence and a professional review workflow.</p><div class="hs-story-points"><div>◇ &nbsp; Evidence-based detection review</div><div>◇ &nbsp; Secure staff permissions</div><div>◇ &nbsp; Scanner-to-dashboard reporting</div></div></div></div></div></section>
+  
+<section class="hs-experience" id="experience">
+  <div class="container">
+    <div class="hs-exp-heading"><div><span class="hs-eyebrow"><i></i> BUILT FOR THE MOMENT OF TRUTH</span><h2>Every signal.<br><em>One clear picture.</em></h2></div><p>From first connection to final review, keep your investigation organized, readable and under your team's control.</p></div>
+    <div class="hs-exp-grid">
+      <article class="hs-exp-card hs-exp-large"><div class="hs-exp-photo hs-photo-city"></div><div class="hs-exp-content"><span>01 / GAME FORENSICS</span><h3>Know what matters.<br>Ignore the noise.</h3><p>Correlate evidence before making a decision. A suspicious indicator is not automatically proof.</p><a href="#detections">Explore detection workflow <b>↗</b></a></div><div class="hs-exp-index">01</div></article>
+      <article class="hs-exp-card hs-exp-small"><div class="hs-exp-photo hs-photo-waves"></div><div class="hs-exp-content"><span>02 / PRIVATE BY DESIGN</span><h3>Control every review.</h3><p>Role-based access, secure sessions and clear operator permissions.</p><a href="/dashboard">Open your workspace <b>↗</b></a></div></article>
+      <article class="hs-exp-card hs-exp-small hs-exp-metric"><div class="hs-exp-graphic"><div class="hs-radar"><div class="hs-radar-sweep"></div><i></i><i></i><i></i></div><div class="hs-exp-metric-label">EVIDENCE REVIEW <strong>ACTIVE</strong></div></div><div class="hs-exp-content"><span>03 / INTELLIGENCE</span><h3>Make confident calls.</h3><p>Clear findings, context and an auditable investigation flow.</p><a href="#workflow">See how it works <b>↗</b></a></div></article>
+    </div>
+  </div>
+</section>
+<section class="hs-workspace" id="workspace">
+  <div class="container"><div class="hs-workspace-head"><span class="hs-eyebrow"><i></i> YOUR COMMAND CENTER</span><h2>Built for operators.<br><em>Not spreadsheets.</em></h2><p>One workspace for scan sessions, report reviews and the evidence your staff actually needs.</p></div>
+  <div class="hs-browser-shell"><div class="hs-browser-top"><div class="hs-browser-dots"><i></i><i></i><i></i></div><span>HEROSHIELD / SECURE WORKSPACE</span><span class="hs-browser-status">● LIVE PREVIEW</span></div><div class="hs-browser-body"><aside class="hs-browser-sidebar"><div class="hs-mini-brand"><img src="/assets/logo.png" alt=""/> HeRoShield</div><span class="hs-mini-label">WORKSPACE</span><div class="hs-mini-active">▦ &nbsp; Overview</div><div>⌕ &nbsp; Scan sessions</div><div>◈ &nbsp; Detection results</div><div>◷ &nbsp; Analytics</div><span class="hs-mini-label">MANAGEMENT</span><div>♙ &nbsp; Team access</div><div>⚙ &nbsp; Settings</div></aside><div class="hs-browser-main"><div class="hs-browser-welcome"><div><small>WELCOME BACK / OPERATOR</small><h3>Investigation overview</h3></div><span>● SYSTEM READY</span></div><div class="hs-browser-stats"><div><small>SCAN SESSIONS</small><strong>—</strong><span>Connected reports</span></div><div><small>AWAITING REVIEW</small><strong>—</strong><span>Requires confirmation</span></div><div><small>STAFF ACCESS</small><strong>ROLE</strong><span>Permission controlled</span></div></div><div class="hs-browser-lower"><div class="hs-browser-graph"><div class="hs-browser-panelhead">SCAN ACTIVITY <span>ILLUSTRATIVE</span></div><svg viewBox="0 0 480 150" preserveAspectRatio="none" aria-label="Illustrative activity graph"><defs><linearGradient id="hsArea" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#38bdf8" stop-opacity=".28"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs><path d="M0 130 L35 119 L70 123 L105 94 L140 101 L175 72 L210 85 L245 47 L280 68 L315 35 L350 55 L385 24 L420 42 L455 18 L480 25 L480 150 L0 150Z" fill="url(#hsArea)"/><path d="M0 130 L35 119 L70 123 L105 94 L140 101 L175 72 L210 85 L245 47 L280 68 L315 35 L350 55 L385 24 L420 42 L455 18 L480 25" fill="none" stroke="#59d1ff" stroke-width="2.5"/></svg></div><div class="hs-browser-feed"><div class="hs-browser-panelhead">REVIEW PIPELINE</div><div><i class="hs-feed-dot blue"></i> Report received <small>Queued</small></div><div><i class="hs-feed-dot amber"></i> Analyst review <small>Pending</small></div><div><i class="hs-feed-dot green"></i> Final decision <small>Staff only</small></div></div></div></div></div></div><p class="hs-preview-note">Interface preview only. Live data is available after authentication and service configuration.</p></div>
+</section>
 
-  <section id="features">
+
+
+  <section id="features" class="hs-scanner-features">
     <div class="container">
-      <div class="section-head reveal">
-        <div class="eyebrow">Features</div>
-        <h2>Everything you need for a <span class="grad-text">clean</span> server</h2>
-        <p>Client + server protection. No false bans, no lag.</p>
-      </div>
+      <div class="section-head reveal"><div class="eyebrow">Scanner platform</div><h2>Everything for <span class="grad-text">PC forensic reviews</span></h2><p>From session PIN to structured findings, designed for responsible screenshare investigations.</p></div>
       <div class="features">
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
-          <h3>Client checks</h3><p>GodMode, speedhack, noclip, invisible, super jump, spectate, blacklisted weapons and injected resources.</p>
-        </div>
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
-          <h3>Server checks</h3><p>Blacklisted events, event spam, hidden explosions, entity spawns and abnormal weapon damage blocked.</p>
-        </div>
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></div>
-          <h3>HWID bans</h3><p>Bans use identifiers + hardware tokens. A new Rockstar or Discord account is not enough.</p>
-        </div>
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></div>
-          <h3>Web dashboard</h3><p>Discord login, live stats, detections, bans, player playtime. Change settings and webhook online.</p>
-        </div>
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M8 5l1.5-2h5L16 5"/></svg></div>
-          <h3>Replay proof & live view</h3><p>Every ban saves a screenshot + a replay of the last 4 minutes. Watch any player live from the dashboard.</p>
-        </div>
-        <div class="card feature reveal">
-          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M17 3h4v4"/></svg></div>
-          <h3>Admins safe</h3><p>Admins are never banned (ACE, framework groups or identifiers). Strikes and spawn grace stop false bans.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="detections">
-    <div class="container">
-      <div class="section-head reveal">
-        <div class="eyebrow">Detections</div>
-        <h2>15 detections ready out of the box</h2>
-        <p>Set each one to <b>log</b>, <b>kick</b> or <b>ban</b> from the dashboard.</p>
-      </div>
-      <div class="chips reveal">
-        <span class="chip">GodMode</span><span class="chip">SpeedHack</span><span class="chip">NoClip / Teleport</span>
-        <span class="chip">Invisible</span><span class="chip">Super Jump</span><span class="chip">Spectate</span>
-        <span class="chip">Blacklisted weapons</span><span class="chip">Resource injection</span><span class="chip">Anti-stop</span>
-        <span class="chip">Blacklisted events</span><span class="chip">Event spam</span><span class="chip">Hidden explosions</span>
-        <span class="chip">Explosion spam</span><span class="chip">Blacklisted entities</span><span class="chip">Entity spam</span>
-        <span class="chip">Weapon damage</span><span class="chip">Server logs</span><span class="chip">Live view</span><span class="chip">Replay proof</span>
-      </div>
-    </div>
-  </section>
-
-  <section id="install">
-    <div class="container">
-      <div class="section-head reveal">
-        <div class="eyebrow">Installation</div>
-        <h2>Ready in 3 steps</h2>
-      </div>
-      <div class="steps">
-        <div class="card step reveal">
-          <h3>Download</h3>
-          <p>Put the <b>heroshield</b> folder in your <b>resources</b> folder.</p>
-          <code>resources/heroshield</code>
-        </div>
-        <div class="card step reveal">
-          <h3>Start</h3>
-          <p>Add this to your <b>server.cfg</b>:</p>
-          <code>ensure heroshield
-add_ace group.admin heroshield.bypass allow</code>
-        </div>
-        <div class="card step reveal">
-          <h3>Connect</h3>
-          <p>Add your server on the dashboard and paste the key in <b>shared/config.lua</b>.</p>
-          <code>Config.LicenseKey = 'HS-XXXX-...'</code>
-        </div>
+        <div class="card feature reveal"><h3>Windows PC Scanner</h3><p>Review supported system artifacts, executables, scripts and FiveM-related files.</p></div>
+        <div class="card feature reveal"><h3>Scan PIN Sessions</h3><p>Create session PINs and associate completed scans with review records.</p></div>
+        <div class="card feature reveal"><h3>Evidence-based Reports</h3><p>Separate detected indicators, suspicious findings and warnings with context.</p></div>
+        <div class="card feature reveal"><h3>Discord Staff Access</h3><p>Sign in through Discord and access scanner tools according to staff permissions.</p></div>
+        <div class="card feature reveal"><h3>Signature Review</h3><p>Manage known indicators and inspect supporting evidence before making decisions.</p></div>
+        <div class="card feature reveal"><h3>Scan Activity & Rankings</h3><p>Review authorized scan history and opt-in community statistics.</p></div>
       </div>
     </div>
   </section>
 
   <section id="pricing">
     <div class="container">
-      <div class="section-head reveal">
-        <div class="eyebrow">Pricing</div>
-        <h2>Free. Really.</h2>
-        <p>No subscription, no hidden premium.</p>
+      <div class="section-head reveal"><div class="eyebrow">HeRoShield Scanner Premium</div><h2>Choose your scanner access.</h2><p>Secure checkout. Discord login required. Staff permissions remain unchanged.</p></div>
+      <div class="hs-pricing-grid">
+        <div class="card hs-plan"><div class="eyebrow">Starter</div><h3>1 Month</h3><p>30-day style access billed as one calendar month.</p><div class="hs-price" data-plan="month1">$4.99 USD</div><button class="btn btn-primary" onclick="buyPlan('month1')">Buy 1 Month</button></div>
+        <div class="card hs-plan"><div class="eyebrow">Flexible</div><h3>3 Months</h3><p>Three calendar months of premium access.</p><div class="hs-price" data-plan="month3">$12.99 USD</div><button class="btn btn-primary" onclick="buyPlan('month3')">Buy 3 Months</button></div>
+        <div class="card hs-plan"><div class="eyebrow">Popular</div><h3>6 Months</h3><p>Six calendar months of premium access.</p><div class="hs-price" data-plan="month6">$22.99 USD</div><button class="btn btn-primary" onclick="buyPlan('month6')">Buy 6 Months</button></div>
+        <div class="card hs-plan"><div class="eyebrow">Annual</div><h3>1 Year</h3><p>Twelve calendar months of premium access.</p><div class="hs-price" data-plan="year1">$39.99 USD</div><button class="btn btn-primary" onclick="buyPlan('year1')">Buy 1 Year</button></div>
+        <div class="card hs-plan"><div class="eyebrow">One-time</div><h3>Lifetime</h3><p>Lifetime access for this account.</p><div class="hs-price" data-plan="lifetime">$79.99 USD</div><button class="btn btn-primary" onclick="buyPlan('lifetime')">Buy Lifetime</button></div>
       </div>
-      <div class="card price-card reveal">
-        <div class="eyebrow">HeRo Shield</div>
-        <div class="price grad-text">$0 <small>/ forever</small></div>
-        <ul class="price-list">
-          <li><svg><use href="#i-check"/></svg>All 15 client + server detections</li>
-          <li><svg><use href="#i-check"/></svg>HWID bans + admin commands</li>
-          <li><svg><use href="#i-check"/></svg>Web dashboard (up to 5 servers)</li>
-          <li><svg><use href="#i-check"/></svg>Discord logs + screenshots</li>
-          <li><svg><use href="#i-check"/></svg>Free updates</li>
-        </ul>
-        <a href="https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe" class="btn btn-primary" style="width:100%" download>Download now</a>
-      </div>
+      <p id="hs-payment-message" role="status" style="text-align:center;margin-top:20px;color:#83caff">All prices in USD. One-time payment per plan, no automatic renewal. Stripe Checkout must be configured with matching amounts. No free plan.</p>
     </div>
   </section>
+  <script>
+    async function buyPlan(plan) {
+      const msg=document.getElementById('hs-payment-message'); msg.textContent='Opening secure checkout…';
+      try { const r=await fetch('/api/billing-checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
+        const d=await r.json(); if(r.status===401){location.href='/api/auth/login';return;} if(!r.ok)throw Error(d.error||'Checkout unavailable');
+        if(!/^https:\/\/checkout\.stripe\.com\//.test(d.url))throw Error('Unexpected checkout URL'); location.href=d.url;
+      } catch(e){msg.textContent=e.message;}
+    }
+  </script>
+
+  <section id="leaderboard" class="hs-lb-section">
+    <div class="container">
+      <div class="section-head reveal"><div class="eyebrow">Community stats</div><h2>HeRoShield <span class="grad-text">Leaderboard</span></h2><p>Discord members who choose to appear publicly. Findings are scanner signals, not proof of cheating.</p></div>
+      <div class="hs-lb-tabs" role="tablist" aria-label="Leaderboard categories">
+        <button class="hs-lb-tab active" type="button" data-lb="checks" aria-selected="true">🏆 Top Checks</button>
+        <button class="hs-lb-tab" type="button" data-lb="findings" aria-selected="false">🔎 Top Findings</button>
+      </div>
+      <div id="hs-lb-list" class="hs-lb-list" aria-live="polite"><p>Loading leaderboard…</p></div>
+      <div class="hs-lb-opt"><p><b>Your privacy matters.</b> Only people who opt in using Discord appear here. You can leave the leaderboard any time.</p><button type="button" id="hs-lb-opt-btn" class="btn btn-ghost btn-sm">Manage my visibility</button><span id="hs-lb-opt-msg" role="status"></span></div>
+    </div>
+  </section>
+  <style>
+    .hs-lb-section{padding:90px 0;background:linear-gradient(180deg,rgba(4,19,39,.65),rgba(3,9,21,.35))}
+    .hs-lb-tabs{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:26px 0}
+    .hs-lb-tab{background:#0b1b30;color:#9eb7d3;border:1px solid #234363;border-radius:12px;padding:12px 22px;font-weight:750;cursor:pointer}
+    .hs-lb-tab.active{background:linear-gradient(110deg,#1064c9,#19b8ee);border-color:#5ac9ff;color:#fff;box-shadow:0 6px 24px #008cff33}
+    .hs-lb-list{max-width:820px;margin:0 auto;min-height:120px}
+    .hs-lb-row{display:flex;align-items:center;gap:15px;margin:9px 0;padding:13px 18px;border:1px solid #234466;border-radius:15px;background:linear-gradient(100deg,#0d1a30,#0b1324)}
+    .hs-lb-rank{font-weight:900;color:#69c8ff;width:40px;text-align:center}
+    .hs-lb-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #235e91}
+    .hs-lb-person{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .hs-lb-value{color:#66cfff;font-size:20px;font-weight:900;font-variant-numeric:tabular-nums}
+    .hs-lb-opt{text-align:center;max-width:760px;margin:25px auto 0;color:#9eb7d3;font-size:13px}
+    .hs-lb-opt button{margin:12px 0}.hs-lb-opt span{display:block}
+    @media(max-width:550px){.hs-lb-row{padding:10px;gap:9px}.hs-lb-avatar{width:36px;height:36px}.hs-lb-value{font-size:17px}}
+  </style>
+  <script>
+  (()=>{
+    const list=document.getElementById('hs-lb-list'),msg=document.getElementById('hs-lb-opt-msg'),btn=document.getElementById('hs-lb-opt-btn');
+    let metric='checks',opted=false,logged=false;
+    const el=(tag,cls,txt)=>{const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x};
+    async function load(){
+      list.replaceChildren(el('p','','Loading leaderboard…'));
+      try{
+        const r=await fetch('/api/leaderboard?metric='+metric,{credentials:'same-origin'}),d=await r.json();if(!r.ok)throw Error(d.error||'Leaderboard unavailable');
+        list.replaceChildren();if(!d.entries?.length){list.append(el('p','','No public entries yet. Be the first to opt in!'));return;}
+        d.entries.forEach((u,i)=>{
+          const row=el('div','hs-lb-row'),rank=el('span','hs-lb-rank',i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1));
+          const img=el('img','hs-lb-avatar');img.alt='';img.loading='lazy';img.referrerPolicy='no-referrer';img.src=u.avatar||'/assets/logo.png';img.onerror=()=>{img.onerror=null;img.src='/assets/logo.png'};
+          row.append(rank,img,el('span','hs-lb-person',u.name),el('span','hs-lb-value',String(u.value)));list.append(row);
+        });
+      }catch(e){list.replaceChildren(el('p','',e.message));}
+    }
+    document.querySelectorAll('[data-lb]').forEach(b=>b.addEventListener('click',()=>{metric=b.dataset.lb;document.querySelectorAll('[data-lb]').forEach(t=>{t.classList.toggle('active',t===b);t.setAttribute('aria-selected',String(t===b))});load()}));
+    async function status(){try{const r=await fetch('/api/leaderboard-optin');if(r.status===401){btn.textContent='Sign in to join leaderboard';return;}if(!r.ok)throw Error('Unavailable');const d=await r.json();logged=true;opted=!!d.opted_in;btn.textContent=opted?'Leave public leaderboard':'Join public leaderboard';}catch{btn.textContent='Manage visibility';}}
+    btn.addEventListener('click',async()=>{if(!logged){location.href='/api/auth/login';return;}btn.disabled=true;msg.textContent='Saving…';try{const r=await fetch('/api/leaderboard-optin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({opted_in:!opted})});const d=await r.json();if(!r.ok)throw Error(d.error||'Failed');opted=!!d.opted_in;btn.textContent=opted?'Leave public leaderboard':'Join public leaderboard';msg.textContent=opted?'You are now visible in the leaderboard.':'You are no longer publicly listed.';await load()}catch(e){msg.textContent=e.message}finally{btn.disabled=false}});
+    load();status();
+  })();
+  </script>
 
   <section id="faq">
     <div class="container">
@@ -574,7 +763,7 @@ add_ace group.admin heroshield.bypass allow</code>
         <h2>FAQ</h2>
       </div>
       <div class="faq">
-        <details class="card reveal"><summary>Is it really free?</summary><p>Yes. HeRo Shield is 100% free for every server, no player limit.</p></details>
+        <details class="card reveal"><summary>Is there a free plan?</summary><p>No. Choose a paid plan. Existing staff permissions still control dashboard features.</p></details>
         <details class="card reveal"><summary>Does it work with my framework?</summary><p>Yes: ESX, QBCore, Qbox or standalone. It detects your framework by itself. OneSync is required.</p></details>
         <details class="card reveal"><summary>Can admins get banned?</summary><p>No. Admins are always ignored. Tip: set detections to "log" for 1-2 days, then switch to "ban".</p></details>
         <details class="card reveal"><summary>How do I unban someone?</summary><p>From the dashboard (Bans tab) or in console with <b>hsunban HS-XXXXXX</b>.</p></details>
@@ -586,10 +775,10 @@ add_ace group.admin heroshield.bypass allow</code>
   <section style="padding-top:20px">
     <div class="container">
       <div class="card cta-box reveal">
-        <h2>Ready to clean your server?</h2>
-        <p>Install HeRo Shield in 2 minutes.</p>
+        <h2>Ready to review a PC?</h2>
+        <p>Sign in, create a scan PIN and review forensic reports in one secure workspace.</p>
         <div class="hero-cta">
-          <a href="https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe" class="btn btn-primary" download>Download</a>
+          <a href="#pricing" class="btn btn-primary">View plans</a>
           <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
         </div>
       </div>
@@ -600,7 +789,7 @@ add_ace group.admin heroshield.bypass allow</code>
 <footer>
   <div class="container footer-inner">
     <a href="/" class="brand" style="font-size:16px"><svg style="width:24px;height:24px"><use href="#logo"/></svg><span>HeRo <b>Shield</b></span></a>
-    <span>© <span id="year">2026</span> HeRo Shield - by HaMa. Not affiliated with Rockstar Games or Cfx.re.</span>
+    <span>© <span id="year">2026</span> HeRoShield Scanner - by HaMa. Not affiliated with Rockstar Games or Cfx.re.</span>
   </div>
 </footer>
 

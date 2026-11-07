@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
 
-  const state = { user: null, servers: [], server: null, tab: 'overview', q: '', cat: '' };
+  const state = { user: null, servers: [], server: null, tab: 'pins', q: '', cat: '' };
   try { state.server = localStorage.getItem('hs_server'); } catch {}
 
   const TITLES = {
@@ -11,6 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
+    profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -142,10 +143,10 @@
     } catch {
       return showLogin();
     }
-    const acc = state.user.access || { heroshield: true, herocheck: true };
-    if (!acc.heroshield && !acc.herocheck) {
+    const acc = state.user.access || { heroshield: false, herocheck: false, admin: false };
+    if (!acc.herocheck && !acc.admin) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = `Your account has no access yet. Send your Discord ID ${state.user.id} to the owner so he can give you HeRo Shield or HeRo Check.`;
+      $('#login-error').textContent = `Your account has no access yet. Send your Discord ID ${state.user.id} to the owner so he can grant you HeRoCheck scanner access.`;
       $('#login-error').hidden = false;
       return;
     }
@@ -164,11 +165,10 @@
       const p = el.dataset.perm;
       el.hidden = !acc[p];
     });
-    await loadServers();
+    // Scanner-only workspace does not require a FiveM server.
+    state.servers = []; state.server = null;
     const hash = location.hash.slice(1);
-    const defaultTab = acc.heroshield ? (state.servers.length ? 'overview' : 'servers')
-                     : acc.herocheck  ? 'pins'
-                     : 'servers';
+    const defaultTab = (acc.herocheck || acc.admin) ? 'pins' : 'profile';
     go(canAccess(hash) ? hash : defaultTab);
   }
 
@@ -189,14 +189,14 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    access:'admin'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin'
   };
   function canAccess(tab) {
-    if (!TITLES[tab]) return false;
+    if (!TITLES[tab] || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
     const p = PERM_MAP[tab];
     if (!p) return true;
     const acc = state.access || {};
-    return !!acc[p];
+    return !!acc[p] || (p === 'herocheck' && !!acc.admin);
   }
   function go(tab) {
     if (!canAccess(tab)) return;
@@ -206,7 +206,7 @@
     $('#search').value = '';
     state.cat = '';
     $('#search').hidden = !['detections', 'bans', 'players', 'logs'].includes(tab);
-    $('#server-select').style.display = ['servers', 'scanner', 'signatures', 'staff', 'access', 'tutorial', 'changelogs'].includes(tab) ? 'none' : '';
+    $('#server-select').style.display = 'none';
     $('#page-title').textContent = TITLES[tab];
     $$('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     history.replaceState(null, '', `#${tab}`);
@@ -215,8 +215,18 @@
 
   async function render() {
     const view = $('#view');
-    if (state.tab === 'servers') return renderServers(view);
+    if (state.tab === 'quicktools') return renderQuickTools(view);
+    if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
+    if (state.tab === 'profile') return renderProfile(view);
+    if (state.tab === 'subscription') return renderSubscription(view);
+    if (state.tab === 'ranking') return renderRanking(view);
+    if (state.tab === 'scanactivity') return renderScanActivity(view);
+    // Server analytics are intentionally not exposed in scanner-only mode.
+    // FiveM server management is not part of this scanner-only workspace.
     if (state.tab === 'scanner') return renderScanner(view);
+    if (state.tab === 'pins') { view.innerHTML = loading(); try { await renderPins(view); } catch(e) { wsError(view,e); } return; }
+    if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
+    if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
@@ -241,6 +251,57 @@
     } catch (e) {
       view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
     }
+  }
+
+
+  // Workspace pages use existing authenticated endpoints, never client-side fake counters.
+  function wsError(view, e) { view.innerHTML = `<div class="workspace-section">${esc(e.message || 'Could not load data')}</div>`; }
+  function wsAvatar(user) { return user.avatar ? `<img class="workspace-avatar" src="${esc(user.avatar)}" alt="Discord avatar" referrerpolicy="no-referrer">` : `<div class="workspace-avatar-fallback">${esc((user.name || '?')[0])}</div>`; }
+  function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.name || 'Discord user')}</h2><p>Discord account · ${esc(user.id)}</p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
+  function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
+  function wsAccess() { const a=state.user.access || {}; return [a.admin&&'Admin',a.heroshield&&'Legacy HeRoShield role',a.herocheck&&'HeRoCheck'].filter(Boolean).join(' · ') || 'No staff permissions'; }
+  async function renderProfile(view) {
+    view.innerHTML=loading();
+    try {
+      const billing=await api('/api/billing-status');
+      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('License',billing.active?(billing.lifetime?'Lifetime':'Active'):'Inactive')}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
+    } catch(e){wsError(view,e);}
+  }
+  async function renderSubscription(view) {
+    view.innerHTML=loading();
+    try {
+      const b=await api('/api/billing-status');
+      view.innerHTML=`<div class="workspace-hero"><div><h2>My License</h2><p>Verified subscription status from HeRoShield billing</p></div></div><div class="workspace-grid">${wsStat('Status',b.active?'Active':'Inactive')}${wsStat('Plan',b.plan||'None')}${wsStat('Valid until',b.lifetime?'Lifetime':b.expires_at?fmtDate(b.expires_at):'—')}</div><div class="workspace-section"><h3>License management</h3><p class="workspace-note">Purchases are validated by the payment provider and the server. If you have paid but your license is inactive, contact support with your receipt. Staff permissions remain independent of your plan.</p><div class="workspace-actions"><a class="btn btn-primary" href="/#pricing">See plans</a><button class="btn btn-ghost" data-go="profile">My Profile</button></div></div>`;
+    } catch(e){wsError(view,e);}
+  }
+  async function renderAnalytics(view) {
+    view.innerHTML=loading();
+    if(!state.server) {view.innerHTML='<div class="workspace-section">Select a server to view analytics.</div>';return;}
+    try {
+      const d=await api(`/api/data?server=${encodeURIComponent(state.server)}&type=overview`);
+      const days=d.days||[],max=Math.max(1,...days.map(x=>Number(x.count)||0));
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Server Analytics</h2><p>Live statistics from your selected server</p></div></div><div class="workspace-grid">${wsStat('Detections',fmtNum(d.stats?.detections))}${wsStat('Active bans',fmtNum(d.stats?.bans))}${wsStat('Unique players',fmtNum(d.stats?.players))}</div><div class="workspace-section"><h3>Last 7 days</h3><div class="bars">${days.map(x=>`<div class="bar-col"><b>${fmtNum(x.count)}</b><div class="bar" style="height:${Math.round(Number(x.count||0)/max*100)}%"></div><small>${esc(x.day)}</small></div>`).join('')}</div></div><div class="workspace-section"><h3>Top detection reasons</h3>${(d.top||[]).length?d.top.map(x=>`<div class="top-row"><span>${esc(x.reason)}</span><b>${fmtNum(x.n)}</b></div>`).join(''):'<p class="workspace-note">No detections recorded.</p>'}</div>`;
+    }catch(e){wsError(view,e);}
+  }
+  async function renderScanActivity(view) {
+    view.innerHTML=loading();
+    try {
+      const servers=state.servers||[];
+      if(!servers.length){view.innerHTML='<div class="workspace-section">Add a server to view your scan activity.</div>';return;}
+      // Read only servers the existing /api/servers endpoint authorized for this user.
+      const results=await Promise.all(servers.slice(0,20).map(async s=>({name:s.name, pins:(await api(`/api/pins?server=${encodeURIComponent(s.id)}`)).pins||[]})));
+      const all=results.flatMap(r=>r.pins.map(p=>({...p,serverName:r.name}))).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+      const used=all.filter(p=>p.used).length;
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Scan Activity</h2><p>Your authorized screenshare scan sessions</p></div></div><div class="workspace-grid">${wsStat('Recent PINs',all.length)}${wsStat('Used PINs',used)}${wsStat('Available PINs',all.length-used)}</div><div class="workspace-section"><h3>Recent sessions</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Server</th><th>PIN</th><th>Player</th><th>Status</th><th>Created</th></tr></thead><tbody>${all.slice(0,40).map(p=>`<tr><td>${esc(p.serverName)}</td><td class="mono">${esc(p.pin)}</td><td>${esc(p.player||'—')}</td><td>${p.used?'Used':'Available'}</td><td>${fmtDate(p.created_at)}</td></tr>`).join('')||'<tr><td colspan="5">No scans yet</td></tr>'}</tbody></table></div><div class="workspace-actions"><button class="btn btn-primary" data-go="pins">Manage scan PINs</button></div></div>`;
+    }catch(e){wsError(view,e);}
+  }
+  async function renderRanking(view,metric='checks') {
+    view.innerHTML=loading();
+    try {
+      const d=await api(`/api/leaderboard?metric=${metric}`);
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Community Leaderboard</h2><p>Only users who opted in are shown. Findings are not proof of cheating.</p></div></div><div class="workspace-actions"><button class="btn ${metric==='checks'?'btn-primary':'btn-ghost'}" data-rank="checks">Top Checks</button><button class="btn ${metric==='findings'?'btn-primary':'btn-ghost'}" data-rank="findings">Top Findings</button></div><div class="workspace-section"><h3>${metric==='checks'?'Most completed checks':'Most reported findings'}</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Rank</th><th>Discord user</th><th>${metric==='checks'?'Checks':'Findings'}</th></tr></thead><tbody>${(d.entries||[]).map((u,i)=>`<tr><td>#${i+1}</td><td style="display:flex;align-items:center;gap:10px">${u.avatar?`<img src="${esc(u.avatar)}" width="32" height="32" style="border-radius:50%" alt="">`:''}${esc(u.name)}</td><td><b>${fmtNum(u.value)}</b></td></tr>`).join('')||'<tr><td colspan="3">No opted-in results yet.</td></tr>'}</tbody></table></div></div>`;
+      view.querySelectorAll('[data-rank]').forEach(b=>b.addEventListener('click',()=>renderRanking(view,b.dataset.rank)));
+    }catch(e){wsError(view,e);}
   }
 
   // ---------- views ----------
@@ -1055,6 +1116,28 @@
   }
 
 
+  function renderQuickTools(view) {
+    const a = state.access || {};
+    const links = [
+      ['My Profile','profile',true,'Discord identity and assigned roles'],
+      ['My License','subscription',true,'Plan and expiry details'],
+      ['Leaderboard','ranking',true,'Opt-in community rankings'],
+      ['Scan PINs','pins',a.herocheck,'Generate and review screenshare PINs'],
+      ['Scan Activity','scanactivity',a.herocheck,'Review your scans'],
+      ['Discord Check','discord',a.herocheck,'Investigate an ID with authorization'],
+      ['Access','access',a.admin,'Manage staff permissions'],
+    ].filter(x=>x[2]);
+    view.innerHTML = `<div class="workspace-hero"><div><h2>Quick Tools</h2><p>Actions available to your Discord account</p></div></div><div class="workspace-grid">${links.map(([label,tab,,desc])=>`<div class="workspace-card"><small>${esc(desc)}</small><strong style="font-size:19px">${esc(label)}</strong><div class="workspace-actions"><button class="btn btn-primary btn-sm" data-go="${esc(tab)}">Open</button></div></div>`).join('')}</div>`;
+  }
+
+  async function renderTeamDirectory(view) {
+    view.innerHTML = loading();
+    try {
+      const {staff} = await api('/api/staff');
+      view.innerHTML = `<div class="workspace-hero"><div><h2>Team Directory</h2><p>Authorized team entries — managed by the owner</p></div></div><div class="workspace-grid">${(staff||[]).map(m=>`<div class="workspace-card"><small>${esc(m.role||'Staff')}</small><strong style="font-size:19px">${esc(m.name)}</strong><p class="mono">${esc(m.discord_id||'No Discord ID')}</p></div>`).join('')||'<div class="workspace-card">No team members yet.</div>'}</div><div class="workspace-actions"><button class="btn btn-primary" data-go="staff">Manage Staff</button><button class="btn btn-ghost" data-go="access">Manage Access</button></div>`;
+    } catch(e) { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
+  }
+
   function renderTutorial(view) {
     const step = (t, d) => `<li><b>${t}</b><p style="color:var(--muted);margin:4px 0 0">${d}</p></li>`;
     view.innerHTML = `
@@ -1130,12 +1213,12 @@
     const { staff } = await api('/api/staff');
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
-        <h3>Add a staff member</h3>
+        <h3>Add a staff member</h3><p class="workspace-note">Discord ID is linked directly to staff permissions. The invited user can log in with Discord and open the permitted dashboard without a personal paid plan. Staff roles do not grant owner access.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <input id="staff-name" class="input" style="flex:1;min-width:150px" placeholder="Name">
-          <input id="staff-did" class="input" style="flex:1;min-width:150px" placeholder="Discord ID (optional)">
-          <select id="staff-role" class="input"><option value="staff">Staff</option><option value="admin">Admin</option></select>
-          <button class="btn btn-primary" data-addstaff>Add</button>
+          <input id="staff-did" class="input" style="flex:1;min-width:150px" placeholder="Discord user ID (required)">
+          <input type="hidden" id="staff-role" value="staff">
+          <label><input type="checkbox" id="staff-hs" checked> HeRo Shield</label><label><input type="checkbox" id="staff-hc" checked> HeRo Check</label><button class="btn btn-primary" data-addstaff>Add & Grant Access</button>
         </div>
       </div>
       <div class="card panel"><h3>Team (${staff.length})</h3>
@@ -1146,6 +1229,19 @@
             <td><button class="btn btn-danger btn-sm" data-delstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No staff yet.</div>'}
       </div>`;
+    view.querySelector('[data-addstaff]')?.addEventListener('click', async () => {
+      const name = $('#staff-name').value.trim(), discordId = $('#staff-did').value.trim();
+      if (!name || !/^\d{15,22}$/.test(discordId)) return toast('Enter a name and valid Discord user ID', true);
+      try {
+        await api('/api/staff', {method:'POST',body:{name,discordId,role:$('#staff-role').value,heroshield:$('#staff-hs').checked,herocheck:$('#staff-hc').checked}});
+        toast('Staff access granted. Ask them to log in with Discord.');
+        renderStaff(view);
+      } catch(e) { toast(e.message,true); }
+    });
+    view.querySelectorAll('[data-delstaff]').forEach(btn => btn.addEventListener('click', async () => {
+      if (!await modal({title:'Remove staff entry',text:'This removes the team entry. Revoke dashboard access separately from Access.',ok:'Remove',danger:true})) return;
+      try { await api('/api/staff?id='+encodeURIComponent(btn.dataset.delstaff),{method:'DELETE'}); toast('Staff entry removed'); renderStaff(view); } catch(e){toast(e.message,true);}
+    }));
   }
 
   // ---------- access (admin only): who sees HeRo Shield / HeRo Check ----------
@@ -1475,21 +1571,24 @@
         if (!name) return;
         const { server } = await api('/api/servers', { method: 'POST', body: { name } });
         state.server = server.id;
-        await loadServers();
+        // Scanner-only workspace does not require a FiveM server.
+    state.servers = []; state.server = null;
         toast('Server created');
         render();
       } else if (t.dataset.regen) {
         const ok = await modal({ title: 'Create a new key?', text: 'The old key will stop working. Put the new one in config.lua.', ok: 'New key', danger: true });
         if (!ok) return;
         await api('/api/servers', { method: 'PATCH', body: { id: t.dataset.regen } });
-        await loadServers();
+        // Scanner-only workspace does not require a FiveM server.
+    state.servers = []; state.server = null;
         toast('New key created');
         render();
       } else if (t.dataset.del) {
         const ok = await modal({ title: 'Delete this server?', text: 'All its detections, bans and players will be deleted.', ok: 'Delete', danger: true });
         if (!ok) return;
         await api(`/api/servers?id=${t.dataset.del}`, { method: 'DELETE' });
-        await loadServers();
+        // Scanner-only workspace does not require a FiveM server.
+    state.servers = []; state.server = null;
         toast('Server deleted');
         render();
       } else if (t.dataset.unban) {
@@ -1548,7 +1647,8 @@
         await api(`/api/staff?id=${encodeURIComponent(t.dataset.delstaff)}`, { method: 'DELETE' });
         render();
       } else if (t.id === 'refresh') {
-        await loadServers();
+        // Scanner-only workspace does not require a FiveM server.
+    state.servers = []; state.server = null;
         render();
       }
     } catch (err) {
