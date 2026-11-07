@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard — HeRo Shield</title>
+<title>Scanner Dashboard — HeRoShield</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#05070f">
 <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
@@ -671,15 +671,17 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <div class="side-label">Help</div>
     <button class="side-link" data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button class="side-link" data-tab="changelogs"><svg><use href="#i-logs"/></svg>Changelogs</button>
-    <div class="side-label">Workspace</div>
+    <div class="side-label">Scanner Workspace</div>
     <button class="side-link" data-tab="profile"><svg><use href="#i-users"/></svg>My Profile</button>
-    <button class="side-link" data-tab="subscription"><svg><use href="#i-key"/></svg>My License</button>    <button class="side-link" data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan Activity</button>
+    <button class="side-link" data-tab="subscription"><svg><use href="#i-key"/></svg>My License</button>
+    <button class="side-link" data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan Activity</button>
     <button class="side-link" data-tab="quicktools"><svg><use href="#i-gear"/></svg>Quick Tools</button>
     <button class="side-link" data-tab="ranking"><svg><use href="#i-users"/></svg>Leaderboard</button>
     <div class="side-label">Account</div>
     <button class="side-link" data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button class="side-link" data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team Directory</button>
-    <button class="side-link" data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff team</button>    <div class="side-user">
+    <button class="side-link" data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff team</button>
+    <div class="side-user">
       <img id="u-avatar" alt="" hidden>
       <span id="u-fallback" class="avatar-fallback"></span>
       <div><strong id="u-name">—</strong><a href="/api/auth/logout">Log out</a></div>
@@ -688,7 +690,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
 
   <main class="main">
     <div class="topbar">
-      <h1 id="page-title">Scan PINs</h1>
+      <h1 id="page-title">Scanner Dashboard</h1>
       <div class="topbar-right">
         <input id="search" class="input" type="search" placeholder="Search..." hidden>
         <select id="server-select" class="input" aria-label="Server" hidden></select>
@@ -698,19 +700,22 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <div id="view"></div>
   </main>
 
-  <nav class="mobile-tabs">    <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
+  <nav class="mobile-tabs">
+    <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
     <button data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>PINs</button>
     <button data-tab="discord" data-perm="herocheck"><svg><use href="#i-discord"/></svg>Discord</button>
     <button data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-image"/></svg>GUI</button>
     <button data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Sigs</button>
     <button data-tab="profile"><svg><use href="#i-users"/></svg>Profile</button>
-    <button data-tab="subscription"><svg><use href="#i-key"/></svg>License</button>    <button data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Activity</button>
+    <button data-tab="subscription"><svg><use href="#i-key"/></svg>License</button>
+    <button data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Activity</button>
     <button data-tab="quicktools"><svg><use href="#i-gear"/></svg>Tools</button>
     <button data-tab="ranking"><svg><use href="#i-users"/></svg>Ranking</button>
     <button data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team</button>
-    <button data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff</button>  </nav>
+    <button data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff</button>
+  </nav>
 </div>
 
 <!-- modal -->

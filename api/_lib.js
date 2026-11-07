@@ -221,14 +221,15 @@ export async function requireAccess(req, perm) {
     const label = perm === 'heroshield' ? 'HeRo Shield' : perm === 'herocheck' ? 'HeRo Check' : 'admin';
     throw httpError(403, `No ${label} access for this account`);
   }
-  // Existing staff permissions remain mandatory. Paid entitlement is an additional requirement.
-  // Admin bypass is for the owner only; no paid plan grants staff permission automatically.
-  if (perm !== 'admin' && !access.admin) {
+  // A server-verified Admin or HeRoCheck role grants scanner/dashboard access
+  // without requiring a paid_entitlements row. Normal paid clients still need
+  // their own entitlement for paid-only routes; purchases never grant staff roles.
+  if (perm === 'herocheck' || access.admin) return user;
+  // Legacy HeRoShield-only permission keeps its original billing/staff check.
+  if (perm !== 'admin') {
     const { paidStatus } = await import('./_billing.js');
     const paid = await paidStatus(String(user.id));
     if (!paid.active) {
-      // Explicitly appointed staff can use the operator dashboard without buying a customer license.
-      // Never use the display name or an unverified Discord ID for this check.
       const staff = await sb(`staff?discord_id=eq.${enc(String(user.id))}&select=id&limit=1`);
       if (!staff?.length) throw httpError(402, 'Paid plan required or expired');
     }

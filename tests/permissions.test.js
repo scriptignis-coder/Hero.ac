@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAccess, requireAccess, clearAccessCache } from '../api/_lib.js';
+import { getAccess, requireAccess, clearAccessCache, setSession } from '../api/_lib.js';
 
 const saved = Object.fromEntries(['ADMIN_DISCORD_IDS','HEROSHIELD_IDS','HEROCHECK_IDS','SESSION_SECRET'].map(k=>[k,process.env[k]]));
 function configure(admin='',shield='',check='') {
@@ -22,4 +22,20 @@ test('product roles stay separated',async()=>{
 test('unauthenticated access is denied',async()=>{
   configure('101');
   await assert.rejects(()=>requireAccess({headers:{}},'admin'),e=>e.status===401);
+});
+
+function loggedIn(id) { let cookie=''; setSession({setHeader(_k,v){cookie=v.split(';')[0];}}, {id,name:'Tester'}); return {headers:{cookie}}; }
+test('HeRoCheck env ID can open scanner without paid entitlement table',async()=>{
+  configure('101','','303');
+  const u=await requireAccess(loggedIn('303'),'herocheck');
+  assert.equal(u.id,'303');
+});
+test('Admin can open scanner without paid entitlement table',async()=>{
+  configure('101','','303');
+  const u=await requireAccess(loggedIn('101'),'herocheck');
+  assert.equal(u.id,'101');
+});
+test('HeRoCheck cannot access admin endpoints',async()=>{
+  configure('101','','303');
+  await assert.rejects(()=>requireAccess(loggedIn('303'),'admin'),e=>e.status===403);
 });
