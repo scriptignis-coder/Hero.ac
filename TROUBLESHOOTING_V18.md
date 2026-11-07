@@ -1,0 +1,1 @@
+HeRoShield V18: public /troubleshooting page and dashboard Help sidebar link. .NET 8 Desktop Runtime Windows x64 official Microsoft link; optional Cloudflare WARP official link; Discord support ticket. No scanner engine or backend changes.
