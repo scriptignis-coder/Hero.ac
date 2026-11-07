@@ -12,3 +12,6 @@ create table if not exists user_access (
 alter table user_access enable row level security;  -- only the API (service_role) can read it
 
 notify pgrst, 'reload schema';
+
+-- Upgrade existing deployments safely:
+alter table public.user_access add column if not exists admin boolean not null default false;

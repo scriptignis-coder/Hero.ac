@@ -9,7 +9,7 @@
   const TITLES = {
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
-    scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
+    rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
     profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
@@ -146,10 +146,14 @@
     const acc = state.user.access || { heroshield: false, herocheck: false, admin: false };
     if (!acc.herocheck && !acc.admin) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = `Your account has no access yet. Send your Discord ID ${state.user.id} to the owner so he can grant you HeRoCheck scanner access.`;
+      $('#login-error').textContent = `Discord login OK (ID: ${state.user.id}), but no Admin / HeRoCheck role was found. Ask the owner to grant your Discord ID in Permission Manager, or check ADMIN_DISCORD_IDS / HEROCHECK_IDS on the deployed backend. After the update, click Check access again.`;
       $('#login-error').hidden = false;
+      const retry = document.getElementById('retry-access');
+      if (retry) retry.hidden = false;
       return;
     }
+    const retry = document.getElementById('retry-access');
+    if (retry) retry.hidden = true;
     if (location.search) history.replaceState(null, '', '/dashboard');
     $('#login').hidden = true;
     $('#app').hidden = false;
@@ -168,7 +172,7 @@
     // Scanner-only workspace does not require a FiveM server.
     state.servers = []; state.server = null;
     const hash = location.hash.slice(1);
-    const defaultTab = (acc.herocheck || acc.admin) ? 'pins' : 'profile';
+    const defaultTab = acc.admin ? 'rolemanager' : 'pins';
     go(canAccess(hash) ? hash : defaultTab);
   }
 
@@ -189,7 +193,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin'
   };
   function canAccess(tab) {
     if (!TITLES[tab] || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
@@ -231,6 +235,7 @@
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'changelogs') return renderChangelogs(view);
+    if (state.tab === 'rolemanager') return renderRoleManager(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (state.tab === 'access') return renderAccess(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
@@ -1244,6 +1249,27 @@
     }));
   }
 
+  // Role Manager: server-enforced Admin vs HeRoCheck separation.
+  async function renderRoleManager(view) {
+    view.innerHTML = loading();
+    const { users } = await api('/api/access');
+    const owner = (users || []).some(u => String(u.discord_id) === String(state.user.id) && u.owner);
+    view.innerHTML = `<div class="workspace-hero"><div><h2>Permission Manager</h2><p>Admin workspace · Assign dashboard access using Discord user IDs</p></div></div>
+      <div class="card panel" style="margin-bottom:18px"><h3>Grant a role</h3><p class="workspace-note">HeRoCheck opens the scanner dashboard only. Admin opens the management dashboard. Only the environment owner can grant Admin.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><input class="input" id="role-id" placeholder="Discord user ID" style="flex:1;min-width:210px"><select class="input" id="role-type"><option value="herocheck">HeRoCheck — Scanner dashboard</option>${owner ? '<option value="admin">Admin — Management dashboard</option>' : ''}<option value="none">Revoke dashboard access</option></select><button class="btn btn-primary" id="role-save">Save permission</button></div></div>
+      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+    view.querySelectorAll('[data-role-id]').forEach(b => b.addEventListener('click', () => { view.querySelector('#role-id').value = b.dataset.roleId; view.querySelector('#role-id').focus(); }));
+    view.querySelector('#role-save').addEventListener('click', async () => {
+      const discordId = view.querySelector('#role-id').value.trim();
+      const role = view.querySelector('#role-type').value;
+      if (!/^\d{15,22}$/.test(discordId)) return toast('Enter a valid Discord user ID', true);
+      const payload = {discordId, herocheck:role==='herocheck', heroshield:false};
+      if (owner) payload.admin = role==='admin';
+      try { await api('/api/access', {method:'POST',body:payload}); toast('Permissions updated'); await renderRoleManager(view); }
+      catch(e) { toast(e.message,true); }
+    });
+  }
+
   // ---------- access (admin only): who sees HeRo Shield / HeRo Check ----------
   async function renderAccess(view) {
     view.innerHTML = loading();
@@ -1682,3 +1708,6 @@
 
   init();
 })();
+
+// Allow retry after an owner grants a permission without requiring a new Discord OAuth login.
+document.getElementById('retry-access')?.addEventListener('click', () => location.reload());

@@ -653,6 +653,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <a href="/" class="brand"><img src="/assets/logo.png" alt="HeRoShield magnifying glass logo" class="brand-mark"><span>HeRo <b>Shield</b></span></a>
     <p>Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
     <p id="login-error" style="color:var(--red);margin-top:-12px" hidden></p>
+    <button type="button" id="retry-access" class="btn btn-ghost" hidden style="margin-bottom:12px;width:100%">Check access again</button>
     <a href="/api/auth/login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Log in with Discord</a>
     <a href="/" class="btn btn-ghost btn-sm" style="margin-top:14px">← Back to website</a>
   </div>
@@ -678,6 +679,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <button class="side-link" data-tab="quicktools"><svg><use href="#i-gear"/></svg>Quick Tools</button>
     <button class="side-link" data-tab="ranking"><svg><use href="#i-users"/></svg>Leaderboard</button>
     <div class="side-label">Account</div>
+    <button class="side-link" data-tab="rolemanager" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Permission Manager</button>
     <button class="side-link" data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button class="side-link" data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team Directory</button>
     <button class="side-link" data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff team</button>
@@ -712,6 +714,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <button data-tab="quicktools"><svg><use href="#i-gear"/></svg>Tools</button>
     <button data-tab="ranking"><svg><use href="#i-users"/></svg>Ranking</button>
     <button data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
+    <button data-tab="rolemanager" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Permissions</button>
     <button data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team</button>
     <button data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff</button>

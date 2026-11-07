@@ -685,7 +685,7 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;back
 
   <section id="pricing">
     <div class="container">
-      <div class="section-head reveal"><div class="eyebrow">HeRoShield Scanner Premium</div><h2>Choose your scanner access.</h2><p>Secure checkout. Discord login required. Staff permissions remain unchanged.</p></div>
+      <div class="section-head reveal"><div class="eyebrow">HeRoShield Scanner Premium</div><h2>Choose your scanner access.</h2><p>Select a plan, join our Discord community, and open a Purchase Ticket. Staff permissions remain unchanged.</p></div>
       <div class="hs-pricing-grid">
         <div class="card hs-plan"><div class="eyebrow">Starter</div><h3>1 Month</h3><p>30-day style access billed as one calendar month.</p><div class="hs-price" data-plan="month1">$4.99 USD</div><button class="btn btn-primary" onclick="buyPlan('month1')">Buy 1 Month</button></div>
         <div class="card hs-plan"><div class="eyebrow">Flexible</div><h3>3 Months</h3><p>Three calendar months of premium access.</p><div class="hs-price" data-plan="month3">$12.99 USD</div><button class="btn btn-primary" onclick="buyPlan('month3')">Buy 3 Months</button></div>
@@ -693,17 +693,57 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;back
         <div class="card hs-plan"><div class="eyebrow">Annual</div><h3>1 Year</h3><p>Twelve calendar months of premium access.</p><div class="hs-price" data-plan="year1">$39.99 USD</div><button class="btn btn-primary" onclick="buyPlan('year1')">Buy 1 Year</button></div>
         <div class="card hs-plan"><div class="eyebrow">One-time</div><h3>Lifetime</h3><p>Lifetime access for this account.</p><div class="hs-price" data-plan="lifetime">$79.99 USD</div><button class="btn btn-primary" onclick="buyPlan('lifetime')">Buy Lifetime</button></div>
       </div>
-      <p id="hs-payment-message" role="status" style="text-align:center;margin-top:20px;color:#83caff">All prices in USD. One-time payment per plan, no automatic renewal. Stripe Checkout must be configured with matching amounts. No free plan.</p>
+      <p id="hs-payment-message" role="status" style="text-align:center;margin-top:20px;color:#83caff">All prices in USD. To purchase, join our Discord server and open a Purchase Ticket. No automatic renewal.</p>
     </div>
   </section>
+  <div id="hs-purchase-dialog" class="hs-purchase-overlay" role="dialog" aria-modal="true" aria-labelledby="hs-purchase-title" hidden>
+    <div class="hs-purchase-modal card">
+      <button type="button" class="hs-purchase-close" onclick="closePurchaseDialog()" aria-label="Close">×</button>
+      <div class="eyebrow">HeRoShield Scanner · Purchase</div>
+      <h3 id="hs-purchase-title">Open a Purchase Ticket</h3>
+      <p id="hs-purchase-selected">Selected plan</p>
+      <p>Join our Discord server and <strong>open a Purchase Ticket</strong>. Our team will guide you through payment and activation.</p>
+      <a id="hs-purchase-link" class="btn btn-primary" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener noreferrer">Join Discord &amp; Open Ticket ↗</a>
+      <p class="hs-purchase-note">Tell our team which plan you selected. Your access will be activated after your purchase is confirmed.</p>
+    </div>
+  </div>
+  <style>
+    .hs-purchase-overlay:not([hidden]){position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.82);backdrop-filter:blur(10px)}
+    .hs-purchase-modal{position:relative;width:min(100%,480px);padding:36px;border:1px solid rgba(72,156,255,.28);box-shadow:0 30px 90px rgba(0,0,0,.65);background:#0b101a;color:#f3f7ff;border-radius:20px}
+    .hs-purchase-modal h3{font-size:clamp(25px,5vw,34px);margin:16px 0 10px}
+    .hs-purchase-modal p{color:#b6c5d8;line-height:1.7}
+    .hs-purchase-modal strong{color:#f3f7ff}
+    .hs-purchase-modal .btn{display:flex;text-align:center;justify-content:center;margin-top:22px}
+    .hs-purchase-close{position:absolute;right:18px;top:12px;background:none;border:0;color:#b6c5d8;font-size:32px;cursor:pointer}
+    .hs-purchase-note{font-size:13px;margin-top:16px}
+    #hs-purchase-selected{color:#71bdff;font-weight:700}
+  </style>
   <script>
-    async function buyPlan(plan) {
-      const msg=document.getElementById('hs-payment-message'); msg.textContent='Opening secure checkout…';
-      try { const r=await fetch('/api/billing-checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
-        const d=await r.json(); if(r.status===401){location.href='/api/auth/login';return;} if(!r.ok)throw Error(d.error||'Checkout unavailable');
-        if(!/^https:\/\/checkout\.stripe\.com\//.test(d.url))throw Error('Unexpected checkout URL'); location.href=d.url;
-      } catch(e){msg.textContent=e.message;}
+    const HS_PURCHASE_PLANS = {
+      month1: ['1 Month', '$4.99 USD'],
+      month3: ['3 Months', '$12.99 USD'],
+      month6: ['6 Months', '$22.99 USD'],
+      year1: ['1 Year', '$39.99 USD'],
+      lifetime: ['Lifetime', '$79.99 USD']
+    };
+    function buyPlan(plan) {
+      const selected = HS_PURCHASE_PLANS[plan];
+      if (!selected) return;
+      document.getElementById('hs-purchase-selected').textContent = selected[0] + ' — ' + selected[1];
+      document.getElementById('hs-purchase-dialog').hidden = false;
+      document.body.style.overflow = 'hidden';
+      document.querySelector('.hs-purchase-close').focus();
     }
+    function closePurchaseDialog() {
+      document.getElementById('hs-purchase-dialog').hidden = true;
+      document.body.style.overflow = '';
+    }
+    document.getElementById('hs-purchase-dialog').addEventListener('click', function(event) {
+      if (event.target === this) closePurchaseDialog();
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape' && !document.getElementById('hs-purchase-dialog').hidden) closePurchaseDialog();
+    });
   </script>
 
   <section id="leaderboard" class="hs-lb-section">

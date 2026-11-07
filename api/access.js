@@ -1,11 +1,11 @@
-import { wrap, send, readBody, sb, enc, str, httpError, requireAccess, clearAccessCache, isAdmin, envIds } from './_lib.js';
+import { wrap, send, readBody, sb, enc, str, httpError, requireAccess, clearAccessCache, isAdmin, envIds, requireUser } from './_lib.js';
 
 // Admin only: who can open HeRo Shield (anticheat) and HeRo Check (screenshare).
 export default wrap(async (req, res) => {
   await requireAccess(req, 'admin');
 
   if (req.method === 'GET') {
-    const rows = await sb('user_access?select=discord_id,name,avatar,heroshield,herocheck,last_login,created_at&order=last_login.desc.nullslast&limit=500');
+    const rows = await sb('user_access?select=discord_id,name,avatar,admin,heroshield,herocheck,last_login,created_at&order=last_login.desc.nullslast&limit=500');
     // mark who already has access from Render env, and list env IDs that never logged in
     const env = envIds();
     const list = (rows || []).slice();
@@ -14,7 +14,8 @@ export default wrap(async (req, res) => {
       if (!known.has(id)) { known.add(id); list.push({ discord_id: id, name: null, avatar: null, heroshield: false, herocheck: false, last_login: null }); }
     return send(res, 200, { users: list.map((r) => ({
       ...r,
-      admin: isAdmin({ id: r.discord_id }),
+      admin: isAdmin({ id: r.discord_id }) || !!r.admin,
+      owner: isAdmin({ id: r.discord_id }),
       envHeroshield: env.heroshield.includes(String(r.discord_id)),
       envHerocheck: env.herocheck.includes(String(r.discord_id)),
     })) });
@@ -26,6 +27,11 @@ export default wrap(async (req, res) => {
     const id = str(b.discordId, 40).trim();
     if (!/^\d{5,25}$/.test(id)) throw httpError(400, 'Enter a valid Discord user ID (numbers only)');
     const row = { discord_id: id };
+    if (b.admin !== undefined) {
+      if (!isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can grant or revoke Admin');
+      if (isAdmin({ id })) throw httpError(403, 'Environment owner role cannot be modified');
+      row.admin = !!b.admin;
+    }
     if (b.heroshield !== undefined) row.heroshield = !!b.heroshield;
     if (b.herocheck !== undefined) row.herocheck = !!b.herocheck;
     if (b.name) row.name = str(b.name, 80);
@@ -38,6 +44,9 @@ export default wrap(async (req, res) => {
 
   if (req.method === 'DELETE') {
     const id = str(req.query.id, 40);
+    if (isAdmin({ id })) throw httpError(403, 'Cannot remove environment owner');
+    const target = await sb(`user_access?discord_id=eq.${enc(id)}&select=admin`);
+    if (target?.[0]?.admin && !isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can remove Admin');
     await sb(`user_access?discord_id=eq.${enc(id)}`, { method: 'DELETE' });
     clearAccessCache(id);
     return send(res, 200, { ok: true });

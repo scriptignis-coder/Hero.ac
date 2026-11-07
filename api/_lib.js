@@ -180,9 +180,8 @@ export function requireUser(req) {
 // Security: no configured permissions means no dashboard access (fail closed).
 export const PERMS = ['heroshield', 'herocheck'];
 const idList = (k) => String(process.env[k] || '').split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-const adminIds = () => idList('ADMIN_DISCORD_IDS');
-export const envIds = () => ({ admin: adminIds(), heroshield: idList('HEROSHIELD_IDS'), herocheck: idList('HEROCHECK_IDS') });
-const gatingOn = () => { const e = envIds(); return e.admin.length + e.heroshield.length + e.herocheck.length > 0; };
+const adminIds = () => [...new Set([...idList('ADMIN_DISCORD_IDS'), ...idList('ADMIN_IDS')])];
+export const envIds = () => ({ admin: adminIds(), heroshield: idList('HEROSHIELD_IDS'), herocheck: [...new Set([...idList('HEROCHECK_IDS'), ...idList('HEROCHECK_DISCORD_IDS')])] });
 export const isAdmin = (user) => !!user && adminIds().includes(String(user.id));
 
 const accessCache = new Map(); // discord id -> { at, access }
@@ -193,17 +192,18 @@ export async function getAccess(user) {
   const id = String(user.id);
   if (isAdmin(user)) return { heroshield: true, herocheck: true, admin: true };
   // Database-granted staff can log in even when only the owner ID is configured.
-  if (!gatingOn()) return { heroshield: false, herocheck: false, admin: false };
   const hit = accessCache.get(id);
   if (hit && Date.now() - hit.at < 30000) return hit.access;
   const env = envIds();
   const access = { heroshield: env.heroshield.includes(id), herocheck: env.herocheck.includes(id), admin: false };
-  if (!access.heroshield || !access.herocheck) {
+  {
     try {
-      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck`);
+      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin`);
       if (rows && rows[0]) {
         access.heroshield = access.heroshield || !!rows[0].heroshield;
         access.herocheck = access.herocheck || !!rows[0].herocheck;
+        access.admin = !!rows[0].admin;
+        if (access.admin) { access.herocheck = true; access.heroshield = true; }
       }
     } catch (e) {
       console.error('user_access lookup failed (run supabase-access.sql):', e.message);
