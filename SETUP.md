@@ -13,7 +13,7 @@ Copy the names from **.env.example** exactly:
 | `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → **service_role** key |
 | `SESSION_SECRET` | any long random text |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | discord.com/developers → your app → OAuth2 |
-| `DISCORD_REDIRECT_URI` | `https://southside-ecjn.onrender.com/api/auth/callback` (also add it in Discord → OAuth2 → Redirects) |
+| `DISCORD_REDIRECT_URI` | `https://hero-ac.onrender.com/api/auth/callback` (also add it in Discord → OAuth2 → Redirects) |
 | `ADMIN_DISCORD_IDS` | your Discord ID (full access + Access page) |
 | `HEROCHECK_IDS` | IDs that see the screenshare tabs |
 | `HEROSHIELD_IDS` | IDs that see the anticheat tabs |
