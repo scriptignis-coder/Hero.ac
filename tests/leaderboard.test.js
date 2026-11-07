@@ -7,3 +7,10 @@ test('only consenting users are displayed',()=>{const rows=aggregateLeaderboard(
 test('top checks counts completed scans, not incomplete scans',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2),pin('123456789012345678',5,false)]);assert.equal(rows[0].value,1)});
 test('top findings counts reported findings, not cheating convictions',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2),pin('123456789012345678',3)],'findings');assert.equal(rows[0].value,5)});
 test('no public IDs or report contents',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2)]);assert.deepEqual(Object.keys(rows[0]).sort(),['avatar','name','value'])});
+
+test('scanner license owner is credited even without legacy discord_check',()=>{
+ const pins=[{used:true,license_id:'license-1',report:{Detections:[{},{}]}}];
+ const licenses=[{id:'license-1',owner_discord:'123456789012345678'}];
+ const profiles=[{discord_id:'123456789012345678',name:'Scanner Owner',avatar:null}];
+ assert.deepEqual(aggregateLeaderboard(users,pins,'findings',licenses,profiles),[{name:'Scanner Owner',avatar:null,value:2}]);
+});

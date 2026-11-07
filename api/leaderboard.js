@@ -1,19 +1,20 @@
 import { wrap, send, sb, httpError } from './_lib.js';
 // Public aggregate only. Never return raw scan reports, Discord IDs, PINs or unconsented players.
-export function aggregateLeaderboard(optins, pins, metric='checks') {
+export function aggregateLeaderboard(optins, pins, metric='checks', licenses=[], profiles=[]) {
   const allowed=new Set((optins||[]).filter(x=>x.opted_in===true).map(x=>String(x.discord_id)));
+  const licenseOwners=new Map((licenses||[]).map(x=>[String(x.id),String(x.owner_discord)]));
+  const profileMap=new Map((profiles||[]).map(x=>[String(x.discord_id),x]));
   const users=new Map();
   for(const row of pins||[]){
     if(!row.used || !row.report || typeof row.report !== 'object')continue;
-    const user=row.discord_check?.user;
-    const id=String(user?.id||'');
+    const legacy=row.discord_check?.user;
+    const id=String(licenseOwners.get(String(row.license_id)) || legacy?.id || '');
     if(!allowed.has(id))continue;
-    const name=String(user.name||user.username||'Discord user').slice(0,48);
-    // Discord avatar URL must originate from the verified OAuth result and match this user ID.
-    const url=String(user.avatar||'');
-    const avatar=url.startsWith(`https://cdn.discordapp.com/avatars/${id}/`) && /^https:\/\/cdn\.discordapp\.com\/avatars\/\d+\/[\w.-]+\.png(?:\?size=\d+)?$/.test(url) ? url : null;
+    const profile=profileMap.get(id)||{};
+    const name=String(profile.name||legacy?.name||legacy?.username||'Discord user').slice(0,48);
+    const url=String(profile.avatar||legacy?.avatar||'');
+    const avatar=url.startsWith(`https://cdn.discordapp.com/avatars/${id}/`) && /^https:\/\/cdn\.discordapp\.com\/avatars\/\d+\/[\w.-]+\.(?:png|jpg|jpeg|webp)(?:\?size=\d+)?$/.test(url) ? url : null;
     const det=row.report.Detections||row.report.detections;
-    // Count scanner findings; never label people cheaters or claim a confirmed violation.
     const findings=Array.isArray(det)?Math.min(det.length,2000):0;
     const old=users.get(id)||{name,avatar,checks:0,findings:0};
     old.name=name;old.avatar=avatar;old.checks++;old.findings+=findings;users.set(id,old);
@@ -28,7 +29,9 @@ export default wrap(async (req,res)=>{
   const optins=await sb('leaderboard_optins?opted_in=eq.true&select=discord_id,opted_in&limit=2000');
   if(!optins?.length)return send(res,200,{metric,entries:[]});
   // Bounded read; for large sites replace with paginated server-side SQL aggregation.
-  const pins=await sb('scan_pins?used=eq.true&select=used,report,discord_check&order=created_at.desc&limit=1000');
+  const pins=await sb('scan_pins?used=eq.true&select=used,report,discord_check,license_id&order=created_at.desc&limit=1000');
+  const licenses=await sb('scanner_licenses?select=id,owner_discord&limit=5000');
+  const profiles=await sb('user_access?select=discord_id,name,avatar&limit=5000');
   res.setHeader('Cache-Control','public, max-age=30');
-  return send(res,200,{metric,entries:aggregateLeaderboard(optins,pins,metric)});
+  return send(res,200,{metric,entries:aggregateLeaderboard(optins,pins,metric,licenses,profiles)});
 });

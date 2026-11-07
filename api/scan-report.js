@@ -34,7 +34,7 @@ export default wrap(async (req, res) => {
     if (!rows || !rows.length) return send(res, 404, { error: 'unknown pin' });
     if (rows[0].used) return send(res, 410, { error: 'pin already used' });
     if (rows[0].license_id) {
-      const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id,license_id,used`);
+      const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
       if(!licenses?.length) return send(res,403,{error:'license revoked'});
     }
     return send(res, 200, { ok: true });
@@ -46,7 +46,7 @@ export default wrap(async (req, res) => {
   const pin = String(report.Pin || report.pin || '').trim().toUpperCase();
   if (!pin) throw httpError(400, 'missing pin');
 
-  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id,license_id,used`);
+  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id`);
   if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
   if(rows[0].used) throw httpError(410,'pin already used');

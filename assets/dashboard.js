@@ -931,14 +931,23 @@
   }
 
   async function renderScannerGui(view) {
-    const { bg } = await api(`/api/scanner-bg?server=${state.server}`);
+    const { licenses } = await api('/api/scanner-licenses');
+    const active = (licenses || []).filter(l => !l.revoked_at);
+    if (!active.length) {
+      view.innerHTML = '<div class="card panel"><h3>No scanner license</h3><p>Create a license in My License first, then return here to customize its scanner background.</p><button class="btn btn-primary" data-tab="license">Go to My License</button></div>';
+      return;
+    }
+    if (!active.some(l => l.id === state.guiLicenseId)) state.guiLicenseId = active[0].id;
+    const { bg } = await api(`/api/scanner-bg?license_id=${encodeURIComponent(state.guiLicenseId)}`);
     state.scanbg = bg || '';
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Scanner background</h3>
+        <label for="sg-license">Scanner license</label>
+        <select id="sg-license" class="input" style="margin:10px 0 18px;max-width:440px">${active.map(l => `<option value="${esc(l.id)}" ${l.id === state.guiLicenseId ? 'selected' : ''}>${esc(l.label)}</option>`).join('')}</select>
         <p style="color:var(--muted);font-size:13px;margin-bottom:14px">
           Upload an image shown behind your scanner window while a PIN scan runs. PNG / JPG / GIF, best 500×300.
-          It shows automatically on <b>every</b> PIN of this server — as soon as the player types the PIN.</p>
+          It shows automatically on <b>every</b> PIN of this license — as soon as the player types the PIN.</p>
         <div class="grid-2">
           <div>
             <div id="sg-preview" style="position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#07090d;aspect-ratio:5/3;display:flex;align-items:center;justify-content:center">
@@ -958,6 +967,7 @@
           </div>
         </div>
       </div>`;
+    $('#sg-license').addEventListener('change', e => { state.guiLicenseId = e.target.value; state.scannewbg = null; renderScannerGui(view); });
     const file = $('#sg-file'), saveBtn = $('[data-sgsave]');
     file.addEventListener('change', () => {
       const f = file.files && file.files[0]; if (!f) return;
@@ -1538,13 +1548,13 @@
     if (t.dataset.sgsave !== undefined) {
       if (!state.scannewbg) return toast('Choose an image first', true);
       t.disabled = true; t.textContent = 'Saving…';
-      try { await api('/api/scanner-bg', { method: 'POST', body: { server: state.server, image: state.scannewbg } });
+      try { await api('/api/scanner-bg', { method: 'POST', body: { license_id: state.guiLicenseId, image: state.scannewbg } });
         toast('Background saved — it shows on every PIN'); state.scannewbg = null; renderScannerGui($('#view')); }
       catch (e) { toast(e.message, true); t.disabled = false; t.textContent = 'Save background'; }
       return;
     }
     if (t.dataset.sgremove !== undefined) {
-      try { await api(`/api/scanner-bg?server=${state.server}`, { method: 'DELETE' }); toast('Background removed'); renderScannerGui($('#view')); }
+      try { await api(`/api/scanner-bg?license_id=${encodeURIComponent(state.guiLicenseId)}`, { method: 'DELETE' }); toast('Background removed'); renderScannerGui($('#view')); }
       catch (e) { toast(e.message, true); }
       return;
     }
