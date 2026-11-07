@@ -196,7 +196,7 @@
     analytics:'heroshield', scanactivity:'herocheck', access:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin'
   };
   function canAccess(tab) {
-    if (!TITLES[tab] || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
+    if (!TITLES[tab] || tab === 'quicktools' || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
     const p = PERM_MAP[tab];
     if (!p) return true;
     const acc = state.access || {};
@@ -219,7 +219,7 @@
 
   async function render() {
     const view = $('#view');
-    if (state.tab === 'quicktools') return renderQuickTools(view);
+    
     if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
     if (state.tab === 'profile') return renderProfile(view);
     if (state.tab === 'subscription') return renderSubscription(view);
@@ -270,13 +270,19 @@
     try {
       const billing=await api('/api/billing-status');
       view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('License',billing.staffAccess?'Staff access (no payment)':billing.active?(billing.lifetime?'Lifetime':'Active'):'Inactive')}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
+      const opt=await api('/api/leaderboard-optin');
+      view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
     } catch(e){wsError(view,e);}
   }
   async function renderSubscription(view) {
     view.innerHTML=loading();
     try {
-      const b=await api('/api/billing-status');
-      view.innerHTML=`<div class="workspace-hero"><div><h2>My License</h2><p>Verified subscription status from HeRoShield billing</p></div></div><div class="workspace-grid">${wsStat('Status',b.staffAccess?'Staff access':b.active?'Active':'Inactive')}${wsStat('Plan',b.staffAccess?'Not required':b.plan||'None')}${wsStat('Valid until',b.lifetime?'Lifetime':b.expires_at?fmtDate(b.expires_at):'—')}</div><div class="workspace-section"><h3>License management</h3><p class="workspace-note">Purchases are validated by the payment provider and the server. If you have paid but your license is inactive, contact support with your receipt. Staff permissions remain independent of your plan.</p><div class="workspace-actions"><a class="btn btn-primary" href="/#pricing">See plans</a><button class="btn btn-ghost" data-go="profile">My Profile</button></div></div>`;
+      const [b, data] = await Promise.all([api('/api/billing-status'), api('/api/scanner-licenses')]);
+      const licenses=data.licenses||[];
+      view.innerHTML=`<div class="workspace-hero"><div><h2>My Scanner Licenses</h2><p>Generate a scanner license and use it to create scan PINs.</p></div></div>
+      <div class="workspace-grid">${wsStat('Access',b.staffAccess?'Staff role':b.active?'Paid plan active':'Inactive')}${wsStat('Licenses',licenses.length)}${wsStat('Scanner access',(state.access?.admin||state.access?.herocheck)?'Granted':'Check your subscription')}</div>
+      <div class="workspace-section"><h3>Create scanner license</h3><p class="workspace-note">Each license belongs to your Discord account. Only you can manage its PINs.</p><div class="workspace-actions"><input class="input" id="license-label" placeholder="License name (e.g. Screenshare Team)" maxlength="80"><button class="btn btn-primary" data-createlicense>Create license</button></div></div>
+      <div class="workspace-section"><h3>Your licenses</h3>${licenses.length?licenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${esc(l.license_key)}</code><button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">Use for Scan PINs</button><button class="btn btn-ghost btn-sm" data-revokelicense="${esc(l.id)}">Revoke</button>`:''}</div></div>`).join(''):'<p class="workspace-note">No licenses yet. Create your first license above.</p>'}</div>`;
     } catch(e){wsError(view,e);}
   }
   async function renderAnalytics(view) {
@@ -291,13 +297,9 @@
   async function renderScanActivity(view) {
     view.innerHTML=loading();
     try {
-      const servers=state.servers||[];
-      if(!servers.length){view.innerHTML='<div class="workspace-section">Add a server to view your scan activity.</div>';return;}
-      // Read only servers the existing /api/servers endpoint authorized for this user.
-      const results=await Promise.all(servers.slice(0,20).map(async s=>({name:s.name, pins:(await api(`/api/pins?server=${encodeURIComponent(s.id)}`)).pins||[]})));
-      const all=results.flatMap(r=>r.pins.map(p=>({...p,serverName:r.name}))).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+      const {pins:all=[]}=await api('/api/pins');
       const used=all.filter(p=>p.used).length;
-      view.innerHTML=`<div class="workspace-hero"><div><h2>Scan Activity</h2><p>Your authorized screenshare scan sessions</p></div></div><div class="workspace-grid">${wsStat('Recent PINs',all.length)}${wsStat('Used PINs',used)}${wsStat('Available PINs',all.length-used)}</div><div class="workspace-section"><h3>Recent sessions</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Server</th><th>PIN</th><th>Player</th><th>Status</th><th>Created</th></tr></thead><tbody>${all.slice(0,40).map(p=>`<tr><td>${esc(p.serverName)}</td><td class="mono">${esc(p.pin)}</td><td>${esc(p.player||'—')}</td><td>${p.used?'Used':'Available'}</td><td>${fmtDate(p.created_at)}</td></tr>`).join('')||'<tr><td colspan="5">No scans yet</td></tr>'}</tbody></table></div><div class="workspace-actions"><button class="btn btn-primary" data-go="pins">Manage scan PINs</button></div></div>`;
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Scan Activity</h2><p>Your authorized screenshare scan sessions</p></div></div><div class="workspace-grid">${wsStat('Recent PINs',all.length)}${wsStat('Used PINs',used)}${wsStat('Available PINs',all.length-used)}</div><div class="workspace-section"><h3>Recent sessions</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Server</th><th>PIN</th><th>Player</th><th>Status</th><th>Created</th></tr></thead><tbody>${all.slice(0,40).map(p=>`<tr><td>${esc(p.scanner_licenses?.label||'Scanner')}</td><td class="mono">${esc(p.pin)}</td><td>${esc(p.player||'—')}</td><td>${p.used?'Used':'Available'}</td><td>${fmtDate(p.created_at)}</td></tr>`).join('')||'<tr><td colspan="5">No scans yet</td></tr>'}</tbody></table></div><div class="workspace-actions"><button class="btn btn-primary" data-go="pins">Manage scan PINs</button></div></div>`;
     }catch(e){wsError(view,e);}
   }
   async function renderRanking(view,metric='checks') {
@@ -482,14 +484,17 @@
   }
 
   async function renderPins(view) {
-    const { pins } = await api(`/api/pins?server=${state.server}`);
+    const { pins, licenses } = await api('/api/pins');
     state.pins = pins;
+    const activeLicenses=(licenses||[]).filter(l=>!l.revoked_at);
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Generate a scan PIN</h3>
+        <p class="workspace-note">Select a scanner license (no FiveM server required).</p>
+        ${activeLicenses.length?`<select id="pin-license" class="input" style="width:100%;margin-bottom:12px">${activeLicenses.map(l=>`<option value="${esc(l.id)}" ${state.selectedLicense===l.id?'selected':''}>${esc(l.label)} · ${esc(l.license_key)}</option>`).join('')}</select>`:'<p class="workspace-note">No active license. Open My License to create one.</p>'}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <input id="pin-player" class="input" style="flex:1;min-width:180px" placeholder="Player name (optional)">
-          <button class="btn btn-primary" data-newpin>Generate PIN</button>
+          <button class="btn btn-primary" data-newpin ${activeLicenses.length?'':'disabled'}>Generate PIN</button>
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
@@ -1634,10 +1639,23 @@
         if (!reason) return;
         await api('/api/command', { method: 'POST', body: { server: state.server, type: action, identifier: t.dataset.id, reason } });
         toast(`${action === 'ban' ? 'Ban' : 'Kick'} sent - done in a few seconds`);
+      } else if (t.dataset.createlicense !== undefined) {
+        const label=$('#license-label')?.value.trim()||'My Scanner License';
+        await api('/api/scanner-licenses',{method:'POST',body:{label}});
+        toast('Scanner license created'); await renderSubscription($('#view'));
+      } else if (t.dataset.revokelicense !== undefined) {
+        if(!confirm('Revoke this license? Its unused scan PINs will stop working.')) return;
+        await api('/api/scanner-licenses',{method:'DELETE',body:{id:t.dataset.revokelicense}});
+        toast('License revoked'); await renderSubscription($('#view'));
+      } else if (t.dataset.useLicense !== undefined) {
+        state.selectedLicense=t.dataset.useLicense; go('pins');
+      } else if (t.dataset.saveprofile !== undefined) {
+        await api('/api/leaderboard-optin',{method:'POST',body:{opted_in:!!$('#profile-optin')?.checked}});
+        toast('Profile settings saved');
       } else if (t.dataset.newpin !== undefined) {
         t.disabled = true;
         const player = $('#pin-player').value.trim();
-        const { pin } = await api('/api/pins', { method: 'POST', body: { server: state.server, player } });
+        const { pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player } });
         t.disabled = false;
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');

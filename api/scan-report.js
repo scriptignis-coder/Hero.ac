@@ -30,9 +30,13 @@ export default wrap(async (req, res) => {
   // the scanner checks the PIN BEFORE scanning:  GET /api/scan-report?pin=ABCD2345
   if (req.method === 'GET') {
     const pin = String(req.query.pin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used`) : [];
+    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id`) : [];
     if (!rows || !rows.length) return send(res, 404, { error: 'unknown pin' });
     if (rows[0].used) return send(res, 410, { error: 'pin already used' });
+    if (rows[0].license_id) {
+      const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id,license_id,used`);
+      if(!licenses?.length) return send(res,403,{error:'license revoked'});
+    }
     return send(res, 200, { ok: true });
   }
   if (req.method !== 'POST') throw httpError(405, 'POST only');
@@ -42,14 +46,19 @@ export default wrap(async (req, res) => {
   const pin = String(report.Pin || report.pin || '').trim().toUpperCase();
   if (!pin) throw httpError(400, 'missing pin');
 
-  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id`);
+  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id,license_id,used`);
   if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
+  if(rows[0].used) throw httpError(410,'pin already used');
+  if(rows[0].license_id){
+    const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
+    if(!licenses?.length) throw httpError(403,'license revoked');
+  }
   const dets = report.Detections || report.detections || [];
   const verdict = report.Verdict || report.verdict
     || (dets.some((d) => d.Severity === 2 || d.Severity === 'High') ? 'cheating' : dets.length ? 'suspicious' : 'clean');
 
-  await sb(`scan_pins?id=eq.${rows[0].id}`, {
+  await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
     method: 'PATCH',
     body: { used: true, result: verdict, report },
   });
