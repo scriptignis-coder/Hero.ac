@@ -1,0 +1,10 @@
+HeRoShield Accuracy V5 - targeted false-positive corrections
+
+- Removed name-only loader.exe / dll_loader.dll alerts in program folders.
+- Removed unsigned-only EXE alerts.
+- Removed cheat-brand mentions / multi-name detection-list alerts without behavioral proof.
+- Removed FiveM native API + cheat-feature word lexical alerts (including citizen scripting natives).
+- Removed weak binary score-only warnings unless multiple independent strong indicators exist.
+- Kept confirmed hash signatures and other scan mechanisms unchanged.
+- No broad path allowlisting: modified binaries in trusted folders still require verification.
+- No Windows build/runtime validation performed; test with benign and known-malicious samples.

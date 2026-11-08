@@ -98,6 +98,14 @@ public sealed class ForensicScan
         {
             var sig = _sigs.FirstOrDefault(s => s.FileNames.Contains(e.Name.ToLowerInvariant()));
             bool gone = false; try { gone = !File.Exists(e.Path); } catch { }
+            if (!gone && e.Path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                // the program is still on disk: judge it on its code, not on its name
+                var d = ConfirmNamed(e.Path, e.Name, sig, CheatWordIn(Path.GetFileNameWithoutExtension(e.Name)), DetectMethod.Prefetch, e.LastRun);
+                if (d != null) { d.Explain = $"It ran on this PC ({e.Source}). " + d.Explain; report.Detections.Add(d); }
+                else e.Flagged = false;
+                continue;
+            }
             if (sig == null)
             {
                 var w = CheatWordIn(Path.GetFileNameWithoutExtension(e.Name));
@@ -133,6 +141,8 @@ public sealed class ForensicScan
         P(92, "Reading linked accounts…");
         report.SteamAccounts = ReadSteamAccounts();
         report.DiscordId = ReadDiscordId();
+        P(92, "Reading Discord servers from the Discord cache…");
+        try { report.DiscordTraces = DiscordCache.Read(DiscordCache.DefaultRoots()); if (report.DiscordTraces.Count > 0) _artifacts.Add("Discord cache"); } catch { }
         report.EpicAccounts = ReadEpicAccounts();
         report.RockstarAccounts = ReadRockstarAccounts(); Hold();
 
@@ -155,7 +165,9 @@ public sealed class ForensicScan
             .Select(g => g.First())
             .ToList();
 
-        report.Suspicious = _suspicious.GroupBy(s => s.Path).Select(g => g.First()).Take(300).ToList();
+        foreach (var m in _meiFolders)
+            _suspicious.Add(new SuspiciousFile { Path = m, Kind = "PyInstaller program unpacked here (running now, or it was killed)" });
+        report.Suspicious = GroupByFolder(_suspicious.GroupBy(s => s.Path).Select(g => g.First()).ToList()).Take(300).ToList();
         report.Mods = report.Mods.GroupBy(m => m.Path).Select(g => g.First())
             .OrderByDescending(m => m.SizeMb).Take(1000).ToList();
         report.ArtifactsCollected = _artifacts;
@@ -430,8 +442,17 @@ public sealed class ForensicScan
             string exe; try { exe = (p.ProcessName + ".exe").ToLowerInvariant(); } catch { continue; }
             var sig = _sigs.FirstOrDefault(s => s.FileNames.Contains(exe));
             if (sig != null)
-                hits.Add(Det(exe, sig, SafePath(p), DetectMethod.RunningProcess, "running now",
-                    "This program is running right now and matches a known cheat signature.", false));
+            {
+                var pp = SafePath(p);
+                if (File.Exists(pp))
+                {
+                    var d = ConfirmNamed(pp, exe, sig, null, DetectMethod.RunningProcess, "running now");
+                    if (d != null) hits.Add(d);
+                }
+                else // protected process: its file can't be read, the running name is all we have
+                    hits.Add(Det(exe, sig, pp, DetectMethod.RunningProcess, "running now",
+                        "A program with a known cheat file name is running and its file is protected from reading.", false));
+            }
         }
 
         // v4.0: cheat-making tools running right now (these ARE cheat tools → detection)
@@ -691,7 +712,7 @@ public sealed class ForensicScan
             Path.Combine(up, "Pictures"),
             Path.Combine(up, "Music"),
         };
-        var ex = new[] { ".exe", ".dll", ".asi", ".lua", ".py", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".rar", ".zip", ".7z" };
+        var ex = new[] { ".rar", ".zip", ".7z" };   // programs & scripts are read by the deep scan
         foreach (var f in folders.Distinct())
         {
             if (string.IsNullOrEmpty(f) || !Directory.Exists(f)) continue;
@@ -703,28 +724,24 @@ public sealed class ForensicScan
                 _filesScanned++;
                 var name = Path.GetFileName(path).ToLowerInvariant();
 
-                var sig = _sigs.FirstOrDefault(s => s.FileNames.Contains(name));
-                if (sig != null)
-                {
-                    var d = Det(name, sig, path, DetectMethod.SuspiciousExecutable, SafeWrite(path),
-                        "An executable matching a known cheat signature was found on disk.", false);
-                    d.Sha256 = Sha256File(path);
-                    hits.Add(d);
-                    continue;
-                }
-
+                if (IsOwnOrDevPath(path.ToLowerInvariant())) continue;
+                // programs / scripts here are read and judged by the deep scan (same rules) — only archives here
                 if (name.EndsWith(".zip")) ScanZipEntries(path, hits);
 
-                var wd = CheatWordIn(name);
+                var dext = Path.GetExtension(name);
+                // .rar / .7z cannot be opened here: a cheat name on one is a lead only
+                var wd = dext is ".rar" or ".7z" ? CheatWordIn(name) : null;
                 if (wd != null)
+                {
                     hits.Add(new Detection
                     {
-                        File = name, Signature = "Suspicious name (" + wd + ")", Path = path,
-                        Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
-                        Severity = Severity.Medium, When = SafeWrite(path),
-                        Features = new() { "Named cheat" },
-                        Explain = $"A file named with the cheat term \"{wd}\" was found in {Path.GetFileName(Path.GetDirectoryName(path))}."
+                        File = name, Signature = $"Cheat-named archive (\"{wd}\")", Path = path, Sha256 = Sha256File(path),
+                        Method = DetectMethod.SuspiciousExecutable, Severity = Severity.Medium, When = SafeWrite(path),
+                        Features = new() { $"named \"{wd}\"", dext },
+                        Explain = $"A {dext} archive named like a cheat in the player's folders ({dext} files can't be opened by the scanner — ask the player to open it)."
                     });
+                    continue;
+                }
             }
         }
         return hits;
@@ -749,16 +766,29 @@ public sealed class ForensicScan
                 var ext = Path.GetExtension(nm);
                 if (ext is not (".exe" or ".dll" or ".sys" or ".asi" or ".lua" or ".bat" or ".ps1")) continue;
                 var sig = _sigs.FirstOrDefault(x => x.FileNames.Contains(nm));
-                var w = sig == null ? (CheatWordIn(nm) ?? CheatWordIn(entry)) : null;
-                if (sig == null && w == null) continue;
-                hits.Add(new Detection
+                var w = CheatWordIn(nm) ?? CheatWordIn(Path.GetDirectoryName(entry) ?? "");
+                if (en.Length <= 0 || en.Length > 64L * 1024 * 1024) continue;
+                byte[] data;
+                try
                 {
-                    File = nm, Signature = sig != null ? sig.Name + " (inside archive)" : $"Cheat-named file in archive (\"{w}\")",
-                    Path = zipPath + " → " + entry, Method = DetectMethod.SuspiciousExecutable,
-                    Severity = sig != null ? Signatures.ParseSeverity(sig.Severity) : Severity.Medium,
-                    When = SafeWrite(zipPath), Features = new() { "In archive" },
-                    Explain = "A cheat file is packed inside this .zip archive (found without extracting it)."
-                });
+                    using var es = en.Open();
+                    using var ms = new MemoryStream((int)en.Length);
+                    es.CopyTo(ms);
+                    data = ms.ToArray();
+                }
+                catch { continue; }   // encrypted / broken entry
+                bool isScript = ext is ".lua" or ".bat" or ".ps1";
+                var content = isScript ? Encoding.UTF8.GetString(data).ToLowerInvariant() : StringsView(data);
+                var shown = zipPath + " → " + entry;
+                var v = JudgeContent(content, nm, shown, shown.ToLowerInvariant(), true, sig?.Name ?? w, isScript, () => false, () => EntropyOf(data));
+                if (v.Det != null)
+                {
+                    v.Det.Signature = (sig != null ? sig.Name + " · " : "") + v.Det.Signature + " (inside .zip)";
+                    v.Det.When = SafeWrite(zipPath);
+                    v.Det.Features = new List<string> { "In archive" }.Concat(v.Det.Features).ToList();
+                    hits.Add(v.Det);
+                }
+                else if (v.SuspKind != null) _suspicious.Add(new SuspiciousFile { Path = shown, Kind = v.SuspKind });
             }
         }
         catch { }
@@ -1149,7 +1179,7 @@ public sealed class ForensicScan
         "norecoiltool", "modmenu", "mod-menu", "aimbotloader", "esp-hack",
         "hwid-spoof", "hwid_spoof", "kdmapper", "drvmap", "manualmap",
         "cheat", "triggerbot", "silentaim", "aimlock", "wallhack", "luaexecutor", "lua_executor", "luainjector",
-        "acbypass", "unbanner", "ragebot", "legitbot", "noclip", "menuloader", "fivemmenu", "fivemhack", "gtahack",
+        "acbypass", "unbanner", "ragebot", "legitbot", "menuloader", "fivemmenu", "fivemhack", "gtahack",
     };
 
     private void ScanWholeDisk(ScanReport report, IProgress<(int pct, string status)>? progress)
@@ -1163,6 +1193,8 @@ public sealed class ForensicScan
             "modified","lowtrees","clearwater","novegetation","gameoverlay","dxhook","d3dhook",
             "overlay64","d3d11hook","mono","driver","client","game","hack","hacks","mod","mods",
             "impact","lumia","macro","build","test","setup","free","detected","string","cleaner",
+            "executor","cheatengine","extremeinjector","inject64","xenos64","impactmenu","tzexternal",
+            "skript","redengine","susano","susanoo",
         };
         var needles = new List<(string needle, Signatures.Sig sig)>();
         foreach (var s in _sigs)
@@ -1189,6 +1221,7 @@ public sealed class ForensicScan
             foreach (var path in SafeEnumerate(drive.RootDirectory.FullName, new[] {
                 ".exe", ".dll", ".sys", ".asi",
                 ".lua", ".py", ".bat", ".cmd", ".ps1", ".vbs", ".js",
+                ".json", ".ini", ".cfg", ".conf", ".toml", ".yaml", ".yml", ".xml", ".txt",
                 ".rpf", ".ytd", ".ydr", ".ymap", ".oiv", ".ydd", ".yft" }, maxDepth: 40))
             {
                 _filesScanned++;
@@ -1206,19 +1239,40 @@ public sealed class ForensicScan
                 bool isBin = ext is ".exe" or ".dll" or ".sys" or ".asi";
                 bool isScript = ext is ".lua" or ".py" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".js";
 
-                if ((isBin || isScript) && !low.Contains("\\windows\\"))
+                if (IsOwnOrDevPath(low)) continue;
+
+                // Temp\_MEIxxxx = a PyInstaller program unpacked itself (running now, or was killed) — note the folder once
+                var mei = System.Text.RegularExpressions.Regex.Match(path, @"^(.*\\_MEI\d+)\\", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mei.Success) { _meiFolders.Add(mei.Groups[1].Value); continue; }
+
+                // Temp\Costura\<hash>\…\vigemclient.dll = a .NET program with a hidden virtual-controller driver client
+                if (low.Contains("\\temp\\costura\\") && (name.StartsWith("vigemclient") || name.Contains("interception")) && seen.Add(path))
                 {
-                    var hit = CheatWordIn(name);
-                    if (hit != null && seen.Add(path))
-                        report.Detections.Add(new Detection
-                        {
-                            File = name, Signature = "Suspicious name (" + hit + ")", Path = path,
-                            Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
-                            Severity = Severity.Medium, When = SafeWrite(path),
-                            Features = new() { "Named cheat" },
-                            Explain = $"The file name contains \"{hit}\", a common cheat term."
-                        });
+                    report.Detections.Add(new Detection
+                    {
+                        File = name, Signature = "Hidden virtual controller (ViGEm / Interception)", Path = path,
+                        Method = DetectMethod.SuspiciousExecutable, Severity = Severity.Medium, When = SafeWrite(path),
+                        Features = new() { "virtual controller / mouse", "embedded in a .NET program (Costura)", "run recently" },
+                        Explain = "A program carried a hidden virtual-controller/mouse client inside itself and unpacked it to Temp when it ran. "
+                                  + "Aim-assist tools and colorbots use this to move the aim like a real controller. (Controller apps like DS4Windows also use ViGEm — ask the player.)"
+                    });
+                    continue;
                 }
+
+                // cheat CONFIG files (aimbot fov, triggerbot key, esp box…) — plain text even when the cheat is packed
+                if (ext is ".json" or ".ini" or ".cfg" or ".conf" or ".toml" or ".yaml" or ".yml" or ".xml" or ".txt")
+                {
+                    if (IsDropZone(low) && !low.Contains("\\resources\\") && !low.Contains("\\windows\\") && !low.Contains("program files")
+                        && !low.Contains("\\microsoft\\") && !low.Contains("\\google\\") && !low.Contains("\\mozilla\\"))
+                    {
+                        var cfg = JudgeConfig(path);
+                        if (cfg != null && seen.Add(path)) report.Detections.Add(cfg);
+                    }
+                    continue;
+                }
+
+                // a cheat-like NAME is only a lead — the program is read below and judged on its code
+                string? nameHit = isBin && !low.Contains("\\windows\\") ? (CheatWordIn(name) ?? LoaderWord(name)) : null;
 
                 if (ModExt.Contains(ext) && inGame)
                 {
@@ -1232,14 +1286,15 @@ public sealed class ForensicScan
 
                 if (ext == ".dll" && inGame && IsUserModPath(low)) _suspicious.Add(new SuspiciousFile { Path = path, Kind = "DLL added to the game (plugins / mods)" });
 
-                // 1) filename match
+                // 1) file named like a known cheat → read it and confirm
                 if (sigNames.Contains(name))
                 {
                     var sig = _sigs.First(s => s.FileNames.Contains(name));
-                    var d = Det(name, sig, path, DetectMethod.SuspiciousExecutable, SafeWrite(path),
-                        "A file matching a known cheat signature was found on disk.", false);
-                    d.Sha256 = Sha256File(path);
-                    if (seen.Add(path)) report.Detections.Add(d);
+                    if (!seen.Contains(path))
+                    {
+                        var d = isBin || isScript ? ConfirmNamed(path, name, sig, null, DetectMethod.SuspiciousExecutable, SafeWrite(path)) : null;
+                        if (d != null) { seen.Add(path); report.Detections.Add(d); }
+                    }
                     continue;
                 }
 
@@ -1269,9 +1324,12 @@ public sealed class ForensicScan
                     || low.Contains("appdata\\local\\microsoft") || low.Contains("appdata\\roaming\\microsoft")
                     || low.Contains("\\vendor\\") || low.Contains("\\.vscode\\") || low.Contains("\\.git\\")
                     || low.Contains("program files") || low.Contains("\\google\\chrome") || low.Contains("\\microsoft\\edge")
-                    || low.Contains("$recycle.bin");
+                    || low.Contains("$recycle.bin") || low.Contains("fxserver") || low.Contains("\\server-data\\")
+                    || low.Contains("\\artifacts\\") || low.Contains("\\txdata\\");
                 bool inGameC = IsGamePath(low);
 
+                // A generic filename such as loader.exe or dll_loader.dll is not evidence.
+                // Retain name as a search lead, never emit a finding for it alone.
                 var content = (legit && !inGameC) ? null : (isScript ? ReadTextLower(path) : ReadAsLower(path));
                 if (content == null) continue;
 
@@ -1283,14 +1341,9 @@ public sealed class ForensicScan
                     foreach (var (dom, dsig) in domainList)
                         if (content.Contains(dom))
                         {
-                            if (seen.Add(path))
-                                report.Detections.Add(new Detection
-                                {
-                                    File = name, Signature = dsig.Name + " (domain)", Path = path, Sha256 = Sha256File(path),
-                                    Method = DetectMethod.SuspiciousExecutable, Severity = Severity.High, When = SafeWrite(path),
-                                    Features = new List<string>(dsig.Features) { "C2 domain" },
-                                    Explain = $"This file contains \"{dom}\", the {dsig.Name} cheat's domain — a renamed loader."
-                                });
+                            if (_suspicious.Count < 400)
+                                _suspicious.Add(new SuspiciousFile { Path = path,
+                                    Kind = $"Contains known indicator domain {dom} ({dsig.Name}); verify whether referenced or contacted" });
                             cHit = true; break;
                         }
                     if (cHit) continue;
@@ -1308,91 +1361,88 @@ public sealed class ForensicScan
                         first ??= needle;
                         if (++distinct >= 3) break;
                     }
-                    if (distinct >= 3)
-                        _suspicious.Add(new SuspiciousFile { Path = path, Kind = "Mentions 3+ cheat names (list / anticheat file)" });
-                    else if (first != null)
-                    {
-                        if (seen.Add(path))
-                            report.Detections.Add(new Detection
-                            {
-                                File = name, Signature = "Cheat string: " + first, Path = path,
-                                Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
-                                Severity = Severity.Medium, When = SafeWrite(path),
-                                Features = new() { isScript ? "In-script" : "In-content" },
-                                Explain = $"The cheat string \"{first}\" was found inside this file."
-                            });
-                        cHit = true;
-                    }
-                    if (cHit) continue;
+                    // Cheat-name references in source or binaries are not evidence of use.
+                    // Continue to behavioral analysis rather than producing a finding.
                 }
 
-                // cheat score: features + FiveM executor tells + injection + overlay + location + signature
-                if (!legit && isBin && !low.Contains("\\fivem.app\\") && !low.Contains("\\citizenfx\\"))
+                // judge on the CODE inside: programs anywhere outside FiveM's own files,
+                // scripts only in drop folders (not in server "resources" — FiveM devs write menus there)
+                bool judgeBin = !legit && isBin && !low.Contains("\\fivem.app\\") && !low.Contains("\\citizenfx\\");
+                bool judgeScript = !legit && isScript && ext != ".py" && dropZone && !low.Contains("\\resources\\");
+                if (judgeBin || judgeScript)
                 {
-                    var (score, reasons, strongN, cheatSign) = CheatScore(content, path, low, dropZone);
-                    bool signedFile = false;
-                    if (score >= 3) { signedFile = IsSigned(path); if (!signedFile) { score += 1; reasons.Add("unsigned"); } }
-                    // detection needs a real cheat sign (menu name, cheat feature, FiveM executor code) — APIs alone never
-                    if (score >= 4 && cheatSign)
+                    var v = JudgeContent(content, name, path, low, dropZone, nameHit, judgeScript, () => IsSigned(path), () => FileEntropy(path));
+                    if (v.Det != null && seen.Add(path)) { report.Detections.Add(v.Det); continue; }
+                    if (v.SuspKind != null && _suspicious.Count < 400) _suspicious.Add(new SuspiciousFile { Path = path, Kind = v.SuspKind });
+                }
+
+                if (isBin && dropZone && !legit) NoteKitFile(path, name);
+
+                // dropper: random file name and/or a chain of random folders in AppData/Temp, unsigned, no publisher
+                if (ext == ".exe" && dropZone && !legit && !seen.Contains(path))
+                {
+                    bool rndName = LooksRandom(Path.GetFileNameWithoutExtension(path));
+                    int chain = WeirdFolderChain(path);
+                    if ((rndName || chain >= 2) && !IsSigned(path) && NoPublisher(path) && seen.Add(path))
                     {
-                        if (signedFile && score < 8)
-                        {
-                            _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Signed program with cheat features (score {score}): {string.Join(", ", reasons.Take(5))}" });
-                        }
-                        else if (seen.Add(path))
-                        {
-                            bool brandHit = reasons.Any(r => r.StartsWith("menu name"));
-                            bool high = (score >= 8 && strongN >= 2) || (brandHit && !signedFile);
-                            report.Detections.Add(new Detection
-                            {
-                                File = name, Signature = (high ? "Cheat program" : "Cheat-like program") + $" (score {score})", Path = path,
-                                Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
-                                Severity = high ? Severity.High : Severity.Medium, When = SafeWrite(path),
-                                Features = reasons.Take(6).ToList(),
-                                Explain = "Found inside this program: " + string.Join(", ", reasons) + "."
-                            });
-                            continue;
-                        }
+                        var prot = StrongPacker(path);
+                        bool high = chain >= 3 || (chain >= 2 && (rndName || prot != null)) || (rndName && prot != null);
+                        var why = new List<string>();
+                        if (rndName) why.Add("random file name");
+                        if (chain >= 2) why.Add($"hidden in {chain} random folders");
+                        if (prot != null) why.Add($"protected with {prot}");
+                        why.Add("unsigned"); why.Add("no publisher");
+                        if (_suspicious.Count < 400)
+                            _suspicious.Add(new SuspiciousFile { Path = path,
+                                Kind = "Unusual unsigned executable: " + string.Join(", ", why) + "; requires independent evidence" });
+                        continue;
                     }
-                    else if (score >= 2 && _suspicious.Count < 400)
-                        _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Weak cheat signs (score {score}): {string.Join(", ", reasons.Take(4))}" });
+                }
+
+                // protected with VMProtect / Themida / Enigma (how commercial cheat loaders ship) + unsigned + drop folder
+                if (isBin && dropZone && !legit && !seen.Contains(path))
+                {
+                    var packer = StrongPacker(path);
+                    if (packer != null && !IsSigned(path) && seen.Add(path))
+                    {
+                        if (_suspicious.Count < 400)
+                            _suspicious.Add(new SuspiciousFile { Path = path,
+                                Kind = $"Packed unsigned executable ({packer}); packing alone is not proof" });
+                        continue;
+                    }
                 }
 
                 // high entropy = packed / encrypted (cheats hide their strings this way)
                 if (isBin && dropZone && !legit && _suspicious.Count < 400 && !seen.Contains(path))
                 {
                     var ent = FileEntropy(path);
-                    if (ent >= 7.2 && !IsSigned(path))
-                        _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"High entropy {ent:0.00} (packed / encrypted program)" });
+                    if (ent >= 7.4 && !IsSigned(path))
+                    {
+                        long size = 0; try { size = new FileInfo(path).Length; } catch { }
+                        _suspicious.Add(new SuspiciousFile { Path = path,
+                            Kind = $"High entropy {ent:0.00} (packed / encrypted program); not a confirmed cheat" });
+                    }
                 }
 
-                // unsigned exe in user/drop/game folder
-                if ((ext == ".exe" || ext == ".dll") && _unsignedFlagged < 250
-                    && (inGameC || low.Contains("\\downloads\\") || low.Contains("\\desktop\\")
-                        || low.Contains("\\temp\\") || low.Contains("\\appdata\\roaming\\")))
+                // unsigned PROGRAM with no publisher where players drop things (not DLLs, not FiveM's own files)
+                if (ext == ".exe" && _unsignedFlagged < 150 && !seen.Contains(path)
+                    && !low.Contains("\\fivem.app\\") && !low.Contains("\\appdata\\local\\programs\\")
+                    && (low.Contains("\\downloads\\") || low.Contains("\\desktop\\") || low.Contains("\\temp\\")))
                 {
-                    if (!IsSigned(path)) { _unsignedFlagged++; _suspicious.Add(new SuspiciousFile { Path = path, Kind = "Unsigned executable" }); }
+                    // Unsigned freeware and developer-built executables are common.
+                    // Signature absence is metadata, not a suspicious finding by itself.
                 }
 
                 // packer detection
-                if (isBin && _suspicious.Count < 300 && !low.Contains("\\windows\\") && !low.Contains("program files"))
+                if (isBin && _suspicious.Count < 400 && !low.Contains("\\windows\\") && !low.Contains("program files") && !seen.Contains(path))
                 {
-                    string? packer =
-                        content.Contains("themida") || content.Contains(" winlicense") ? "Themida"
-                        : content.Contains("vmprotect") ? "VMProtect"
-                        : content.Contains("enigma protector") ? "Enigma"
-                        : (content.Contains(" upx0") && content.Contains(" upx1")) ? "UPX"
-                        // v4.0: additional packers
-                        : content.Contains("asprotect") ? "ASProtect"
-                        : content.Contains("armadillo") ? "Armadillo"
-                        : content.Contains("obsidium") ? "Obsidium"
-                        : content.Contains("pecompact") ? "PECompact"
-                        : null;
-                    if (packer != null) _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Generic A1 ({packer})" });
+                    var packer = low.Contains("\\battleye\\") || low.Contains("easyanticheat") || low.Contains("\\vanguard\\") ? null : StrongPacker(path);
+                    if (packer != null && !IsSigned(path)) _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Protected with {packer}" });
                 }
 
-                // obfuscation detection on scripts
-                if (isScript && _suspicious.Count < 300)
+                // obfuscation: only script types cheats/loaders use on Windows (all websites/apps ship minified .js)
+                if (isScript && ext is ".lua" or ".ps1" or ".bat" or ".cmd" or ".vbs" && dropZone
+                    && !low.Contains("\\resources\\") && !low.Contains("\\fivem.app\\") && _suspicious.Count < 300)
                 {
                     string? obf = ScriptObfuscation(content, ext);
                     if (obf != null) _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Generic A1 ({obf})" });
@@ -1413,6 +1463,29 @@ public sealed class ForensicScan
                 }
             }
         }
+        ReportKits(report);
+    }
+
+    // C:\Users\name (or above) is never "one app folder"
+    private static bool IsUserRoot(string dir)
+    {
+        var parts = dir.Replace('/', '\\').TrimEnd('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 3 && parts.Length >= 1 && (parts.Length < 2 || parts[1].Equals("users", StringComparison.OrdinalIgnoreCase) || parts.Length <= 2);
+    }
+
+    private void ReportKits(ScanReport report)
+    {
+        bool IsKit(string key) => _kits.TryGetValue(key, out var v) && v.capture && v.input;
+        foreach (var (dir, k) in _kits)
+        {
+            if (!k.capture || !k.input) continue;
+            // report each kit once, at its top folder (skip it when its parent folder is the same kit)
+            if (IsKit(Path.GetDirectoryName(dir) ?? "")) continue;
+            var exes = _kits.Where(o => o.Key.Equals(dir, StringComparison.OrdinalIgnoreCase) || (Path.GetDirectoryName(o.Key) ?? "").Equals(dir, StringComparison.OrdinalIgnoreCase))
+                            .SelectMany(o => o.Value.exes ?? new List<string>()).Distinct().ToList();
+            _suspicious.Add(new SuspiciousFile { Path = dir,
+                Kind = "Screen capture + input libraries coexist (possible automation kit, also legitimate accessibility/testing software); verify usage" });
+        }
     }
 
     // ================================================================
@@ -1424,15 +1497,24 @@ public sealed class ForensicScan
         {
             if (!Directory.Exists(root)) continue;
             _artifacts.Add("FiveM folder: " + root);
+            report.FiveM.Add(new FiveMItem
+            {
+                Kind = "Folder", Name = Path.GetFileName(root), Path = root, Level = 0,
+                When = SafeWrite(root), Detail = "FiveM install found"
+            });
             IEnumerable<string> files;
-            try { files = SafeEnumerate(root, null, maxDepth: 6); } catch { continue; }
+            try { files = SafeEnumerate(root, null, maxDepth: 8); } catch { continue; }
             foreach (var path in files)
             {
                 _filesScanned++;
                 var name = Path.GetFileName(path).ToLowerInvariant();
                 var ext = Path.GetExtension(name);
+                var low = path.ToLowerInvariant();
+                // FiveM's own files and server-streamed cache are not the player's mods
+                bool own = low.Contains("\\cache\\") || low.Contains("\\citizen\\") || low.Contains("\\crashes\\")
+                           || low.Contains("\\logs\\") || low.Contains("\\data\\") || low.Contains("\\bin\\");
 
-                if (ext is ".rpf" or ".ytd" or ".ydr" or ".ymap" or ".asi" or ".lua" or ".dll" or ".oiv")
+                if (!own && ext is ".rpf" or ".ytd" or ".ydr" or ".ymap" or ".asi" or ".lua" or ".dll" or ".oiv")
                 {
                     double mb = 0; try { mb = Math.Round(new FileInfo(path).Length / 1048576.0, 2); } catch { }
                     report.Mods.Add(new ModFile { File = name, SizeMb = mb, Path = path });
@@ -1445,34 +1527,169 @@ public sealed class ForensicScan
                         "A modified game file matching a known visual cheat (no-bush / no-water) was found.", false);
                     d.Sha256 = Sha256File(path);
                     report.Detections.Add(d);
+                    report.FiveM.Add(new FiveMItem { Kind = "Mod file", Name = name, Path = path, Level = 2, When = SafeWrite(path), Detail = "Known cheat file: " + sig.Name });
                 }
 
-                if (name is "dinput8.dll" or "d3d11.dll" or "d3d9.dll" or "winmm.dll" or "version.dll" or "dxgi.dll"
-                    && path.ToLowerInvariant().Contains("fivem")
-                    && GraphicsModName(path) is string gfx)
+                // mod archives the player added: open them and read what is inside
+                if (ext == ".rpf" && !own) { AnalyzeRpf(report, path); continue; }
+
+                bool proxy = name is "dinput8.dll" or "d3d11.dll" or "d3d9.dll" or "winmm.dll" or "version.dll" or "dxgi.dll";
+                if (proxy && GraphicsModName(path) is string gfx)
                 {
                     // ReShade / ENB load as dxgi.dll / d3d11.dll in FiveM.app\plugins — FiveM allows this
                     _suspicious.Add(new SuspiciousFile { Path = path, Kind = $"Graphics mod {gfx} (allowed by FiveM — make sure it is the real one)" });
+                    report.FiveM.Add(new FiveMItem { Kind = "Graphics mod", Name = $"{name} ({gfx})", Path = path, Level = 0, When = SafeWrite(path), SizeMb = SafeSizeMb(path),
+                        Detail = $"{gfx} — allowed by FiveM (make sure it is the real one)" });
                     continue;
                 }
-                if (name is "dinput8.dll" or "d3d11.dll" or "d3d9.dll" or "winmm.dll" or "version.dll" or "dxgi.dll"
-                    && path.ToLowerInvariant().Contains("fivem"))
-                    report.Detections.Add(new Detection
-                    {
-                        File = name, Signature = "DLL injection vector", Path = path,
-                        Sha256 = Sha256File(path),
-                        Method = DetectMethod.FiveMPlugin, Severity = Severity.Medium, When = SafeWrite(path),
-                        Features = new() { "Injector" },
-                        Explain = "A proxy DLL that is NOT ReShade/ENB was found in the FiveM folder — this is how injectors load code into the game."
-                    });
+                if (proxy && !own)
+                {
+                    _suspicious.Add(new SuspiciousFile { Path = path,
+                        Kind = "Proxy DLL in game folder; may be a mod or injector, requires validation" });
+                    report.FiveM.Add(new FiveMItem { Kind = "Plugin", Name = name, Path = path, Level = 2, When = SafeWrite(path), SizeMb = SafeSizeMb(path),
+                        Detail = "Proxy DLL that is not ReShade/ENB — loads code into the game (injector)" });
+                    continue;
+                }
 
-                if (ext == ".asi")
-                    _suspicious.Add(new SuspiciousFile { Path = path, Kind = "ASI plugin" });
-                else if (ext == ".dll" && IsUserModPath(path.ToLowerInvariant()))
-                    _suspicious.Add(new SuspiciousFile { Path = path, Kind = "DLL added to the game (plugins / mods)" });
+                if (!own && ext is ".asi" or ".dll" or ".lua" or ".exe" && IsUserModPath(low))
+                {
+                    // read the code of plugins / scripts the player added to FiveM
+                    bool script = ext == ".lua";
+                    var content = script ? ReadTextLower(path) : ReadAsLower(path);
+                    var v = content == null ? null
+                        : JudgeContent(content, name, path, low, true, CheatWordIn(name), script, () => IsSigned(path), () => FileEntropy(path));
+                    if (v?.Det != null)
+                    {
+                        v.Det.Method = DetectMethod.FiveMPlugin;
+                        report.Detections.Add(v.Det);
+                        report.FiveM.Add(new FiveMItem { Kind = script ? "Script" : "Plugin", Name = name, Path = path, Level = 2, When = SafeWrite(path),
+                            SizeMb = SafeSizeMb(path), Detail = v.Det.Signature + " — " + v.Det.Explain });
+                    }
+                    else
+                    {
+                        _suspicious.Add(new SuspiciousFile { Path = path, Kind = ext == ".asi" ? "ASI plugin" : "File added to the game (plugins / mods)" });
+                        report.FiveM.Add(new FiveMItem { Kind = script ? "Script" : "Plugin", Name = name, Path = path, Level = ext == ".asi" ? 1 : 1, When = SafeWrite(path),
+                            SizeMb = SafeSizeMb(path), Detail = (ext == ".asi" ? "ASI plugin (loads code into the game). " : "Added to the game. ") + (v?.SuspKind ?? "No cheat code found inside.") });
+                    }
+                }
             }
         }
         report.Mods = report.Mods.OrderByDescending(m => m.SizeMb).Take(1000).ToList();
+        report.FiveM = report.FiveM.OrderByDescending(f => f.Level).ThenBy(f => f.Kind).Take(500).ToList();
+    }
+
+    // names of mod files that remove things from the world → see players through bushes / water / smoke
+    private static readonly string[] VisibilityWords =
+        { "nobush", "no_bush", "nograss", "no_grass", "nowater", "no_water", "nofog", "no_fog", "nosmoke", "no_smoke",
+          "noflash", "no_flash", "nodust", "novegetation", "no_vegetation", "clearwater", "lowtrees", "notrees", "no_trees", "nobushes" };
+
+    // Opens an RPF mod, lists its files, reads the .meta/.xml/.dat inside and decides what the mod does.
+    private int AnalyzeRpf(ScanReport report, string path, int depth = 0, string? shownPath = null, Stream? source = null)
+    {
+        var name = Path.GetFileName(path);
+        var item = new FiveMItem { Kind = "Mod archive", Name = name, Path = shownPath ?? path, Level = 0 };
+        try
+        {
+            if (source == null) { item.When = SafeWrite(path); item.SizeMb = SafeSizeMb(path); }
+            using var fs = source ?? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var arc = Rpf.Read(fs);
+            var why = new List<string>();
+            int level = 0;
+            void Flag(int lv, string text) { level = Math.Max(level, lv); if (!why.Contains(text)) why.Add(text); }
+
+            var lowName = name.ToLowerInvariant();
+            var vw = VisibilityWords.FirstOrDefault(w => lowName.Contains(w));
+            if (vw != null) Flag(2, $"archive named \"{vw}\" (removes things to see players)");
+
+            if (arc.State == "encrypted")
+            {
+                Flag(Math.Max(1, level), "encrypted (copied from Rockstar's files) — the files inside can't be read");
+            }
+            else if (arc.State == "open")
+            {
+                item.Files = arc.Files.Select(f => f.Path).Take(300).ToList();
+                foreach (var f in arc.Files)
+                {
+                    var fl = f.Path.ToLowerInvariant();
+                    var fn = fl.Split('/').Last();
+                    var vis = VisibilityWords.FirstOrDefault(w => fl.Contains(w));
+                    if (vis != null) Flag(2, $"contains \"{fn}\" (removes things to see players)");
+                    if (fn.StartsWith("visualsettings")) Flag(1, "changes visual settings (fog / smoke / flash / night vision)");
+                    if (fn.StartsWith("timecycle")) Flag(Math.Max(level, 0) == 2 ? 2 : 1, "changes the time-cycle (lighting / fog)");
+                    if (fn.EndsWith(".rpf") && depth < 2 && !f.IsResource && !f.Encrypted)
+                    {
+                        // nested archive (e.g. dlc.rpf inside the mod)
+                        var inner = Rpf.Extract(fs, f, 64 * 1024 * 1024);
+                        if (inner != null)
+                        {
+                            int lv = AnalyzeRpf(report, fn, depth + 1, (shownPath ?? path) + " → " + f.Path, new MemoryStream(inner));
+                            if (lv > 0) Flag(lv, $"inner archive {f.Path} — see its own line");
+                        }
+                        continue;
+                    }
+                    if (f.IsResource || !(fn.EndsWith(".meta") || fn.EndsWith(".xml") || fn.EndsWith(".dat") || fn.EndsWith(".lua") || fn.EndsWith(".txt"))) continue;
+                    var data = Rpf.Extract(fs, f, 4 * 1024 * 1024);
+                    if (data == null) continue;
+                    var text = Encoding.UTF8.GetString(data);
+                    if (fn.StartsWith("weapon") && fn.EndsWith(".meta")) AnalyzeWeaponsMeta(text, fn, Flag);
+                    if (fn.EndsWith(".lua"))
+                    {
+                        var v = JudgeContent(text.ToLowerInvariant(), fn, (shownPath ?? path) + " → " + f.Path, fl, true, null, true, () => false, () => 0);
+                        if (v.Det != null) Flag(2, "cheat script inside: " + v.Det.Signature);
+                    }
+                }
+                if (arc.Files.Count == 0) Flag(0, "empty archive");
+            }
+            else Flag(1, "not a valid RPF archive (renamed file?)");
+
+            item.Level = level;
+            item.Detail = why.Count > 0 ? string.Join("; ", why) : $"{arc.Files.Count} files inside — nothing that gives an advantage";
+            report.FiveM.Add(item);
+
+            // detection only for what is in THIS archive (an inner archive reports itself)
+            if (level == 2 && why.Any(w => !w.StartsWith("inner archive")))
+            {
+                bool weapon = why.Any(w => w.StartsWith("no recoil") || w.StartsWith("no spread") || w.StartsWith("damage"));
+                report.Detections.Add(new Detection
+                {
+                    File = name, Signature = weapon ? "FiveM weapon cheat mod" : "FiveM visibility mod (no-bush / no-water…)",
+                    Path = shownPath ?? path, Sha256 = source == null ? Sha256File(path) : null,
+                    Method = DetectMethod.GameFileIntegrity, Severity = Severity.High,
+                    When = item.When, Features = why.Take(6).ToList(),
+                    Explain = "Inside this FiveM mod: " + string.Join("; ", why) + "."
+                });
+            }
+            return level;
+        }
+        catch
+        {
+            item.Level = 1; item.Detail = "could not be opened (in use or damaged)";
+            report.FiveM.Add(item);
+            return 1;
+        }
+    }
+
+    // weapons.meta: no recoil / no spread / boosted damage = a weapon cheat, not a graphics mod
+    private static void AnalyzeWeaponsMeta(string text, string file, Action<int, string> flag)
+    {
+        List<double> Vals(string tag)
+        {
+            var list = new List<double>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text, "<" + tag + @"\s+value=""(-?[\d.]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                if (double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d)) list.Add(d);
+            return list;
+        }
+        var recoil = Vals("RecoilShakeAmplitude");
+        var spread = Vals("AccuracySpread");
+        var headshot = Vals("HeadShotDamageModifierPlayer");
+        var damage = Vals("Damage");
+        bool changed = false;
+        if (recoil.Count >= 3 && recoil.Count(v => v <= 0.05) >= recoil.Count * 0.8) { flag(2, $"no recoil ({file}: recoil 0 on {recoil.Count(v => v <= 0.05)} weapons)"); changed = true; }
+        if (spread.Count >= 3 && spread.Count(v => v <= 0.05) >= spread.Count * 0.8) { flag(2, $"no spread ({file}: bullets go exactly where you aim)"); changed = true; }
+        if (headshot.Any(v => v >= 50)) { flag(2, $"damage boosted ({file}: headshot multiplier {headshot.Max()})"); changed = true; }
+        if (damage.Any(v => v >= 1000)) { flag(2, $"damage boosted ({file}: weapon damage {damage.Max()})"); changed = true; }
+        if (!changed && (recoil.Count > 0 || spread.Count > 0 || damage.Count > 0))
+            flag(1, $"changes weapon settings ({file}) — compare with the server's rules");
     }
 
     // ================================================================
@@ -2591,21 +2808,24 @@ public sealed class ForensicScan
         catch { return "Unknown"; }
     }
 
-    // Phrases typical of cheat menus (match on the lower-case strings view, so spaces work).
-    private static readonly string[] StrongFeatures =
+    // CORE cheat features: these phrases do not exist in normal software → 1 is enough for a detection.
+    private static readonly string[] CoreFeatures =
     {
-        "triggerbot", "trigger bot", "silentaim", "silent aim", "magic bullet", "magicbullet", "wallhack", "wall hack",
-        "norecoil", "no recoil", "nospread", "no spread", "aimlock", "aim lock", "aimassist", "aim assist",
-        "skeleton esp", "box esp", "esp box", "bone esp", "name esp", "health esp", "distance esp", "esp distance",
-        "aimbot fov", "aim fov", "fov circle", "draw fov", "aim key", "aimkey", "aim smooth", "smoothing aim",
-        "ragebot", "rage bot", "legitbot", "legit bot", "hwid spoof", "hwidspoof", "hwid spoofer", "serial spoof",
-        "lua executor", "luaexecutor", "lua injector", "resource stopper", "stop resource", "menu bypass",
-        "anticheat bypass", "bypass anticheat", "ac bypass", "unlimited ammo", "infinite ammo", "rapid fire",
-        "fast reload", "no reload", "god mode", "godmode", "noclip", "no clip", "teleport to waypoint", "tp to waypoint",
-        "spawn vehicle", "give all weapons", "give weapon", "explode player", "crash player", "mod menu", "modmenu",
-        "super jump", "superjump", "fast run", "infinite stamina", "invisible", "freecam",
+        "triggerbot", "silentaim", "silent aim", "magicbullet",
+        "ragebot", "legitbot", "aimbot fov", "aimbot key", "aimbot smooth", "aimbot bone",
+        "skeleton esp", "bone esp", "box esp", "esp box", "esp skeleton", "esp distance", "name esp", "health esp",
+        "lua executor", "luaexecutor", "lua injector", "resource stopper", "menu bypass", "anticheat bypass",
+        "bypass anticheat", "hwid spoofer", "hwidspoofer", "serial spoofer", "crash player", "explode player",
     };
-    private static readonly string[] WeakFeatures = { "aimbot", "cheat", "cheats", "injector", "unban", "spoofer", "bypass", "esp" };
+    // OTHER cheat features: can also be found in games / tools (settings, trainers) → need 2, or a core one.
+    private static readonly string[] OtherFeatures =
+    {
+        "wallhack", "wall hack", "norecoil", "no recoil", "nospread", "no spread", "aimlock", "aim lock",
+        "fov circle", "draw fov", "aim fov", "aim key", "aimkey", "aim smooth", "unlimited ammo", "infinite ammo",
+        "teleport to waypoint", "tp to waypoint", "mod menu", "modmenu", "super jump", "superjump", "rapid fire",
+    };
+    // weak words: only add a little when a real feature is already there
+    private static readonly string[] WeakFeatures = { "aimbot", "cheats", "injector", "unban", "spoofer" };
     private static readonly string[] FiveMTells =
     {
         "triggerserverevent", "triggerclientevent", "invokenative", "citizen invokenative", "getplayerped", "playerpedid",
@@ -2622,10 +2842,292 @@ public sealed class ForensicScan
     // brand strings of well-known FiveM / GTA menus (space-separated where the name has a dot)
     private static readonly string[] BrandStrings =
     {
-        "eulen", "redengine", "red engine", "skript gg", "hammafia", "lynx menu", "lynxmenu", "desudo", "susano",
-        "tz project", "tzproject", "tzx", "absolute menu", "fallout menu", "brutan", "yimmenu", "kiddion", "cherax",
-        "2take1", "phaze menu", "ozark menu", "lumia menu", "impact menu", "hx software", "fivem cheat", "fivemcheat",
+        "eulen loader", "eulen menu", "eulencheats", "redengine menu", "skript gg", "hammafia", "lynx menu", "lynxmenu", "desudo", "susano",
+        "tz project", "tzproject", "absolute menu", "fallout menu", "brutan", "yimmenu", "kiddion", "cherax",
+        "2take1", "sechex", "phaze menu", "ozark menu", "lumia menu", "impact menu",
     };
+
+    // PE section names → commercial protector (these are what cheat loaders use; UPX etc. are left out — too common)
+    private static string? StrongPacker(string path)
+    {
+        try
+        {
+            var buf = new byte[8192];
+            int n;
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) n = fs.Read(buf, 0, buf.Length);
+            if (n < 0x200 || buf[0] != 'M' || buf[1] != 'Z') return null;
+            int pe = BitConverter.ToInt32(buf, 0x3C);
+            if (pe <= 0 || pe + 24 > n || buf[pe] != 'P' || buf[pe + 1] != 'E' || buf[pe + 2] != 0 || buf[pe + 3] != 0) return null;
+            int sections = BitConverter.ToUInt16(buf, pe + 6);
+            int optSize = BitConverter.ToUInt16(buf, pe + 20);
+            int table = pe + 24 + optSize;
+            int blank = 0;
+            for (int i = 0; i < sections && i < 96; i++)
+            {
+                int off = table + i * 40;
+                if (off + 8 > n) break;
+                var sec = Encoding.ASCII.GetString(buf, off, 8).TrimEnd('\0').ToLowerInvariant();
+                if (sec.StartsWith(".vmp")) return "VMProtect";
+                if (sec.Contains("themida")) return "Themida";
+                if (sec.Contains("winlice")) return "WinLicense";
+                if (sec.StartsWith(".enigma")) return "Enigma Protector";
+                if (sec.StartsWith(".obsidiu") || sec == "obsidium") return "Obsidium";
+                if (sec.StartsWith(".pelock")) return "PELock";
+                if (sec.Length == 0 || sec.Trim().Length == 0) blank++;
+            }
+            if (blank >= 2) return "Themida/WinLicense";   // Themida 3 leaves its sections unnamed
+        }
+        catch { }
+        return null;
+    }
+
+    // Keys a cheat writes in its settings file. A file needs 3+ different keys incl. a real cheat one.
+    private static readonly string[] ConfigKeys =
+    {
+        "aimbot", "triggerbot", "silent aim", "silentaim", "magic bullet", "magicbullet", "ragebot", "legitbot", "spinbot",
+        "no recoil", "norecoil", "no spread", "nospread", "aim fov", "aimbot fov", "aim smooth", "aimbot smooth", "aim smoothing",
+        "aim bone", "aimbot bone", "target bone", "aim key", "aimkey", "aimbot key", "trigger key", "triggerbot key", "trigger delay",
+        "esp box", "box esp", "esp skeleton", "skeleton esp", "esp name", "esp health", "esp distance", "esp weapon", "esp enabled",
+        "fov circle", "draw fov", "visible check", "vis check", "wallhack", "chams", "radar hack", "aim prediction", "bullet tp",
+    };
+    private static readonly string[] ConfigCore =
+    {
+        "aimbot", "triggerbot", "silent aim", "silentaim", "magic bullet", "magicbullet", "ragebot", "legitbot", "spinbot",
+        "esp box", "box esp", "esp skeleton", "skeleton esp", "aimbot fov", "triggerbot key", "bullet tp",
+    };
+
+    private Detection? JudgeConfig(string path)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            if (fi.Length < 20 || fi.Length > 512 * 1024) return null;
+            var raw = File.ReadAllText(path);
+            // "aimbot_fov": 90  /  aimbot-fov=90  /  <AimbotFov>  → "aimbot fov"
+            raw = System.Text.RegularExpressions.Regex.Replace(raw, @"([a-z0-9])([A-Z])", "$1 $2").ToLowerInvariant();
+            var text = " " + System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-z0-9]+", " ") + " ";
+            // an ANTICHEAT's settings list the same words (to detect them) — not a cheat
+            if (ContainsWord(text, "anticheat") || ContainsWord(text, "anti cheat") || ContainsWord(text, "screenshare")
+                || (ContainsWord(text, "detection") && (ContainsWord(text, "ban") || ContainsWord(text, "kick") || ContainsWord(text, "punish"))))
+                return null;
+            var keys = ConfigKeys.Where(k => ContainsWord(text, k)).Distinct().ToList();
+            var core = ConfigCore.Where(k => ContainsWord(text, k)).ToList();
+            if (keys.Count < 3 || core.Count == 0) return null;
+            var low = path.ToLowerInvariant();
+            var brand = BrandStrings.FirstOrDefault(b => ContainsWord(text, b) || low.Replace(" ", "").Contains(b.Replace(" ", "")));
+            return new Detection
+            {
+                File = Path.GetFileName(path), Signature = brand != null ? $"Cheat config ({brand})" : "Cheat config file",
+                Path = path, Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
+                Severity = brand != null || keys.Count >= 6 ? Severity.High : Severity.Medium, When = SafeWrite(path),
+                Features = keys.Take(8).ToList(),
+                Explain = $"A settings file with {keys.Count} cheat options ({string.Join(", ", keys.Take(6))}) — cheats save their aimbot / ESP setup like this, even when the cheat itself is encrypted or deleted."
+            };
+        }
+        catch { return null; }
+    }
+
+    // a normal program carries its maker's name in the version info; cheat loaders usually have none
+    private static bool NoPublisher(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return true;
+            var vi = FileVersionInfo.GetVersionInfo(path);
+            return string.IsNullOrWhiteSpace(vi.CompanyName) && string.IsNullOrWhiteSpace(vi.ProductName);
+        }
+        catch { return true; }
+    }
+
+    // "AGDG7yhoA", "uAbefZTZJ", "HmyIVHaCo": random case-mixed names that cheat droppers generate.
+    // Normal names are words + acronyms (WinRAR, NordVPN, KeePassXC, PlayGTAV, OneDriveSetup) and stay false.
+    private static bool LooksRandom(string stem, int minLen = 6)
+    {
+        if (stem.Length < minLen || stem.Length > 20 || !stem.All(char.IsLetterOrDigit)) return false;
+        int up = stem.Count(char.IsUpper), lo = stem.Count(char.IsLower);
+        if (up < 2 || lo < 2) return false;
+        int score = 0;
+        // starts lower-case but has 3+ capitals ("uAbefZTZJ", "kLsBHCSI") — "iCloudDrive"/"eBay" have fewer
+        if (char.IsLower(stem[0]) && up >= 3) score += 2;
+        // ends with ONE capital right after a lower-case letter ("…yhoA") — acronyms end with 2+ capitals
+        int n = stem.Length;
+        if (char.IsUpper(stem[n - 1]) && char.IsLower(stem[n - 2])) score += 1;   // ShareX / HyperX alone stay normal
+        // two-letter camel pieces ("Ha", "Co", "Ls", "Zh") — real words are longer
+        var tokens = System.Text.RegularExpressions.Regex.Matches(stem, "[A-Z][a-z]+").Select(m => m.Value).ToList();
+        int tiny = tokens.Count(t => t.Length == 2);
+        if (tiny >= 2) score += 2;
+        // a digit between letters of different case ("G7y")
+        for (int i = 1; i + 1 < n; i++)
+            if (char.IsDigit(stem[i]) && char.IsLetter(stem[i - 1]) && char.IsLetter(stem[i + 1]) && char.IsUpper(stem[i - 1]) != char.IsUpper(stem[i + 1])) { score += 1; break; }
+        // a long run of consonants ("Sllkv", "BHCS")
+        if (System.Text.RegularExpressions.Regex.IsMatch(stem, "[bcdfghjklmnpqrstvwxzBCDFGHJKLMNPQRSTVWXZ]{5,}")) score += 1;
+        return score >= 2;
+    }
+
+    // a folder name nobody would type: "sSllkvLsV", "kbpE", "HmyIVHaCo"
+    private static bool WeirdFolder(string seg)
+    {
+        if (seg.Length < 4 || seg.Length > 16 || !seg.All(char.IsLetter)) return false;
+        if (!seg.Any(char.IsUpper) || !seg.Any(char.IsLower)) return false;
+        // lower-case start with a capital that is not just "iSomething"/"eSomething"
+        if (char.IsLower(seg[0]) && !(char.IsUpper(seg[1]) && seg.Skip(2).Count(char.IsUpper) <= 1 && seg.Length > 4)) return true;
+        return LooksRandom(seg, 4);
+    }
+
+    private static int WeirdFolderChain(string path)
+    {
+        int best = 0, run = 0;
+        foreach (var seg in path.Split('\\'))
+        {
+            if (WeirdFolder(seg)) { run++; best = Math.Max(best, run); } else run = 0;
+        }
+        return best;
+    }
+
+    // colorbot kit = screen reading (OpenCV / OCR) + fake controller/mouse (vJoy, ViGEm, Interception, XInput emu)
+    private readonly Dictionary<string, (bool capture, bool input, List<string> exes)> _kits = new(StringComparer.OrdinalIgnoreCase);
+    private void NoteKitFile(string path, string name)
+    {
+        var low = path.ToLowerInvariant();
+        bool capture = name.StartsWith("opencv") || name.Contains("opencvsharp") || name.StartsWith("emgu.cv")
+                       || name.StartsWith("tesseract") || name.StartsWith("leptonica") || name.StartsWith("dxcam");
+        bool input = name == "vjoyinterface.dll" || name.StartsWith("vigemclient") || name.Contains("interception")
+                     || low.Contains("\\xinputemu\\") || name.StartsWith("x360ce");
+        bool exe = name.EndsWith(".exe");
+        if (!capture && !input && !exe) return;
+        var dir = Path.GetDirectoryName(path) ?? "";
+        // the file's folder and its parent (a kit = one app folder with its x64/ x86/ libs subfolders)
+        foreach (var key in new[] { dir, Path.GetDirectoryName(dir) ?? "" })
+        {
+            if (key.Length < 4 || IsUserRoot(key)) continue;
+            _kits.TryGetValue(key, out var k);
+            k.exes ??= new List<string>();
+            if (exe && key == dir) k.exes.Add(path);
+            _kits[key] = (k.capture || capture, k.input || input, k.exes);
+        }
+    }
+
+    private readonly HashSet<string> _meiFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    // "Loader.exe", "FiveMLoader.exe", "Injector.exe", "Executor.exe", "Spoofer.exe" — what cheat programs are called
+    private static string? LoaderWord(string name)
+    {
+        var stem = Path.GetFileNameWithoutExtension(name).ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "");
+        // exact name ("Loader.exe") or a cheat-context prefix ("FiveMLoader", "EulenExecutor") —
+        // never "Downloader", "Uploader", "ModLoader", "TaskExecutor"
+        string[] ctx = { "fivem", "gta", "gtav", "cheat", "hack", "menu", "dll", "eulen", "skript", "susano", "redengine", "lua", "hwid", "ac", "external", "internal", "ext", "int" };
+        foreach (var w in new[] { "loader", "injector", "inject", "executor", "spoofer", "bypass" })
+        {
+            if (stem == w) return w;
+            if (stem.EndsWith(w) && ctx.Contains(stem.Substring(0, stem.Length - w.Length))) return w;
+            if (w is "injector" or "spoofer" && stem.Contains(w)) return w;   // "DLLInjector64", "HWIDSpooferV2"
+        }
+        return null;
+    }
+
+    // 3+ suspicious files of the same kind in one folder → one line for the folder (judge the folder, not each DLL)
+    private static List<SuspiciousFile> GroupByFolder(List<SuspiciousFile> list)
+    {
+        var outList = new List<SuspiciousFile>();
+        foreach (var g in list.GroupBy(x => (Dir: Path.GetDirectoryName(x.Path) ?? "", Kind: System.Text.RegularExpressions.Regex.Replace(x.Kind, @"\s*\(.*\)$", ""))))
+        {
+            var items = g.ToList();
+            if (items.Count >= 3)
+                outList.Add(new SuspiciousFile
+                {
+                    Path = g.Key.Dir,
+                    Kind = $"Folder — {items.Count} files: {g.Key.Kind} ({string.Join(", ", items.Take(5).Select(i => Path.GetFileName(i.Path)))}{(items.Count > 5 ? ", …" : "")})"
+                });
+            else outList.AddRange(items);
+        }
+        return outList;
+    }
+
+    private static bool IsDropZone(string low) =>
+        low.Contains("\\downloads\\") || low.Contains("\\desktop\\") || low.Contains("\\temp\\")
+        || low.Contains("\\appdata\\") || low.Contains("\\documents\\") || low.Contains("\\programdata\\");
+
+    private sealed record Verdict(Detection? Det, string? SuspKind);
+
+    // Decides on what is INSIDE a program / script. A cheat-like name (nameHit) is only a lead:
+    //  • cheat code inside            → detection
+    //  • name only, packed/encrypted  → detection (medium) — it hides its code
+    //  • name only, nothing inside    → suspicious
+    private Verdict JudgeContent(string content, string file, string path, string low, bool dropZone, string? nameHit,
+                                 bool isScript, Func<bool> isSigned, Func<double> entropy)
+    {
+        int brands = BrandStrings.Count(b => ContainsWord(content, b));
+        if (brands >= 2)   // several different menu names = a list (anticheat / forum dump), not a cheat
+            return new(null, null);
+
+        var (score, reasons, strongN, cheatSign) = CheatScore(content, path, low, dropZone);
+        bool brand = brands == 1;
+        if (isScript)
+        {
+            var scriptAnalysis = ScriptIntelligence.Analyze(content, Path.GetExtension(file).ToLowerInvariant());
+            if (scriptAnalysis.NeedsReview)
+                return new(null, scriptAnalysis.Reason);
+            int core = CoreFeatures.Count(w => ContainsWord(content, w));
+            if (core >= 4) return new(null, null);
+            // a FiveM cheat script always talks to the game (TriggerServerEvent, natives…)
+            bool fivemCode = CountHits(content, FiveMTells, 2) >= 1;
+            // Brand strings, feature words and game API calls occur in legitimate
+            // FiveM resources, anti-cheat code and tutorials. They are leads, not proof.
+            // Brand names and normal game APIs alone must not flag a script.
+            return new(null, null);
+        }
+
+        if (nameHit != null) { score += 2; reasons.Insert(0, $"named \"{nameHit}\""); }
+        bool signedFile = false;
+        if (score >= 2) { signedFile = isSigned(); if (!signedFile) { score += 1; reasons.Add("unsigned"); } }
+
+        if (score >= 5 && cheatSign)
+        {
+            if (signedFile && score < 8)
+                return new(null, $"Signed program with cheat features (score {score}): {string.Join(", ", reasons.Take(5))}");
+            bool high = (brand && !signedFile) || (score >= 10 && strongN >= 2);
+            return new(new Detection
+            {
+                File = file, Signature = (high ? "Cheat program" : "Cheat-like program") + $" (score {score})", Path = path,
+                Sha256 = File.Exists(path) ? Sha256File(path) : null, Method = DetectMethod.SuspiciousExecutable,
+                Severity = high ? Severity.High : Severity.Medium, When = File.Exists(path) ? SafeWrite(path) : "",
+                Features = reasons.Take(6).ToList(), Explain = "Found inside this program: " + string.Join(", ", reasons) + "."
+            }, null);
+        }
+
+        if (nameHit != null && score < 5) return new(null, null);
+        if (score >= 3 && strongN >= 2)
+            return new(null, $"Correlated indicators requiring review (score {score}): {string.Join(", ", reasons.Take(4))}");
+        return new(null, null);
+    }
+
+    // A file found by NAME (signature file name, cheat word, process, startup, Prefetch…):
+    // read it and decide on the content. Returns the detection, or null (then it is listed as suspicious).
+    private Detection? ConfirmNamed(string path, string file, Signatures.Sig? sig, string? word, DetectMethod method, string when)
+    {
+        var low = path.ToLowerInvariant();
+        var ext = Path.GetExtension(low);
+        bool isScript = ext is ".lua" or ".py" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".js";
+        string? content = isScript ? ReadTextLower(path) : ReadAsLower(path);
+        if (content == null) return null;
+        var lead = sig != null ? sig.Name : word ?? file;
+        var v = JudgeContent(content, file, path, low, IsDropZone(low), lead, isScript, () => IsSigned(path), () => FileEntropy(path));
+        if (v.Det != null)
+        {
+            v.Det.Method = method;
+            if (!string.IsNullOrEmpty(when)) v.Det.When = when;
+            if (sig != null)
+            {
+                v.Det.Signature = sig.Name + " · " + v.Det.Signature;
+                var sev = Signatures.ParseSeverity(sig.Severity);
+                if (sev > v.Det.Severity) v.Det.Severity = sev;
+                v.Det.Features = sig.Features.Concat(v.Det.Features).Distinct().Take(8).ToList();
+            }
+            return v.Det;
+        }
+        if (v.SuspKind != null) _suspicious.Add(new SuspiciousFile { Path = path, Kind = v.SuspKind });
+        return null;
+    }
 
     // cheat word in a file / folder / process name — ignores "anticheat", "nocheat" etc.
     private static string? CheatWordIn(string name)
@@ -2651,38 +3153,52 @@ public sealed class ForensicScan
         var brand = BrandStrings.FirstOrDefault(b => ContainsWord(content, b));
         if (brand != null) { score += 5; reasons.Add($"menu name \"{brand}\""); }
 
-        var strong = StrongFeatures.Where(w => ContainsWord(content, w)).Take(6).ToList();
-        score += Math.Min(strong.Count, 4) * 2;
-        if (strong.Count > 0) reasons.Add("cheat features: " + string.Join(", ", strong));
+        var core = CoreFeatures.Where(w => ContainsWord(content, w)).Take(6).ToList();
+        var other = OtherFeatures.Where(w => ContainsWord(content, w)).Take(6).ToList();
+        score += Math.Min(core.Count, 3) * 4 + Math.Min(other.Count, 3) * 2;
+        if (core.Count + other.Count > 0) reasons.Add("cheat features: " + string.Join(", ", core.Concat(other)));
 
-        var weak = WeakFeatures.Where(w => ContainsWord(content, w)).Take(3).ToList();
-        score += Math.Min(weak.Count, 2);
-        if (weak.Count > 0) reasons.Add("words: " + string.Join(", ", weak));
-
-        int fivem = CountHits(content, FiveMTells, 4);
-        if (fivem >= 2) { score += 3; reasons.Add("FiveM executor code (events / natives)"); }
-        else if (fivem == 1) { score += 1; reasons.Add("targets FiveM / GTA"); }
-
-        int inj = CountHits(content, InjectionApis, 6);
-        if (inj >= 4) { score += 2; reasons.Add("memory injection APIs"); }
-        else if (inj >= 2) { score += 1; reasons.Add("process memory APIs"); }
-
-        int ov = CountHits(content, OverlayTells, 3);
-        if (ov >= 1) { score += 1; reasons.Add("in-game overlay (ImGui / DirectX hook)"); }
-
-        if (score > 0 && dropZone) { score += 1; reasons.Add("in Downloads/Temp/AppData"); }
-
-        // the folder it sits in is named like a cheat
-        try
+        bool feature = brand != null || core.Count + other.Count > 0;
+        if (feature)
         {
-            var folder = Path.GetFileName(Path.GetDirectoryName(path) ?? "").ToLowerInvariant();
-            var fw = CheatWordIn(folder) ?? BrandStrings.FirstOrDefault(b => b.Length >= 5 && folder.Replace(" ", "").Contains(b.Replace(" ", "")));
-            if (fw != null) { score += 2; reasons.Add($"folder named \"{folder}\""); }
-        }
-        catch { }
+            var weak = WeakFeatures.Where(w => ContainsWord(content, w)).Take(3).ToList();
+            if (weak.Count > 0) { score += 1; reasons.Add("words: " + string.Join(", ", weak)); }
 
-        return (score, reasons, strong.Count, brand != null || strong.Count > 0 || fivem >= 2);
+            int fivem = CountHits(content, FiveMTells, 4);
+            if (fivem >= 2) { score += 2; reasons.Add("FiveM code (events / natives)"); }
+            else if (fivem == 1) { score += 1; reasons.Add("targets FiveM / GTA"); }
+
+            if (CountHits(content, InjectionApis, 6) >= 4) { score += 1; reasons.Add("memory injection APIs"); }
+            if (CountHits(content, OverlayTells, 3) >= 1) { score += 1; reasons.Add("in-game overlay (ImGui / DirectX hook)"); }
+            if (dropZone) { score += 1; reasons.Add("in Downloads/Temp/AppData"); }
+
+            try
+            {
+                var folder = Path.GetFileName(Path.GetDirectoryName(path) ?? "").ToLowerInvariant();
+                var fw = CheatWordIn(folder) ?? BrandStrings.FirstOrDefault(x => x.Length >= 6 && folder.Replace(" ", "").Contains(x.Replace(" ", "")));
+                if (fw != null) { score += 2; reasons.Add($"folder named \"{folder}\""); }
+            }
+            catch { }
+        }
+
+        // detection only with a real cheat sign: a menu name, 1 core feature, or 2 other features
+        bool cheatSign = brand != null || core.Count >= 1 || other.Count >= 2;
+        return (score, reasons, core.Count * 2 + other.Count, cheatSign);
     }
+
+    // this tool's own files, build output of any C#/.NET project, the FiveM dev's server folders
+    private static bool IsOwnOrDevPath(string low) =>
+        low.Contains("heroshield") || low.Contains("hero_shield") || low.Contains("hero-shield") || low.Contains("heroscanner")
+        || low.Contains("\\bin\\release\\") || low.Contains("\\bin\\debug\\") || low.Contains("\\obj\\release\\")
+        || low.Contains("\\obj\\debug\\") || low.Contains("\\.rartemp\\") || low.Contains(".rartemp\\")
+        || low.Contains("\\node_modules\\") || low.Contains("\\.git\\")
+        || low.Contains("\\windows defender\\") || low.Contains("\\programdata\\microsoft\\") || low.Contains("\\users\\all users\\")
+        || low.Contains("\\appdata\\local\\packages\\") || low.Contains("\\appdata\\local\\microsoft\\")
+        // installed libraries / language runtimes (Python, Node, npm, editors) — not cheats
+        || low.Contains("\\site-packages\\") || low.Contains("\\dist-packages\\") || low.Contains("\\pythoncore")
+        || low.Contains("\\python3") || low.Contains("\\programs\\python\\") || low.Contains("\\npm-cache\\")
+        || low.Contains("\\appdata\\roaming\\npm\\") || low.Contains("\\.vscode\\extensions\\") || low.Contains("\\.cursor\\")
+        || low.Contains("\\.nuget\\packages\\") || low.Contains("\\.cargo\\") || low.Contains("\\go\\pkg\\");
 
     private static bool IsGamePath(string low) =>
         low.Contains("fivem") || low.Contains("citizenfx") || low.Contains("\\mods\\") || low.Contains("\\resources\\")
@@ -2692,26 +3208,106 @@ public sealed class ForensicScan
     private static bool IsUserModPath(string low) =>
         !low.Contains("\\windows\\") && (low.Contains("\\plugins\\") || low.Contains("\\mods\\") || low.Contains("\\scripts\\"));
 
-    // Shannon entropy (0–8) of the first 8 MB; > 7.2 on a whole .exe = packed / encrypted
+    // Entropy of the PROGRAM CODE only (the PE sections). Installers and bundled apps
+    // (PyInstaller, Nuitka, NSIS, Inno, 7-Zip SFX, .NET single-file) carry a compressed
+    // archive after the sections — that archive is not "encryption" and is left out.
+    // A loader packed with VMProtect / Themida / UPX has encrypted SECTIONS → still high.
+    private static List<(long off, long size)>? PeSectionRanges(byte[] head, int n, long fileLen)
+    {
+        try
+        {
+            if (n < 0x200 || head[0] != 'M' || head[1] != 'Z') return null;
+            int pe = BitConverter.ToInt32(head, 0x3C);
+            if (pe <= 0 || pe + 24 > n || head[pe] != 'P' || head[pe + 1] != 'E') return null;
+            int count = BitConverter.ToUInt16(head, pe + 6);
+            int table = pe + 24 + BitConverter.ToUInt16(head, pe + 20);
+            // only EXECUTABLE sections (the code). Resources (.rsrc) hold icons, images and the
+            // compressed payload of bundlers like Nuitka — they are not "packed code".
+            var code = new List<(long, long)>();
+            var other = new List<(long, long)>();
+            for (int i = 0; i < count && i < 96; i++)
+            {
+                int o = table + i * 40;
+                if (o + 40 > n) break;
+                long size = BitConverter.ToUInt32(head, o + 16), ptr = BitConverter.ToUInt32(head, o + 20);
+                uint flags = BitConverter.ToUInt32(head, o + 36);
+                var name = Encoding.ASCII.GetString(head, o, 8).TrimEnd('\0').ToLowerInvariant();
+                if (ptr <= 0 || size <= 0 || ptr >= fileLen) continue;
+                var r = (ptr, Math.Min(size, fileLen - ptr));
+                if ((flags & 0x20000000) != 0 || (flags & 0x20) != 0) code.Add(r);       // MEM_EXECUTE / CNT_CODE
+                else if (name != ".rsrc" && name != ".reloc") other.Add(r);
+            }
+            if (code.Count > 0) return code;
+            return other.Count > 0 ? other : null;
+        }
+        catch { return null; }
+    }
+
+    // .NET programs keep their resources inside the code section, so entropy says nothing there
+    // (.NET cheats are caught by their UTF-16 strings instead)
+    private static bool IsDotNet(byte[] head, int n)
+    {
+        try
+        {
+            int pe = BitConverter.ToInt32(head, 0x3C);
+            if (pe <= 0 || pe + 24 + 2 > n) return false;
+            int opt = pe + 24;
+            ushort magic = BitConverter.ToUInt16(head, opt);
+            int dirs = magic == 0x20b ? opt + 112 : opt + 96;
+            int com = dirs + 14 * 8;
+            return com + 8 <= n && BitConverter.ToUInt32(head, com) != 0;
+        }
+        catch { return false; }
+    }
+
+    private static double Entropy(long[] counts, long total)
+    {
+        if (total < 64 * 1024) return 0;
+        double h = 0;
+        foreach (var c in counts) if (c > 0) { double p = (double)c / total; h -= p * Math.Log2(p); }
+        return Math.Round(h, 2);
+    }
+
+    private static double EntropyOf(byte[] d)
+    {
+        if (d.Length < 64 * 1024) return 0;
+        var counts = new long[256];
+        long total = 0;
+        if (IsDotNet(d, Math.Min(d.Length, 8192))) return 0;
+        var ranges = PeSectionRanges(d, Math.Min(d.Length, 8192), d.Length) ?? new List<(long, long)> { (0, d.Length) };
+        foreach (var (off, size) in ranges)
+            for (long i = off; i < off + size && i < d.Length && total < 16L * 1024 * 1024; i++) { counts[d[i]]++; total++; }
+        return Entropy(counts, total);
+    }
+
+    // Shannon entropy (0–8) of the program code; > 7.4 = packed / encrypted
     private static double FileEntropy(string path)
     {
         try
         {
             var fi = new FileInfo(path);
             if (fi.Length < 64 * 1024) return 0;
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var head = new byte[8192];
+            int hn = fs.Read(head, 0, head.Length);
+            if (hn > 0x200 && head[0] == 'M' && head[1] == 'Z' && IsDotNet(head, hn)) return 0;
+            var ranges = PeSectionRanges(head, hn, fi.Length) ?? new List<(long, long)> { (0, Math.Min(fi.Length, 8L * 1024 * 1024)) };
             var counts = new long[256];
             long total = 0;
-            using var fs = File.OpenRead(path);
             var buf = new byte[1 << 16];
-            int n;
-            while (total < 8L * 1024 * 1024 && (n = fs.Read(buf, 0, buf.Length)) > 0)
+            foreach (var (off, size) in ranges)
             {
-                for (int i = 0; i < n; i++) counts[buf[i]]++;
-                total += n;
+                fs.Seek(off, SeekOrigin.Begin);
+                long left = size;
+                while (left > 0 && total < 16L * 1024 * 1024)
+                {
+                    int r = fs.Read(buf, 0, (int)Math.Min(buf.Length, left));
+                    if (r <= 0) break;
+                    for (int i = 0; i < r; i++) counts[buf[i]]++;
+                    total += r; left -= r;
+                }
             }
-            double h = 0;
-            foreach (var c in counts) if (c > 0) { double p = (double)c / total; h -= p * Math.Log2(p); }
-            return Math.Round(h, 2);
+            return Entropy(counts, total);
         }
         catch { return 0; }
     }
@@ -2858,40 +3454,61 @@ public sealed class ForensicScan
         return false;
     }
 
-    // Lower-case "strings" view of a binary: letters/digits kept, everything else = space.
-    // Adds a second pass for UTF-16LE text ("a\0i\0m\0b\0o\0t\0"), which is how C#/.NET
-    // and most Windows programs store strings — without it those cheats are invisible.
+    // Lower-case "strings" view of a binary, like the `strings` tool: only RUNS of at least
+    // 5 printable characters are kept (letters/digits lower-cased, other printable chars = space).
+    // Single random bytes are dropped, so short words can't appear "by chance" in compressed data.
+    // A second pass does the same for UTF-16LE text — how C#/.NET and most Windows programs store strings.
+    private const int MinRun = 5;
     private static string? ReadAsLower(string path)
     {
         try
         {
             var fi = new FileInfo(path);
             if (!fi.Exists || fi.Length > 96L * 1024 * 1024) return null;
-            var bytes = File.ReadAllBytes(path);
+            return StringsView(File.ReadAllBytes(path));
+        }
+        catch { return null; }
+    }
+
+    private static string StringsView(byte[] bytes)
+    {
+        {
+            var sb = new System.Text.StringBuilder(Math.Min(bytes.Length, 8 * 1024 * 1024));
+            static bool Printable(byte b) => b >= 0x20 && b <= 0x7E;
             static char Map(byte b) =>
                 b >= 65 && b <= 90 ? (char)(b + 32)
                 : (b >= 97 && b <= 122) || (b >= 48 && b <= 57) ? (char)b : ' ';
-            var sb = new System.Text.StringBuilder(bytes.Length + bytes.Length / 2 + 2);
-            foreach (var b in bytes) sb.Append(Map(b));
-            if (bytes.Length <= 48L * 1024 * 1024)
+            void Flush(int start, int end, int step)
             {
+                if ((end - start) / step < MinRun) return;
                 sb.Append(' ');
-                // two alignments, so strings starting on an odd byte are found too
+                for (int k = start; k < end; k += step) sb.Append(Map(bytes[k]));
+                sb.Append(' ');
+            }
+            // ASCII / UTF-8 strings
+            int run = -1;
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (Printable(bytes[i])) { if (run < 0) run = i; }
+                else if (run >= 0) { Flush(run, i, 1); run = -1; }
+            }
+            if (run >= 0) Flush(run, bytes.Length, 1);
+            // UTF-16LE strings (printable byte followed by 0x00), both alignments
+            if (bytes.Length <= 64L * 1024 * 1024)
                 for (int start = 0; start < 2; start++)
                 {
-                    bool prevSpace = true;
-                    for (int i = start; i + 1 < bytes.Length; i += 2)
+                    run = -1;
+                    int i = start;
+                    for (; i + 1 < bytes.Length; i += 2)
                     {
-                        char c = bytes[i + 1] == 0 ? Map(bytes[i]) : ' ';
-                        if (c == ' ') { if (!prevSpace) sb.Append(' '); prevSpace = true; }
-                        else { sb.Append(c); prevSpace = false; }
+                        bool ok = bytes[i + 1] == 0 && Printable(bytes[i]);
+                        if (ok) { if (run < 0) run = i; }
+                        else if (run >= 0) { Flush(run, i, 2); run = -1; }
                     }
-                    sb.Append(' ');
+                    if (run >= 0) Flush(run, i, 2);
                 }
-            }
             return sb.ToString();
         }
-        catch { return null; }
     }
 
     private static string? ReadTextLower(string path)

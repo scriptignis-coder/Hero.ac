@@ -1,33 +1,9 @@
-# HeRo Shield - Website + Dashboard
+# HeRo Shield scanner
 
-Vercel + Supabase. No build step, no dependencies.
-
-## Files
-- `index.html` - website
-- `dashboard.html` + `assets/dashboard.js` - dashboard (Discord login)
-- `heroshield.zip` - the FiveM resource (download button)
-- `api/` - backend (Vercel functions)
-- `supabase.sql` - database
-
-## Updating
-Run `supabase.sql` again after each update (safe, it keeps your data).
-
-## Setup
-1. **Supabase**: new project → SQL Editor → paste `supabase.sql` → Run.
-   Copy the Project URL and the `service_role` key (Settings → API).
-2. **Discord**: discord.com/developers → New Application → OAuth2.
-   Copy Client ID + Client Secret. Add redirect: `https://heroshield.vercel.app/api/auth/callback`
-3. **Vercel**: import this folder → Settings → Environment Variables (see `.env.example`) → Redeploy.
-
-Never put the `service_role` key in the website files. It is only used in `api/`.
-
-## Render (instead of Vercel)
-- Build Command: `npm install`
-- Start Command: `npm start`
-- Instance: Free
-- Same environment variables. `DISCORD_REDIRECT_URI` = `https://YOUR-APP.onrender.com/api/auth/callback`
-- In the FiveM `shared/config.lua`: `Config.DashboardURL = 'https://YOUR-APP.onrender.com/api'`
-
-## Live video (Multi Stream)
-Smooth live video uses WebSocket: host on **Render** (Build `npm install`, Start `npm start`).
-Vercel does not support WebSocket (it falls back to slow screenshots).
+- `scanner/` — the C# source (.NET 8, WPF).
+- **Build on your PC:** double-click `BUILD.bat` → `HeRoShieldScanner.exe` appears next to it.
+  Upload it to your GitHub release **v1.0** with the name **HeRoShield.exe**.
+- **Or let GitHub build it:** put this folder in a GitHub repo (keep `.github/workflows/build-scanner.yml`).
+  Every push builds `HeRoShield.exe` on Windows and puts it in release **v1.0** of that repo.
+  If that repo is not SouthSide, set `SCANNER_EXE_URL` on Render to
+  `https://github.com/<you>/<repo>/releases/download/v1.0/HeRoShield.exe`.

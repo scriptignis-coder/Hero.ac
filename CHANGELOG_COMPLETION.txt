@@ -1,0 +1,11 @@
+HeRoShield scanner completion UI update
+- After the scan reaches 100% AND the server confirms receipt of the report, show a full-window Scan Completed screen.
+- Countdown from 10 seconds, then close automatically.
+- No local browser history/download popup or detection toast is displayed to the client after scanning.
+- Browser data is still collected ONLY if the user explicitly checks the optional browser sharing checkbox.
+- If upload fails, show an error instead of falsely claiming successful delivery or closing automatically.
+- Existing scanner functionality, application icon, and BUILD.bat are retained.
+
+Build on Windows: run BUILD.bat in the HeRoShield-Scanner folder (requires .NET 8 SDK).
+The EXE is copied to the project root after a successful build.
+NOTE: WPF runtime testing is not possible in this Linux environment. Test on Windows before distributing.

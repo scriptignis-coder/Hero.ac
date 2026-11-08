@@ -165,10 +165,34 @@ public sealed class EventLogEntry
     public string Category { get; set; } = "";
 }
 
+/// <summary>Something found in the FiveM install: a mod archive, plugin, graphics mod…</summary>
+public sealed class FiveMItem
+{
+    public string Kind { get; set; } = "";        // Folder | Mod archive | Plugin | Graphics mod | Script
+    public string Name { get; set; } = "";
+    public string Path { get; set; } = "";
+    public int Level { get; set; }                // 0 = info, 1 = look at it, 2 = cheat
+    public string Detail { get; set; } = "";
+    public double SizeMb { get; set; }
+    public string When { get; set; } = "";
+    public List<string> Files { get; set; } = new();
+}
+
+/// <summary>A Discord server found in the Discord / browser cache on the PC — also servers the player already LEFT.</summary>
+public sealed class DiscordTrace
+{
+    public string GuildId { get; set; } = "";      // empty when only an invite code was found
+    public string? Name { get; set; }
+    public string? Invite { get; set; }            // invite code he opened (discord.gg/CODE)
+    public List<string> Sources { get; set; } = new();   // "Discord app", "Chrome" … + what: icon, invite, channel, local storage
+    public string? FirstSeen { get; set; }         // ISO dates of the cache files
+    public string? LastSeen { get; set; }
+}
+
 public sealed class ScanReport
 {
     public string Pin { get; set; } = "";
-    public string ScannerVersion { get; set; } = "4.0.0";
+    public string ScannerVersion { get; set; } = "4.1.0";
     public DateTime StartedUtc { get; set; } = DateTime.UtcNow;
     public double DurationSeconds { get; set; }
     public SystemInfo System { get; set; } = new();
@@ -181,6 +205,8 @@ public sealed class ScanReport
     public List<CommandEntry> Commands { get; set; } = new();
     public List<string> SteamAccounts { get; set; } = new();
     public List<string> Browsers { get; set; } = new();
+    public List<BrowserAudit.Entry> BrowserSearchHistory { get; set; } = new();
+    public List<BrowserAudit.Download> BrowserDownloads { get; set; } = new();
     public List<string> UsbDevices { get; set; } = new();
     public List<string> Antivirus { get; set; } = new();
     public string? DiscordId { get; set; }
@@ -198,6 +224,8 @@ public sealed class ScanReport
     public List<string> FirewallRules { get; set; } = new();
     public List<string> EpicAccounts { get; set; } = new();
     public List<string> RockstarAccounts { get; set; } = new();
+    public List<FiveMItem> FiveM { get; set; } = new();
+    public List<DiscordTrace> DiscordTraces { get; set; } = new();
 
     public string Verdict =>
         Detections.Any(d => d.Severity == Severity.High) ? "cheating"

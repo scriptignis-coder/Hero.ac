@@ -1,7 +1,7 @@
 <Window x:Class="HeRoShield.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="HeRo Shield" Height="440" Width="680"
+        Title="HeRo Shield" Icon="pack://application:,,,/hero-icon.ico" Height="440" Width="680"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="Transparent">
@@ -330,6 +330,18 @@
                             <TextBlock x:Name="VerdictText" HorizontalAlignment="Center" FontFamily="{StaticResource Mono}"
                                        FontWeight="Bold" FontSize="16"/>
                         </Border>
+                        <TabControl Margin="0,0,0,12" Background="#FF0E1624" Foreground="#FFE8EEF6" BorderThickness="0">
+                            <TabItem Header="Browser Search History">
+                                <TextBox x:Name="BrowserHistoryText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                         Height="190" Background="#FF0B111B" Foreground="#FFE8EEF6" BorderThickness="0" Padding="8"
+                                         Text="Not scanned. Optional local review only."/>
+                            </TabItem>
+                            <TabItem Header="Browser Downloads">
+                                <TextBox x:Name="BrowserDownloadsText" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                         Height="190" Background="#FF0B111B" Foreground="#FFE8EEF6" BorderThickness="0" Padding="8"
+                                         Text="Not scanned. Optional local review only."/>
+                            </TabItem>
+                        </TabControl>
                         <TextBlock x:Name="ResultsText" Foreground="{StaticResource Fg}" FontFamily="{StaticResource Mono}"
                                    FontSize="12.5" TextWrapping="Wrap" LineHeight="20"/>
                         <Button x:Name="CloseResults" Content="Close" Click="Close_Click" Margin="0,18,0,0" Height="36"
@@ -377,6 +389,10 @@
                         <TextBlock Text="HeRo Shield · read-only check" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,2,0,14"/>
                         <TextBlock Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"
                                    Text="A read-only check of running programs, standard Windows execution logs, your drives, game folder and recycle bin. It takes one screenshot for staff and opens a page to connect your Discord. It never changes files, reads personal documents or messages, or installs anything. You may record your own screen the whole time."/>
+                        <CheckBox x:Name="BrowserOptIn" Margin="0,0,0,12" Foreground="#FFE8EEF6" IsChecked="False">
+                            <TextBlock TextWrapping="Wrap" Width="360" FontSize="11"
+                                       Text="Optional: share up to 100 recent search records and download records per browser profile with the staff reviewing this scan. This data is added to the scan report and uploaded to the server. No passwords, cookies, or private browsing records are collected. Leave unchecked to keep browser data private."/>
+                        </CheckBox>
                         <StackPanel x:Name="PinRow" Margin="0,0,0,16">
                             <TextBlock x:Name="PinLabel" Text="SCAN PIN (given by staff)" Foreground="{StaticResource Faint}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,5"/>
                             <TextBox x:Name="PinInput" Height="38" Background="#FF0E1A2E" Foreground="{StaticResource Fg}"

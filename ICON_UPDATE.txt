@@ -1,0 +1,1 @@
+EXE icon updated to match the supplied 16x16 white magnifying glass image. Run BUILD.bat to compile on Windows. Windows may cache old icons; refresh Explorer if needed.

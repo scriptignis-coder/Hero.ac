@@ -1,0 +1,1 @@
+Original scan UI remains at 100% for 10 seconds after successful report upload, then closes. Completion overlay removed. Upload errors remain visible. Windows build/runtime not verified.

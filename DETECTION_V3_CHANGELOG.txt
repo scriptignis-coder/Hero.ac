@@ -1,0 +1,18 @@
+HeRoShield Scanner — Accuracy V3 patch
+
+Changes to Core/ForensicScan.cs:
+- Script brand strings, cheat-feature terms, and FiveM API usage alone are now suspicious review items, not confirmed detections.
+- File name + unsigned status + entropy + download location alone no longer creates a detection.
+- Embedded domain names and brand strings in file content are now suspicious indicators, not confirmed malicious communications.
+- Random-name / unusual-folder and packed unsigned executable heuristics are now suspicious review items.
+- High entropy alone is suspicious, not a confirmed cheat.
+- Screen-capture + input libraries coexisting are suspicious, not conclusive (accessibility/testing apps exist).
+- Proxy DLLs in FiveM folders are suspicious until corroborated.
+- Existing exact SHA-256 signature detection and other evidence paths remain.
+- Original scanner UI, dashboard upload, and 10-second close-after-upload flow unchanged.
+
+LIMITATIONS:
+- This is an accuracy / false-positive reduction patch, not a full parser or disassembler.
+- Some other legacy heuristic paths may still generate false positives; a Windows test corpus is required.
+- No Windows .NET build or runtime test was possible in this environment.
+- Ensure players understand and consent to collection of sensitive PC/browser data.

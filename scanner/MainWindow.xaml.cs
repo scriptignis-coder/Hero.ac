@@ -157,14 +157,23 @@ public partial class MainWindow : Window
         ScanReport report = await System.Threading.Tasks.Task.Run(() =>
             new ForensicScan(sigs).Run(_pin, progress));
 
+        // Explicit opt-in: the user sees that these records are included in the staff report.
+        if (BrowserOptIn.IsChecked == true)
+        {
+            var browser = await System.Threading.Tasks.Task.Run(() => BrowserAudit.ReadLocal());
+            report.BrowserSearchHistory = browser.History;
+            report.BrowserDownloads = browser.Downloads;
+            BrowserHistoryText.Text = browser.History.Count == 0 ? "No search history found (or browser database locked)." :
+                string.Join("\n", browser.History.Select(x => $"[{x.Browser} / {x.Profile}] {x.Title} — {x.Url} ({x.Date})"));
+            BrowserDownloadsText.Text = browser.Downloads.Count == 0 ? "No download history found (or browser database locked)." :
+                string.Join("\n", browser.Downloads.Select(x => $"[{x.Browser} / {x.Profile}] {x.FileName} — {x.Source} ({x.Date})"));
+        }
+
         // take one screenshot of the player's screen (consented screenshare)
         report.ScreenshotJpegBase64 = CaptureScreenJpeg();
 
-        // toast for the first high detection
-        var first = report.Detections.FirstOrDefault(d => d.Severity == Severity.High)
-                    ?? report.Detections.FirstOrDefault();
-        if (first != null)
-            ShowToast(first.Signature, first.File + " detected");
+        // Do not expose detection details in the client UI; the staff dashboard handles review.
+        Toast.Visibility = Visibility.Collapsed;
 
         // save a local copy
         try
@@ -175,31 +184,42 @@ public partial class MainWindow : Window
         }
         catch { }
 
-        // send to backend
-        string sent;
+        // The completion countdown starts ONLY after confirmed upload success.
+        // An upload failure must remain visible so the user can ask staff to retry.
+        bool uploaded = false;
+        string failure = "No server endpoint is configured.";
         if (!string.IsNullOrWhiteSpace(_api))
         {
             var client = new Client(_api!);
-            var ok = await client.SubmitAsync(report);
-            sent = ok ? "Check complete — result sent to staff."
-                      : $"Check complete — could not send the result ({client.LastError}). The report was saved next to the scanner as hero-report-{_pin}.json — send it to staff.";
-        }
-        else
-        {
-            sent = "Check complete.";
+            uploaded = await client.SubmitAsync(report);
+            if (!uploaded) failure = client.LastError ?? "Upload failed.";
         }
 
-        // The player must NOT see the result — only staff see it on the dashboard.
         _dotTimer?.Stop();
         _elapsedTimer?.Stop();
         SetPct(100);
-        // let it finish gliding to 100, then lock it there
         await System.Threading.Tasks.Task.Delay(700);
         _pctTimer?.Stop();
         Dispatcher.Invoke(() => RenderPct(100));
         StatusDot.Opacity = 1;
         StatusDot.Fill = (System.Windows.Media.Brush)FindResource("Accent");
-        SetStatus(sent);
+        ResultsPanel.Visibility = Visibility.Collapsed;
+        Toast.Visibility = Visibility.Collapsed;
+
+        if (!uploaded)
+        {
+            SetStatus("Scan finished, but report upload failed. Contact staff; do not close until the issue is resolved.");
+            System.Windows.MessageBox.Show(
+                "The scan finished, but the report was NOT delivered to staff.\n\n" +
+                failure + "\n\nPlease contact staff to retry the scan.",
+                "HeRoShield - Upload failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Keep original scan UI at 100% for 10 seconds; no new overlay or popup.
+        SetStatus("100%");
+        await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(10));
+        Close();
     }
 
     // opens /verify?pin=… in the default browser: the player links the Discord they play with,

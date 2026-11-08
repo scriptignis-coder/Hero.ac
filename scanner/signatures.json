@@ -13,7 +13,8 @@
   {"name": "Manual-map injector", "fileNames": ["inject64.exe", "injector.exe", "manualmap.exe", "xenos64.exe", "extreme-injector.exe"], "features": ["Injector"], "severity": "medium"},
   {"name": "YimMenu", "fileNames": ["yimmenu.dll", "yimmenu.exe"], "features": ["Mod menu", "Spawn menu", "God mode"], "severity": "high"},
   {"name": "Kiddion's Modest Menu", "fileNames": ["modest-menu.exe", "modestmenu.exe"], "features": ["Mod menu", "Teleport", "God mode"], "severity": "high"},
-  {"name": "Lua executor", "fileNames": ["luaexecutor.exe", "lua_executor.exe", "fivemexecutor.exe", "executor.dll"], "features": ["Lua executor", "Resource stopper"], "severity": "high"},
+  {"name": "Lua executor", "fileNames": ["luaexecutor.exe", "lua_executor.exe", "fivemexecutor.exe"], "features": ["Lua executor", "Resource stopper"], "severity": "high"},
   {"name": "Cheat Engine", "fileNames": ["cheatengine-x86_64.exe", "cheatengine-x86_64-sse4-avx2.exe", "cheatengine-i386.exe", "cheatengine.exe"], "features": ["Memory editor"], "severity": "medium"},
-  {"name": "Extreme Injector", "fileNames": ["extreme injector v3.exe", "extremeinjector.exe"], "features": ["DLL injector"], "severity": "medium"}
+  {"name": "Extreme Injector", "fileNames": ["extreme injector v3.exe", "extremeinjector.exe"], "features": ["DLL injector"], "severity": "medium"},
+  {"name": "SecHex spoofer", "fileNames": ["sechex-gui.exe", "sechex.exe", "sechex-spoofer.exe", "sechexspoofer.exe"], "features": ["HWID spoofer"], "severity": "high"}
 ]

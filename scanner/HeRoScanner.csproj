@@ -19,13 +19,20 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>hero-icon.ico</ApplicationIcon>
 
-    <Version>4.0.0</Version>
+    <Version>4.1.0</Version>
     <Company>HeRo Shield</Company>
     <Product>HeRo Scanner</Product>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- WPF window icon must be embedded as a WPF Resource, not only as the Win32 application icon. -->
+    <Resource Include="hero-icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.8" />
     <PackageReference Include="System.Management" Version="8.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
