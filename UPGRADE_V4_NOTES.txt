@@ -1,0 +1,10 @@
+HeRoShield Accuracy V4 — source upgrade
+- Added ScriptIntelligence.cs: conservative cross-signal script triage.
+- Combines process memory modification + access, game interaction + cheat-like behavior,
+  or network download + dynamic evaluation + decoding into explainable SUSPICIOUS leads.
+- Removes common single-line comments before script triage, preserving string literals.
+- No keyword-only or script-behavior-only CONFIRMED verdict; analyst review required.
+- No execution of suspicious code and no change to scanner GUI or report upload workflow.
+- The existing scan engine is retained; this is an incremental accuracy improvement,
+  not a complete AST parser, decompiler, sandbox, or verified Napse.ac equivalent.
+- Build on Windows using BUILD.bat; Windows compilation and runtime tests are pending.
