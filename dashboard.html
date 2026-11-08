@@ -250,7 +250,7 @@ footer { border-top: 1px solid var(--line); padding: 36px 0; color: var(--dim); 
 .dash { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
 .side {
   border-right: 1px solid var(--line); background: rgba(8, 11, 22, .85); padding: 20px 14px;
-  display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain;
 }
 .side .brand { padding: 6px 10px 22px; }
 .side-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 14px 12px 6px; }
@@ -616,6 +616,35 @@ body{background:radial-gradient(ellipse 65% 35% at 70% 0%,rgba(0,112,225,.12),tr
 button,a{transition:background .2s,color .2s,border-color .2s}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important}}
 
+
+
+/* troubleshooting tab */
+.ts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.ts-card{display:flex;flex-direction:column;gap:10px}
+.ts-head{display:flex;gap:12px;align-items:center}
+.ts-ic{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:10px;border:1px solid rgba(77,141,255,.25);background:rgba(77,141,255,.08);font-size:17px}
+.ts-head small{color:#8fb4ff;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+.ts-head h3{margin:2px 0 0;font-size:16px}
+.ts-text{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0}
+.ts-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.55}
+.ts-steps li::marker{color:#4d8dff;font-weight:700}
+.ts-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:6px}
+@media (max-width:620px){.ts-grid{grid-template-columns:1fr}}
+/* v19 — permission duration (Duration + Unit + preview) */
+.perm-dur{margin-top:14px}
+.perm-dur-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.perm-dur-grid label,.perm-field{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;color:var(--text)}
+.perm-dur-grid .input,.perm-field .input{width:100%;border-radius:999px;padding:12px 18px}
+.perm-dur-grid .input:disabled{opacity:.45}
+.perm-field{margin-bottom:14px}
+.perm-radio{display:flex;align-items:center;gap:10px;font-weight:500;font-size:14.5px;color:var(--text);cursor:pointer;padding:4px 0}
+.perm-radio input{width:17px;height:17px;accent-color:#4d8dff}
+.perm-preview{margin-top:14px;border-radius:12px;background:rgba(77,141,255,.06);border:1px solid rgba(77,141,255,.16);padding:12px 14px}
+.perm-preview small{display:block;color:var(--muted);font-size:11.5px;margin-bottom:4px}
+.perm-preview b{display:block;font-size:15px;color:var(--text)}
+.perm-preview p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.perm-save{width:100%;margin-top:14px;border-radius:999px;justify-content:center}
+@media (max-width:620px){.perm-dur-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -672,7 +701,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <div class="side-label">Help</div>
     <button class="side-link" data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button class="side-link" data-tab="changelogs"><svg><use href="#i-logs"/></svg>Changelogs</button>
-    <a class="side-link" href="/troubleshooting"><svg><use href="#i-book"/></svg>Troubleshooting</a>
+    <button class="side-link" data-tab="troubleshooting"><svg><use href="#i-book"/></svg>Troubleshooting</button>
     <div class="side-label">Scanner Workspace</div>
     <button class="side-link" data-tab="profile"><svg><use href="#i-users"/></svg>My Profile</button>
     <button class="side-link" data-tab="subscription"><svg><use href="#i-key"/></svg>My License</button>
@@ -683,6 +712,7 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <button class="side-link" data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button class="side-link" data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team Directory</button>
     <button class="side-link" data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff team</button>
+    <button class="side-link" data-tab="auditlogs" data-perm="admin" hidden><svg><use href="#i-logs"/></svg>Activity logs</button>
     <div class="side-user">
       <img id="u-avatar" alt="" hidden>
       <span id="u-fallback" class="avatar-fallback"></span>
@@ -713,10 +743,12 @@ button,a{transition:background .2s,color .2s,border-color .2s}
     <button data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Activity</button>
     <button data-tab="ranking"><svg><use href="#i-users"/></svg>Ranking</button>
     <button data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
+    <button data-tab="troubleshooting"><svg><use href="#i-book"/></svg>Help</button>
     <button data-tab="rolemanager" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Permissions</button>
     <button data-tab="access" data-perm="admin" hidden><svg><use href="#i-key"/></svg>Access</button>
     <button data-tab="teamdirectory" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Team</button>
     <button data-tab="staff" data-perm="admin" hidden><svg><use href="#i-users"/></svg>Staff</button>
+    <button data-tab="auditlogs" data-perm="admin" hidden><svg><use href="#i-logs"/></svg>Logs</button>
   </nav>
 </div>
 

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { wrap, send, requireAccess, sb, enc, readBody, httpError, str } from './_lib.js';
+import { wrap, send, requireAccess, sb, enc, readBody, httpError, str, audit } from './_lib.js';
 export default wrap(async (req,res)=>{
   const user=await requireAccess(req,'herocheck');
   const owner=String(user.id);
@@ -12,6 +12,7 @@ export default wrap(async (req,res)=>{
     if(!label) throw httpError(400,'License name required');
     const license_key='HSC-'+crypto.randomBytes(20).toString('hex').toUpperCase();
     const rows=await sb('scanner_licenses',{method:'POST',body:{owner_discord:owner,label,license_key},prefer:'return=representation'});
+    await audit(user,'license.create',{target:owner,targetName:user.name,detail:{label,license_id:rows[0]?.id,key_end:license_key.slice(-6)}});
     return send(res,201,{license:rows[0]});
   }
   if(req.method==='DELETE'){
@@ -20,6 +21,7 @@ export default wrap(async (req,res)=>{
     const rows=await sb(`scanner_licenses?id=eq.${enc(id)}&owner_discord=eq.${enc(owner)}&revoked_at=is.null&select=id`);
     if(!rows?.length) throw httpError(404,'License not found');
     await sb(`scanner_licenses?id=eq.${enc(id)}&owner_discord=eq.${enc(owner)}`,{method:'PATCH',body:{revoked_at:new Date().toISOString()}});
+    await audit(user,'license.revoke',{target:owner,targetName:user.name,detail:{license_id:id}});
     return send(res,200,{ok:true});
   }
   throw httpError(405,'Method not allowed');

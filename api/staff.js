@@ -1,4 +1,4 @@
-import { wrap, send, requireAccess, readBody, sb, enc, str, httpError, clearAccessCache } from './_lib.js';
+import { wrap, send, requireAccess, readBody, sb, enc, str, httpError, clearAccessCache, expiryFrom, durationText, audit } from './_lib.js';
 
 // Staff team for the account. Owner-scoped.
 export default wrap(async (req, res) => {
@@ -24,9 +24,11 @@ export default wrap(async (req, res) => {
       role: b.role === 'admin' ? 'admin' : 'staff',
     };
     // Grant permissions first; an API failure must not silently create an unusable staff member.
-    await sb('user_access?on_conflict=discord_id', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: { discord_id: did, name: row.name, heroshield: hs, herocheck: hc } });
+    const expires_at = b.duration ? expiryFrom(b.duration.amount, b.duration.unit) : null;
+    await sb('user_access?on_conflict=discord_id', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: { discord_id: did, name: row.name, heroshield: hs, herocheck: hc, expires_at, granted_by: String(user.id), granted_at: new Date().toISOString() } });
     const created = await sb('staff', { method: 'POST', body: row, prefer: 'return=representation' });
     clearAccessCache(did);
+    await audit(user, 'permission.grant', { target: did, targetName: row.name, detail: { permissions: [hs && 'HeRo Shield', hc && 'HeRo Check'].filter(Boolean), duration: b.duration ? durationText(b.duration.amount, b.duration.unit) : 'lifetime', expires_at, via: 'Staff team' } });
     return send(res, 200, { member: Array.isArray(created) ? created[0] : created, access: { heroshield: hs, herocheck: hc } });
   }
 
@@ -35,6 +37,7 @@ export default wrap(async (req, res) => {
     await sb(`staff?id=eq.${enc(req.query.id)}&owner_discord=eq.${enc(user.id)}`, { method: 'DELETE' });
     // Do not silently revoke permissions assigned separately via the Access page.
     if (existing?.[0]?.discord_id) clearAccessCache(existing[0].discord_id);
+    await audit(user, 'staff.remove', { target: existing?.[0]?.discord_id || null });
     return send(res, 200, { ok: true });
   }
 

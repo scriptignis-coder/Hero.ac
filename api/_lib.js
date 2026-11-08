@@ -198,8 +198,10 @@ export async function getAccess(user) {
   const access = { heroshield: env.heroshield.includes(id), herocheck: env.herocheck.includes(id), admin: false };
   {
     try {
-      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin`);
-      if (rows && rows[0]) {
+      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin,expires_at`);
+      // a permission given for a limited time (1 hour, 2 days, 1 month…) stops by itself when it runs out
+      const expired = rows && rows[0] && rows[0].expires_at && Date.parse(rows[0].expires_at) <= Date.now();
+      if (rows && rows[0] && !expired) {
         access.heroshield = access.heroshield || !!rows[0].heroshield;
         access.herocheck = access.herocheck || !!rows[0].herocheck;
         access.admin = !!rows[0].admin;
@@ -211,6 +213,49 @@ export async function getAccess(user) {
   }
   accessCache.set(id, { at: Date.now(), access });
   return access;
+}
+
+// ---------- permission duration ----------
+// unit: hour | day | week | month | year | lifetime  → ISO date, or null for lifetime
+export const DURATION_UNITS = ['hour', 'day', 'week', 'month', 'year', 'lifetime'];
+export function expiryFrom(amount, unit, from = new Date()) {
+  unit = String(unit || 'lifetime').toLowerCase().replace(/s$/, '');
+  if (unit === 'lifetime') return null;
+  if (!DURATION_UNITS.includes(unit)) throw httpError(400, 'Unknown duration unit');
+  const n = Math.floor(Number(amount));
+  if (!Number.isFinite(n) || n < 1 || n > 1000) throw httpError(400, 'Duration must be between 1 and 1000');
+  const d = new Date(from.getTime());
+  if (unit === 'hour') d.setTime(d.getTime() + n * 3600e3);
+  else if (unit === 'day') d.setTime(d.getTime() + n * 86400e3);
+  else if (unit === 'week') d.setTime(d.getTime() + n * 7 * 86400e3);
+  else if (unit === 'month') d.setMonth(d.getMonth() + n);
+  else if (unit === 'year') d.setFullYear(d.getFullYear() + n);
+  return d.toISOString();
+}
+export const durationText = (amount, unit) => {
+  unit = String(unit || 'lifetime').toLowerCase().replace(/s$/, '');
+  if (unit === 'lifetime') return 'lifetime';
+  const n = Math.floor(Number(amount));
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+};
+
+// ---------- activity log (who gave which permission / created which license / PIN) ----------
+// Never throws: a missing audit_logs table must not break the action itself.
+export async function audit(actor, action, { target = null, targetName = null, detail = null } = {}) {
+  try {
+    await sb('audit_logs', {
+      method: 'POST', prefer: 'return=minimal',
+      body: {
+        actor_discord: actor ? String(actor.id) : null, actor_name: actor ? str(actor.name || '', 80) || null : null,
+        action: str(action, 60), target_discord: target ? String(target) : null, target_name: targetName ? str(targetName, 80) : null,
+        detail: detail || null,
+      },
+    });
+    return true;
+  } catch (e) {
+    console.error('audit log failed (run supabase-v19-permissions-logs.sql):', e.message);
+    return false;
+  }
 }
 
 // Logged in AND has the permission ('heroshield' | 'herocheck' | 'admin'), else 403.

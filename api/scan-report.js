@@ -46,7 +46,8 @@ export default wrap(async (req, res) => {
   const pin = String(report.Pin || report.pin || '').trim().toUpperCase();
   if (!pin) throw httpError(400, 'missing pin');
 
-  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id`);
+  // used + license_id are needed for the two checks below (they were never read before, so used PINs could be re-sent)
+  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id,used,license_id`);
   if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
   if(rows[0].used) throw httpError(410,'pin already used');

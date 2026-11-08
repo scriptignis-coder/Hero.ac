@@ -1,9 +1,8 @@
-# HeRo Shield scanner
+# HeRo Shield — website
 
-- `scanner/` — the C# source (.NET 8, WPF).
-- **Build on your PC:** double-click `BUILD.bat` → `HeRoShieldScanner.exe` appears next to it.
-  Upload it to your GitHub release **v1.0** with the name **HeRoShield.exe**.
-- **Or let GitHub build it:** put this folder in a GitHub repo (keep `.github/workflows/build-scanner.yml`).
-  Every push builds `HeRoShield.exe` on Windows and puts it in release **v1.0** of that repo.
-  If that repo is not SouthSide, set `SCANNER_EXE_URL` on Render to
-  `https://github.com/<you>/<repo>/releases/download/v1.0/HeRoShield.exe`.
+Node site for Render: `npm start` (server.js). Everything else is in **DOCS.md**.
+
+- `api/` — backend routes · `assets/` — dashboard JS, images · `database/` — Supabase SQL · `tests/` — `npm test`
+- The Windows scanner lives in its own folder / repo (not needed by the website).
+
+Setup: Supabase → SQL Editor → run `database/supabase-all.sql` (it includes v19). Set the env vars from `.env.example` on Render.

@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -193,7 +193,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'admin'
   };
   function canAccess(tab) {
     if (!TITLES[tab] || tab === 'quicktools' || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
@@ -234,9 +234,11 @@
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
+    if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
     if (state.tab === 'changelogs') return renderChangelogs(view);
     if (state.tab === 'rolemanager') return renderRoleManager(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (state.tab === 'access') return renderAccess(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
+    if (state.tab === 'auditlogs') return renderAuditLogs(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
         <p style="margin-bottom:16px">You don't have a server yet.</p>
@@ -269,7 +271,7 @@
     view.innerHTML=loading();
     try {
       const billing=await api('/api/billing-status');
-      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('License',billing.staffAccess?'Staff access (no payment)':billing.active?(billing.lifetime?'Lifetime':'Active'):'Inactive')}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
+      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',billing.staffAccess?'Staff access (no payment)':billing.active?(billing.lifetime?'Lifetime':'Active'):'Inactive')}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
       const opt=await api('/api/leaderboard-optin');
       view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
     } catch(e){wsError(view,e);}
@@ -484,17 +486,22 @@
   }
 
   async function renderPins(view) {
-    const { pins, licenses } = await api('/api/pins');
+    const { pins, licenses, quota } = await api('/api/pins');
     state.pins = pins;
+    const q = quota || { unlimited: true };
+    const quotaHtml = q.unlimited ? '' : `<div class="license-box" style="margin-bottom:12px;justify-content:space-between">
+        <span style="font-size:13px">${q.left > 0 ? `<b style="color:var(--green)">${q.left}</b> of ${q.limit} PIN left today` : `<b style="color:var(--red)">Daily limit reached</b> (${q.limit} PIN per day)`}</span>
+        <span style="color:var(--dim);font-size:12px">new PIN ${q.left > 0 ? 'available now' : 'after ' + esc(new Date(q.resetAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</span></div>`;
     const activeLicenses=(licenses||[]).filter(l=>!l.revoked_at);
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Generate a scan PIN</h3>
         <p class="workspace-note">Select a scanner license (no FiveM server required).</p>
+        ${quotaHtml}
         ${activeLicenses.length?`<select id="pin-license" class="input" style="width:100%;margin-bottom:12px">${activeLicenses.map(l=>`<option value="${esc(l.id)}" ${state.selectedLicense===l.id?'selected':''}>${esc(l.label)} · ${esc(l.license_key)}</option>`).join('')}</select>`:'<p class="workspace-note">No active license. Open My License to create one.</p>'}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <input id="pin-player" class="input" style="flex:1;min-width:180px" placeholder="Player name (optional)">
-          <button class="btn btn-primary" data-newpin ${activeLicenses.length?'':'disabled'}>Generate PIN</button>
+          <button class="btn btn-primary" data-newpin ${activeLicenses.length && (q.unlimited || q.left > 0)?'':'disabled'}>Generate PIN</button>
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
@@ -525,7 +532,8 @@
 
   // ---------- scan report (HeRo Scanner v4) — napse-style ----------
   const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
-    'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream'];
+    'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream',
+    'File journal', 'Inside FiveM'];
   const SEV = ['low', 'medium', 'high'];
   const discordIcon = (g) => g.icon ? `https://cdn.discordapp.com/icons/${g.id || g.guild_id}/${g.icon}.png?size=64` : '';
 
@@ -620,6 +628,8 @@
     const entropy = suspAll.filter((x) => /entropy/i.test(F(x, 'Kind') || ''));
     const susp = suspAll.filter((x) => !/entropy/i.test(F(x, 'Kind') || ''));
     const executed = L('ExecutedPrograms'), cmds = L('Commands'), deleted = L('DeletedFiles');
+    const journal = L('Journal'), journalInfo = R('JournalInfo') || '';
+    const jRed = journal.filter((x) => F(x, 'Level') === 2).length, jOrange = journal.filter((x) => F(x, 'Level') === 1).length;
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
     const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
     const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
@@ -726,6 +736,7 @@
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
+      ['journal', 'File journal', jRed ? jRed + ' cheat' : jOrange ? jOrange + ' check' : journal.length || '–', jRed ? 'red' : jOrange ? 'orange' : 'blue'],
       ['files', 'Files & mods', deleted.length + recent.filter((x) => F(x, 'Flagged')).length + mods.length, 'blue'],
       ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['events', 'Event log', events.length, 'blue'],
@@ -876,6 +887,19 @@
           ...fl(fw).map((x) => rowL('orange', esc(x))),
           rowL(/MODIFIED/i.test(S('HostsFileStatus') || '') ? 'red' : 'green', 'hosts file: ' + esc(S('HostsFileStatus') || 'normal')),
         ], ''),
+
+      journal: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
+        const act = (x) => ({ Deleted: 'deleted', Recycled: 'sent to recycle bin', Renamed: 'renamed', Created: 'created' }[F(x, 'Action')] || F(x, 'Action'));
+        const items = fl(journal, 'Name', 'OldName', 'Action', 'Why', 'When');
+        return head('File-change journal (last 7 days)', items.length,
+            'Windows writes every file created / deleted / renamed into the NTFS journal — it still shows cheats the player deleted or renamed, even after emptying the recycle bin. '
+            + 'Red = cheat file or cheat-named file. Orange = random-named or deleted just before the check.' + (journalInfo ? ' · ' + esc(journalInfo) : ''))
+          + rows(items.slice(0, 600).map((x) => rowL(lv(x),
+              `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b>${F(x, 'OldName') ? ` <span style="color:var(--dim)">← was ${esc(F(x, 'OldName'))}</span>` : ''} &nbsp;<span style="color:var(--dim)">${esc(act(x))}${F(x, 'Why') ? ' · ' + esc(F(x, 'Why')) : ''}</span>`,
+              esc(F(x, 'When')))),
+            R('Journal') ? 'Nothing deleted or renamed in the last 7 days.' : 'This report has no journal — the player used an older scanner (needs v4.3+).');
+      },
 
       files: () => head('Recycle bin', deleted.length) + rows(fl(deleted, 'File').map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
         + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(fl(recent, 'Name', 'Path').slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
@@ -1158,6 +1182,58 @@
     } catch(e) { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
   }
 
+  // ---------- troubleshooting (everyone): scanner won't open, antivirus, PIN, report, Discord, access ----------
+  const TS_ISSUES = [
+    { icon: '⚙', tag: 'Scanner', title: "The scanner doesn't open",
+      text: 'The scanner (v4.2 and newer) runs on <b>.NET Framework 4.8</b>, which is already part of Windows 10 and 11 — nothing to install on a normal PC. It needs administrator rights to read the PC.',
+      steps: ['Right-click the .exe → <b>Run as administrator</b> and accept the Windows prompt.',
+              'If Windows shows <b>"Windows protected your PC"</b>: click <b>More info</b> → <b>Run anyway</b>.',
+              'Still nothing? Install / repair <b>.NET Framework 4.8</b> from Microsoft, restart, try again.',
+              'An older scanner (before v4.2) needs the <b>.NET 8 Desktop Runtime (x64)</b> instead — download the scanner again from a new PIN link to get the new one.',
+              'If an error window appears, send staff the file <span class="mono">%TEMP%\\HeRoShield-startup-error.log</span>.'],
+      links: [['https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48', '.NET Framework 4.8 (Microsoft)'], ['https://dotnet.microsoft.com/en-us/download/dotnet/8.0', '.NET 8 Desktop Runtime (old scanners)']] },
+    { icon: '🛡', tag: 'Antivirus', title: 'The antivirus removed or blocked the scanner',
+      text: 'A brand-new download can be stopped by Microsoft Defender or another antivirus. You do <b>not</b> need to turn your antivirus off.',
+      steps: ['Open <b>Windows Security → Virus & threat protection → Protection history</b>.',
+              'Select the HeRoShield entry → <b>Actions → Restore</b> (or "Allow on device").',
+              'Or download the scanner again from the same PIN link and run it right away.'] },
+    { icon: '#', tag: 'PIN', title: 'PIN not found / already used',
+      text: 'Each PIN works for one scan only. "Not found" means a typo or a deleted PIN.',
+      steps: ['Use the download link staff sent you — the PIN is already inside the scanner.',
+              'If it says <b>already used</b>, ask staff for a new link.',
+              'Staff: clients can create <b>1 PIN per day</b> (resets at midnight). Admins have no limit.'] },
+    { icon: '☁', tag: 'Connection', title: 'Report not delivered / "could not reach the server"',
+      text: 'The server can take up to a minute to wake up. The scanner retries by itself 3 times.',
+      steps: ['Keep the scanner open until it shows 100% — do not close it during the scan.',
+              'Check your internet connection (VPN / school or work network can block it).',
+              'Optional: install <b>Cloudflare WARP</b>, turn it on, run the scanner again.',
+              'A copy of the report is saved next to the scanner as <span class="mono">hero-report-PIN.json</span> — staff can ask for it.'],
+      links: [['https://one.one.one.one/', 'Cloudflare WARP (optional)']] },
+    { icon: '◎', tag: 'Discord', title: 'Discord connect shows an error',
+      text: 'The scanner opens the Discord connect page in your browser. Use the Discord account you play with.',
+      steps: ['If the page did not open, ask staff for the <span class="mono">/verify?pin=…</span> link.',
+              '<b>"This PIN does not exist"</b>: the PIN was deleted — ask for a new one.',
+              '<b>"Database is not up to date"</b> (staff): run the Supabase SQL files from the setup guide.'] },
+    { icon: '⏱', tag: 'Dashboard', title: 'No access / access expired',
+      text: 'Dashboard permissions can be given for a limited time (1 hour, 1 day, 1 month…). When the time ends, the access stops by itself.',
+      steps: ['See your remaining time in <b>My Profile → Access time</b>.',
+              'Expired? Ask an admin to give it again (Permission Manager or Access).',
+              'Admins can see every change in <b>Activity logs</b>.'] },
+  ];
+  function renderTroubleshooting(view) {
+    view.innerHTML = `<div class="workspace-hero"><div><h2>Troubleshooting</h2><p>Scanner won't open, antivirus, PIN, report or Discord problems — follow the steps in order.</p></div></div>
+      <div class="ts-grid">${TS_ISSUES.map((i, n) => `<section class="card panel ts-card">
+        <div class="ts-head"><span class="ts-ic">${i.icon}</span><div><small>${esc(i.tag)} · ${String(n + 1).padStart(2, '0')}</small><h3>${esc(i.title)}</h3></div></div>
+        <p class="ts-text">${i.text}</p>
+        <ol class="ts-steps">${i.steps.map((st) => `<li>${st}</li>`).join('')}</ol>
+        ${i.links ? `<div class="ts-links">${i.links.map(([u, l]) => `<a class="btn btn-ghost btn-sm" href="${u}" target="_blank" rel="noopener noreferrer">↗ ${esc(l)}</a>`).join('')}</div>` : ''}
+      </section>`).join('')}</div>
+      <div class="card panel" style="margin-top:18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center">
+        <div><b>Still stuck?</b><p class="workspace-note" style="margin:4px 0 0">Open a support ticket with your PIN and a screenshot of the error.</p></div>
+        <a class="btn btn-primary" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener noreferrer">Open Discord support</a>
+      </div>`;
+  }
+
   function renderTutorial(view) {
     const step = (t, d) => `<li><b>${t}</b><p style="color:var(--muted);margin:4px 0 0">${d}</p></li>`;
     view.innerHTML = `
@@ -1187,6 +1263,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v19', 'Permissions with a time: give HeRo Check / HeRo Shield / Admin for 1 hour, 1 day, 2 days, 1 week, 1 month, any amount of hours / days / weeks / months / years, or Lifetime — it stops by itself and shows "Expired". New Activity logs page (admin): every permission given / removed, every license created / revoked, every PIN created / deleted and every purchase, with who did it and when. Clients (non-admin) can create 1 scan PIN per day. Scanner v4.3 File journal tab. Fixes: a used PIN could be sent again (the "used" check never ran); scanner-only licenses did not send your signatures to the scanner; Discord history lookup did not work without a FiveM server.'],
       ['4.1.0', 'New FiveM tab in the scan report: every mod in the FiveM folders is opened and read, including .rpf archives (and archives inside archives). No-recoil / no-spread / damage-boosted weapons.meta and no-bush / no-grass / no-water visibility mods are shown as red lines, in the FiveM tab and in Detects. Graphics mods (visualsettings, timecycle) are orange, ReShade / ENB green. Plugins and scripts are judged by their code, not their name. Filter box on every report tab. Discord tab: cheat servers he LEFT are shown too — found in the Discord / browser cache on his PC (server icons, invite pages, channel links) and in his earlier checks; the date he joined the cheat servers he is in; servers he joined since his last check; cheat-looking server names in orange.'],
       ['4.0.0', 'Much stronger cheat detection: reads UTF-16 strings (C#/.NET cheats were invisible before), cheat score per program (menu features like triggerbot / silent aim / no recoil, FiveM executor code, injection APIs, ImGui overlay, unsigned, cheat-named folder), menu names found even in renamed loaders in Downloads/Temp/AppData, cheat-named programs that ran (even deleted), cheat files inside .zip archives, ReShade/ENB recognised. Startup &amp; scheduled-task persistence, loaded kernel drivers (unsigned / user-folder / exploitable), live network connections, ShimCache &amp; PCA execution history, Windows event log (cleared logs, driver installs, Defender alerts, clock changes), hosts file &amp; firewall blocking, hidden NTFS streams, VM detection, Rockstar / Epic accounts, cheat tools running (Cheat Engine, injectors, ReClass). Fewer false positives: RGB / motherboard drivers and normal apps (Discord, Steam) no longer flagged as cheating. Tabbed report on the dashboard.'],
       ['3.7.0', 'Antivirus detection (Security Center, Defender exclusions), injection hooks (AppInit_DLLs, IFEO, test-signing), USB device history, browser detection, unsigned exe flagging, warning categories'],
@@ -1229,6 +1306,57 @@
       </div>`;
   }
 
+  // ---------- permission duration: Duration (number) + Unit (hours … years / Lifetime) + live preview ----------
+  const UNITS = [['hour', 'Hours'], ['day', 'Days'], ['week', 'Weeks'], ['month', 'Months'], ['year', 'Years'], ['lifetime', 'Lifetime']];
+  function durationPicker(id, def = [1, 'day']) {
+    return `<div class="perm-dur" data-dur="${id}">
+      <div class="perm-dur-grid">
+        <label><span>Duration</span><input type="number" min="1" max="1000" class="input" id="${id}-n" value="${def[0] || 1}" ${def[1] === 'lifetime' ? 'disabled' : ''}></label>
+        <label><span>Unit</span><select class="input" id="${id}-u">${UNITS.map(([u, l]) => `<option value="${u}" ${u === def[1] ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      </div>
+      <div class="perm-preview"><small>Permission preview</small><b id="${id}-title">—</b><p id="${id}-txt"></p></div>
+    </div>`;
+  }
+  const durLabel = (d) => (d.unit === 'lifetime' ? 'Lifetime' : `${d.amount} ${d.unit}${d.amount === 1 ? '' : 's'}`);
+  // labelFn() → what is being given ("HeRoCheck", "Admin", "HeRo Shield + HeRo Check"…)
+  function wireDuration(root, id, labelFn = () => 'Access') {
+    const n = root.querySelector(`#${id}-n`), u = root.querySelector(`#${id}-u`);
+    const title = root.querySelector(`#${id}-title`), txt = root.querySelector(`#${id}-txt`);
+    if (!n || !u) return () => {};
+    const show = () => {
+      n.disabled = u.value === 'lifetime';
+      const d = readDuration(root, id);
+      const what = labelFn() || 'No permission selected';
+      title.textContent = `${what} — ${durLabel(d)}`;
+      txt.textContent = d.unit === 'lifetime' ? 'Never expires — stays until you remove it.'
+        : `Access expires automatically after the selected duration (${fmtDate(new Date(endOf(d)).toISOString())}).`;
+    };
+    n.addEventListener('input', show); u.addEventListener('change', show); show();
+    return show;   // call it again when the permission choice changes
+  }
+  function readDuration(root, id) {
+    const u = root.querySelector(`#${id}-u`)?.value || 'lifetime';
+    const n = Math.max(1, Math.min(1000, parseInt(root.querySelector(`#${id}-n`)?.value || '1', 10) || 1));
+    return u === 'lifetime' ? { amount: 0, unit: 'lifetime' } : { amount: n, unit: u };
+  }
+  function endOf(d) {
+    const t = new Date();
+    if (d.unit === 'hour') t.setTime(t.getTime() + d.amount * 3600e3);
+    else if (d.unit === 'day') t.setTime(t.getTime() + d.amount * 86400e3);
+    else if (d.unit === 'week') t.setTime(t.getTime() + d.amount * 7 * 86400e3);
+    else if (d.unit === 'month') t.setMonth(t.getMonth() + d.amount);
+    else if (d.unit === 'year') t.setFullYear(t.getFullYear() + d.amount);
+    return t.getTime();
+  }
+  function timeLeft(iso) {
+    if (!iso) return '<span class="badge on">Lifetime</span>';
+    const ms = Date.parse(iso) - Date.now();
+    if (ms <= 0) return `<span class="badge ban" title="${esc(fmtDate(iso))}">Expired</span>`;
+    const h = ms / 3600e3, d = h / 24;
+    const left = d >= 60 ? `${Math.round(d / 30)} months` : d >= 7 ? `${Math.round(d)} days` : d >= 1 ? `${Math.floor(d)} d ${Math.floor(h % 24)} h` : h >= 1 ? `${Math.floor(h)} h ${Math.floor((ms % 3600e3) / 60e3)} min` : `${Math.max(1, Math.floor(ms / 60e3))} min`;
+    return `<span class="badge ${d < 1 ? 'kick' : 'log'}" title="ends ${esc(fmtDate(iso))}">${left} left</span>`;
+  }
+
   async function renderStaff(view) {
     const { staff } = await api('/api/staff');
     view.innerHTML = `
@@ -1240,6 +1368,7 @@
           <input type="hidden" id="staff-role" value="staff">
           <label><input type="checkbox" id="staff-hs" checked> HeRo Shield</label><label><input type="checkbox" id="staff-hc" checked> HeRo Check</label><button class="btn btn-primary" data-addstaff>Add & Grant Access</button>
         </div>
+        ${durationPicker('staffdur', [1, 'lifetime'])}
       </div>
       <div class="card panel"><h3>Team (${staff.length})</h3>
         ${staff.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Discord ID</th><th>Role</th><th>Added</th><th></th></tr></thead>
@@ -1249,11 +1378,13 @@
             <td><button class="btn btn-danger btn-sm" data-delstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No staff yet.</div>'}
       </div>`;
+    const staffShow = wireDuration(view, 'staffdur', () => [$('#staff-hs')?.checked && 'HeRo Shield', $('#staff-hc')?.checked && 'HeRo Check'].filter(Boolean).join(' + '));
+    ['#staff-hs', '#staff-hc'].forEach((q) => view.querySelector(q)?.addEventListener('change', staffShow));
     view.querySelector('[data-addstaff]')?.addEventListener('click', async () => {
       const name = $('#staff-name').value.trim(), discordId = $('#staff-did').value.trim();
       if (!name || !/^\d{15,22}$/.test(discordId)) return toast('Enter a name and valid Discord user ID', true);
       try {
-        await api('/api/staff', {method:'POST',body:{name,discordId,role:$('#staff-role').value,heroshield:$('#staff-hs').checked,herocheck:$('#staff-hc').checked}});
+        await api('/api/staff', {method:'POST',body:{name,discordId,role:$('#staff-role').value,heroshield:$('#staff-hs').checked,herocheck:$('#staff-hc').checked,duration:readDuration(view,'staffdur')}});
         toast('Staff access granted. Ask them to log in with Discord.');
         renderStaff(view);
       } catch(e) { toast(e.message,true); }
@@ -1270,15 +1401,34 @@
     const { users } = await api('/api/access');
     const owner = (users || []).some(u => String(u.discord_id) === String(state.user.id) && u.owner);
     view.innerHTML = `<div class="workspace-hero"><div><h2>Permission Manager</h2><p>Admin workspace · Assign dashboard access using Discord user IDs</p></div></div>
-      <div class="card panel" style="margin-bottom:18px"><h3>Grant a role</h3><p class="workspace-note">HeRoCheck opens the scanner dashboard only. Admin opens the management dashboard. Only the environment owner can grant Admin.</p>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><input class="input" id="role-id" placeholder="Discord user ID" style="flex:1;min-width:210px"><select class="input" id="role-type"><option value="herocheck">HeRoCheck — Scanner dashboard</option>${owner ? '<option value="admin">Admin — Management dashboard</option>' : ''}<option value="none">Revoke dashboard access</option></select><button class="btn btn-primary" id="role-save">Save permission</button></div></div>
-      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <div class="card panel perm-card" style="margin-bottom:18px">
+        <h3>Give a permission</h3>
+        <label class="perm-field"><span>Discord User ID</span><input class="input" id="role-id" placeholder="Enter Discord user ID" inputmode="numeric"></label>
+        <div class="perm-field"><span>Dashboard Permission</span>
+          <label class="perm-radio"><input type="radio" name="role-type" value="herocheck" checked> HeRoCheck — Scanner Dashboard</label>
+          ${owner ? '<label class="perm-radio"><input type="radio" name="role-type" value="admin"> Admin — Management Dashboard</label>' : ''}
+        </div>
+        ${durationPicker('roledur', [1, 'day'])}
+        <button class="btn btn-primary perm-save" id="role-save">Save permission</button>
+        <p class="workspace-note" style="margin-top:10px">Only the environment owner can grant Admin. Every change is written to Activity logs.</p>
+      </div>
+      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Time left</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.herocheck || u.heroshield) ? timeLeft(u.expires_at) : '-'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<div class="actions-cell"><button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>${(u.admin || u.herocheck) && !u.envHerocheck ? `<button class="btn btn-danger btn-sm" data-role-revoke="${esc(u.discord_id)}">Revoke</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+    const roleOf = () => view.querySelector('input[name="role-type"]:checked')?.value || 'herocheck';
+    const roleShow = wireDuration(view, 'roledur', () => (roleOf() === 'admin' ? 'Admin' : 'HeRoCheck'));
+    view.querySelectorAll('input[name="role-type"]').forEach((r) => r.addEventListener('change', roleShow));
     view.querySelectorAll('[data-role-id]').forEach(b => b.addEventListener('click', () => { view.querySelector('#role-id').value = b.dataset.roleId; view.querySelector('#role-id').focus(); }));
+    view.querySelectorAll('[data-role-revoke]').forEach(b => b.addEventListener('click', async () => {
+      if (!(await modal({ title: 'Revoke access', text: `Remove dashboard access for ${b.dataset.roleRevoke}?`, ok: 'Revoke', danger: true }))) return;
+      const payload = { discordId: b.dataset.roleRevoke, herocheck: false, heroshield: false };
+      if (owner) payload.admin = false;
+      try { await api('/api/access', { method: 'POST', body: payload }); toast('Access revoked'); await renderRoleManager(view); } catch (e) { toast(e.message, true); }
+    }));
     view.querySelector('#role-save').addEventListener('click', async () => {
       const discordId = view.querySelector('#role-id').value.trim();
-      const role = view.querySelector('#role-type').value;
+      const role = roleOf();
       if (!/^\d{15,22}$/.test(discordId)) return toast('Enter a valid Discord user ID', true);
       const payload = {discordId, herocheck:role==='herocheck', heroshield:false};
+      payload.duration = readDuration(view, 'roledur');
       if (owner) payload.admin = role==='admin';
       try { await api('/api/access', {method:'POST',body:payload}); toast('Permissions updated'); await renderRoleManager(view); }
       catch(e) { toast(e.message,true); }
@@ -1309,13 +1459,16 @@
           <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="acc-hc" checked> HeRo Check</label>
           <button class="btn btn-primary" data-addacc>Save</button>
         </div>
+        ${durationPicker('accdur')}
+        <p style="color:var(--dim);font-size:12px;margin-top:8px">When the time is over the access stops by itself (the person stays in the list, marked <b>Expired</b>). Every change is written to <b>Activity logs</b>.</p>
       </div>
       <div class="card panel"><h3>Accounts (${users.length})</h3>
-        ${users.length ? `<div class="table-wrap"><table><thead><tr><th>User</th><th>Discord ID</th><th>Access</th><th>Last login</th><th></th></tr></thead>
+        ${users.length ? `<div class="table-wrap"><table><thead><tr><th>User</th><th>Discord ID</th><th>Access</th><th>Time left</th><th>Last login</th><th></th></tr></thead>
           <tbody>${users.map((u) => `<tr>
             <td><div style="display:flex;gap:10px;align-items:center">${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="width:28px;height:28px;border-radius:50%">` : ''}<b>${esc(u.name) || '<span style="color:var(--dim)">not logged in yet</span>'}</b></div></td>
             <td class="mono">${esc(u.discord_id)}</td>
             <td>${u.admin ? '<span class="badge log">Owner — full access</span>' : `<div style="display:flex;gap:14px;flex-wrap:wrap">${box(u, 'heroshield')}${box(u, 'herocheck')}</div>`}</td>
+            <td>${u.owner || u.envHeroshield || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.heroshield || u.herocheck) ? timeLeft(u.expires_at) + ` <button class="btn btn-ghost btn-sm" data-extend="${esc(u.discord_id)}" title="Set a new duration from now (uses the Duration above)">Set time</button>` : '-'}</td>
             <td class="mono">${u.last_login ? fmtDate(u.last_login) : 'never'}</td>
             <td>${u.admin ? '' : `<button class="btn btn-danger btn-sm" data-delacc="${esc(u.discord_id)}">Remove</button>`}</td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">Nobody yet. Ask your staff to log in once, or add them by Discord ID.</div>'}
@@ -1324,12 +1477,23 @@
     const save = async (body, msg) => {
       try { await api('/api/access', { method: 'POST', body }); toast(msg); } catch (e) { toast(e.message, true); }
     };
-    view.querySelectorAll('[data-acc]').forEach((cb) => cb.addEventListener('change', () =>
-      save({ discordId: cb.dataset.uid, [cb.dataset.acc]: cb.checked }, 'Access updated')));
+    const accShow = wireDuration(view, 'accdur', () => [$('#acc-hs')?.checked && 'HeRo Shield', $('#acc-hc')?.checked && 'HeRo Check'].filter(Boolean).join(' + '));
+    ['#acc-hs', '#acc-hc'].forEach((q) => view.querySelector(q)?.addEventListener('change', accShow));
+    view.querySelectorAll('[data-acc]').forEach((cb) => cb.addEventListener('change', async () => {
+      const body = { discordId: cb.dataset.uid, [cb.dataset.acc]: cb.checked };
+      if (cb.checked) body.duration = readDuration(view, 'accdur');   // ticking = giving it for the chosen time
+      await save(body, 'Access updated'); renderAccess(view);
+    }));
+    view.querySelectorAll('[data-extend]').forEach((b) => b.addEventListener('click', async () => {
+      const u = users.find((x) => String(x.discord_id) === b.dataset.extend) || {};
+      const d = readDuration(view, 'accdur');
+      await save({ discordId: b.dataset.extend, heroshield: !!u.heroshield, herocheck: !!u.herocheck, duration: d }, d.unit === 'lifetime' ? 'Access is now lifetime' : 'New end time saved');
+      renderAccess(view);
+    }));
     view.querySelector('[data-addacc]').addEventListener('click', async () => {
       const id = $('#acc-id').value.trim();
       if (!/^\d{5,25}$/.test(id)) return toast('Enter a Discord user ID (numbers only)', true);
-      await save({ discordId: id, heroshield: $('#acc-hs').checked, herocheck: $('#acc-hc').checked }, 'Saved');
+      await save({ discordId: id, heroshield: $('#acc-hs').checked, herocheck: $('#acc-hc').checked, duration: readDuration(view, 'accdur') }, 'Saved');
       renderAccess(view);
     });
     view.querySelectorAll('[data-delacc]').forEach((b) => b.addEventListener('click', async () => {
@@ -1337,6 +1501,51 @@
       try { await api(`/api/access?id=${encodeURIComponent(b.dataset.delacc)}`, { method: 'DELETE' }); toast('Removed'); renderAccess(view); }
       catch (e) { toast(e.message, true); }
     }));
+  }
+
+  // ---------- activity logs (admin): permissions, licenses, PINs, purchases ----------
+  const ACT = {
+    'permission.grant': ['Permission given', 'on'], 'permission.revoke': ['Permission removed', 'kick'], 'permission.remove': ['Account removed', 'ban'],
+    'license.create': ['License created', 'log'], 'license.revoke': ['License revoked', 'kick'], 'pin.create': ['PIN created', 'off'], 'pin.delete': ['PIN deleted', 'off'],
+    'plan.purchase': ['Plan bought', 'on'], 'staff.remove': ['Staff removed', 'kick'],
+  };
+  function auditDetail(l) {
+    const d = l.detail || {};
+    const bits = [];
+    if (d.permissions) bits.push(`<b>${esc([].concat(d.permissions).join(', '))}</b>`);
+    if (d.had) bits.push(`had ${esc([].concat(d.had).join(', ') || 'nothing')}`);
+    if (d.duration) bits.push(d.duration === 'lifetime' ? 'lifetime' : `for ${esc(d.duration)}`);
+    if (d.expires_at) bits.push(`until ${esc(fmtDate(d.expires_at))}`);
+    if (d.via) bits.push(`via ${esc(d.via)}`);
+    if (d.label) bits.push(`“${esc(d.label)}”`);
+    if (d.key_end) bits.push(`key …${esc(d.key_end)}`);
+    if (d.pin) bits.push(`PIN <span class="mono">${esc(d.pin)}</span>`);
+    if (d.player) bits.push(`player ${esc(d.player)}`);
+    if (d.license) bits.push(`license ${esc(d.license)}`);
+    if (d.plan) bits.push(`plan ${esc(d.plan)}`);
+    return bits.join(' · ');
+  }
+  async function renderAuditLogs(view) {
+    const f = state.auditFilter || '', q = state.auditQ || '';
+    view.innerHTML = loading();
+    const { logs } = await api(`/api/audit-logs?limit=400${f ? '&action=' + encodeURIComponent(f) : ''}${q ? '&q=' + encodeURIComponent(q) : ''}`);
+    const who = (id, name) => id ? `${name ? `<b>${esc(name)}</b> ` : ''}<span class="mono" style="color:var(--dim)">${esc(id)}</span>` : '<span style="color:var(--dim)">system</span>';
+    view.innerHTML = `<div class="workspace-hero"><div><h2>Activity logs</h2><p>Every permission given or removed, every license and PIN created — who did it and when.</p></div></div>
+      <div class="card panel" style="margin-bottom:18px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        ${[['', 'All'], ['permission', 'Permissions'], ['license', 'Licenses'], ['pin', 'PINs'], ['plan', 'Purchases']].map(([v, l]) => `<button class="btn ${f === v ? 'btn-primary' : 'btn-ghost'} btn-sm" data-auditf="${v}">${l}</button>`).join('')}
+        <input class="input" id="audit-q" placeholder="Discord ID or name" value="${esc(q)}" style="flex:1;min-width:200px">
+        <button class="btn btn-ghost btn-sm" data-auditsearch>Search</button>
+      </div></div>
+      <div class="card panel"><h3>${logs.length} entries</h3>
+        ${logs.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Action</th><th>By</th><th>For</th><th>Details</th></tr></thead><tbody>
+          ${logs.map((l) => { const a = ACT[l.action] || [l.action, 'off']; return `<tr>
+            <td class="mono">${fmtDate(l.created_at)}</td><td><span class="badge ${a[1]}">${esc(a[0])}</span></td>
+            <td>${who(l.actor_discord, l.actor_name)}</td><td>${who(l.target_discord, l.target_name)}</td><td style="font-size:13px">${auditDetail(l)}</td></tr>`; }).join('')}
+        </tbody></table></div>` : '<div class="empty">Nothing logged yet.</div>'}</div>`;
+    view.querySelectorAll('[data-auditf]').forEach((b) => b.addEventListener('click', () => { state.auditFilter = b.dataset.auditf; renderAuditLogs(view).catch((e) => toast(e.message, true)); }));
+    const search = () => { state.auditQ = view.querySelector('#audit-q').value.trim(); renderAuditLogs(view).catch((e) => toast(e.message, true)); };
+    view.querySelector('[data-auditsearch]').addEventListener('click', search);
+    view.querySelector('#audit-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
   }
 
   function renderServers(view) {
@@ -1665,7 +1874,9 @@
       } else if (t.dataset.newpin !== undefined) {
         t.disabled = true;
         const player = $('#pin-player').value.trim();
-        const { pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player } });
+        let pin;
+        try { ({ pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player } })); }
+        catch (err) { t.disabled = false; throw err; }
         t.disabled = false;
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');

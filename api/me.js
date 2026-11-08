@@ -14,5 +14,8 @@ export default async function handler(req, res) {
   }).catch(() => {});
 
   const access = await getAccess(u);
-  send(res, 200, { id: u.id, name: u.name, avatar: u.avatar, access });
+  // when a timed permission ends (null = lifetime / from Render env)
+  let expires_at = null;
+  try { const r = await sb(`user_access?discord_id=eq.${encodeURIComponent(String(u.id))}&select=expires_at`); expires_at = r?.[0]?.expires_at || null; } catch { }
+  send(res, 200, { id: u.id, name: u.name, avatar: u.avatar, access, expires_at });
 }

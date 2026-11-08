@@ -14,6 +14,18 @@ const search = (q, cols) => {
 export default wrap(async (req, res) => {
   // the Discord ID lookup is a screenshare (HeRo Check) page; everything else is anticheat
   const user = await requireAccess(req, req.query.type === 'lookup' ? 'herocheck' : 'heroshield');
+
+  // scanner-only accounts (no FiveM server): look the Discord ID up in the scans of YOUR scanner licenses
+  if (req.query.type === 'lookup' && !/^[0-9a-f-]{36}$/i.test(String(req.query.server || ''))) {
+    const raw = String(req.query.id || '').replace(/[^0-9]/g, '').slice(0, 25);
+    if (!raw) return send(res, 200, { id: '', bans: [], detections: [], scans: [] });
+    const lic = await sb(`scanner_licenses?owner_discord=eq.${enc(String(user.id))}&select=id`);
+    const ids = (lic || []).map((l) => l.id);
+    const scans = ids.length
+      ? await sb(`scan_pins?license_id=in.(${ids.map(enc).join(',')})&or=(report->>DiscordId.eq.${enc(raw)},discord_check->user->>id.eq.${enc(raw)})&select=pin,player,result,created_at,discord_check&order=created_at.desc&limit=50`)
+      : [];
+    return send(res, 200, { id: raw, bans: [], detections: [], scans: scans || [] });
+  }
   const server = await requireOwnedServer(user, req.query.server);
   const sid = server.id;
   const type = req.query.type || 'overview';

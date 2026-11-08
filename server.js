@@ -12,7 +12,7 @@ const TYPES = {
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
   '.json': 'application/json', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8',
 };
-const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json'];
+const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json', 'tests', 'backup-before-v19', 'UPLOAD-TO-GITHUB', 'database'];
 // never serve database scripts, notes or env files
 const BLOCKED_EXT = /\.(sql|md|env|example|cs|csproj|bat|yml|yaml|log)$/i;
 

@@ -1,4 +1,4 @@
-import { sb, enc, httpError, wrap } from './_lib.js';
+import { sb, enc, httpError, wrap, audit } from './_lib.js';
 import { PLANS, addMonths, verifyStripe, stripe } from './_billing.js';
 export default wrap(async(req,res)=>{
  if(req.method!=='POST') throw httpError(405,'Method not allowed');
@@ -19,5 +19,6 @@ export default wrap(async(req,res)=>{
  const expires=lifetime?null:addMonths(start,PLANS[plan]).toISOString();
  await sb('paid_entitlements?on_conflict=discord_id',{method:'POST',prefer:'resolution=merge-duplicates,return=minimal',body:{discord_id:id,plan:lifetime?'lifetime':plan,lifetime,expires_at:expires,updated_at:new Date().toISOString()}});
  await sb('billing_payments?on_conflict=stripe_payment_id',{method:'POST',prefer:'resolution=ignore-duplicates,return=minimal',body:{stripe_payment_id:paidId,discord_id:id,plan,stripe_session_id:session.id}});
+ await audit({id,name:null},'plan.purchase',{target:id,detail:{plan,lifetime,expires_at:expires,payment:paidId}});
  return res.status(200).json({received:true});
 });
