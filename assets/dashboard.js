@@ -533,7 +533,7 @@
   // ---------- scan report (HeRo Scanner v4) — napse-style ----------
   const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
     'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream',
-    'File journal', 'Inside FiveM'];
+    'File journal', 'Inside FiveM', 'Service memory', 'Hardware'];
   const SEV = ['low', 'medium', 'high'];
   const discordIcon = (g) => g.icon ? `https://cdn.discordapp.com/icons/${g.id || g.guild_id}/${g.icon}.png?size=64` : '';
 
@@ -630,6 +630,10 @@
     const executed = L('ExecutedPrograms'), cmds = L('Commands'), deleted = L('DeletedFiles');
     const journal = L('Journal'), journalInfo = R('JournalInfo') || '';
     const jRed = journal.filter((x) => F(x, 'Level') === 2).length, jOrange = journal.filter((x) => F(x, 'Level') === 1).length;
+    const memory = L('MemoryTraces'), memoryInfo = R('MemoryInfo') || '';
+    const hw = L('Hardware'), hwInfo = R('HardwareInfo') || '';
+    const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
+    const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
     const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
     const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
@@ -736,6 +740,8 @@
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
+      ['hardware', 'Cheat hardware', hRed ? hRed + ' cheat' : hOrange ? hOrange + ' check' : (R('Hardware') ? '0' : '–'), hRed ? 'red' : hOrange ? 'orange' : 'blue'],
+      ['memory', 'Service memory', mRed ? mRed + ' cheat' : mOrange ? mOrange + ' check' : memory.length || '–', mRed ? 'red' : mOrange ? 'orange' : 'blue'],
       ['journal', 'File journal', jRed ? jRed + ' cheat' : jOrange ? jOrange + ' check' : journal.length || '–', jRed ? 'red' : jOrange ? 'orange' : 'blue'],
       ['files', 'Files & mods', deleted.length + recent.filter((x) => F(x, 'Flagged')).length + mods.length, 'blue'],
       ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
@@ -901,6 +907,31 @@
             R('Journal') ? 'Nothing deleted or renamed in the last 7 days.' : 'This report has no journal — the player used an older scanner (needs v4.3+).');
       },
 
+      hardware: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : 'orange');
+        const items = fl(hw, 'Name', 'Kind', 'Why', 'LastSeen', 'InstanceId');
+        return head('Cheat hardware (DMA / KMBox / Cronus / XIM / Arduino)', items.length,
+            'Windows keeps every device that was ever connected — even unplugged. Red = cheat hardware (DMA card, KMBox, Cronus, XIM, Titan). Orange = hardware that can be used for cheating (FPGA board, Arduino mouse board, DMA data port) — check it.' + (hwInfo ? ' · ' + esc(hwInfo) : ''))
+          + rows(items.map((x) => rowL(lv(x),
+              `<b style="color:var(--text)">${esc(F(x, 'Kind'))}</b> — ${esc(F(x, 'Name'))} ${F(x, 'Present') ? '<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(255,77,106,.15);color:#ff8597;font-size:11px;font-weight:700">plugged in now</span>' : ''}`
+              + `<div style="color:var(--dim);margin-top:3px">${esc(F(x, 'Why') || '')}</div><div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(x, 'InstanceId') || '')}</div>`,
+              esc(F(x, 'LastSeen') || ''))),
+            R('Hardware') ? 'No cheat hardware was ever connected to this PC.' : 'This report has no hardware check — the player used an older scanner (needs v4.5+).');
+      },
+
+      memory: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
+        const items = fl(memory, 'Name', 'Path', 'Source', 'Why', 'When');
+        return head('Service memory (DPS / PcaSvc / Explorer / DNS)', items.length,
+            'Windows services keep a list of programs that ran and websites that were opened in their memory until the PC restarts. Deleting the file or clearing the logs does not remove it — pro screenshare tools read the same place. '
+            + 'Red = cheat file / cheat name that was deleted. Orange = random-named, loader-type, deleted from Downloads / Temp, or a cheat-looking website.' + (memoryInfo ? ' · ' + esc(memoryInfo) : ''))
+          + rows(items.slice(0, 600).map((x) => rowL(lv(x),
+              `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b>${F(x, 'Path') && F(x, 'Path') !== F(x, 'Name') ? ` <span style="color:var(--dim)">${esc(F(x, 'Path'))}</span>` : ''}`
+              + ` &nbsp;<span style="color:var(--dim)">${F(x, 'Exists') ? '' : 'gone · '}${esc(F(x, 'Why') || '')} · ${esc(F(x, 'Source') || '')}</span>`,
+              esc(F(x, 'When') || ''))),
+            R('MemoryTraces') ? 'Nothing suspicious in service memory.' : 'This report has no service memory — the player used an older scanner (needs v4.4+).');
+      },
+
       files: () => head('Recycle bin', deleted.length) + rows(fl(deleted, 'File').map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
         + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(fl(recent, 'Name', 'Path').slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
         + '<div style="height:18px"></div>' + head('Game mods', mods.length) + rows(fl(mods, 'Path', 'File').slice(0, 300).map((m) => rowL('blue', esc(F(m, 'Path') || F(m, 'File')), (F(m, 'SizeMb') || 0) + ' MB')), 'No mods.'),
@@ -958,7 +989,7 @@
     const { licenses } = await api('/api/scanner-licenses');
     const active = (licenses || []).filter(l => !l.revoked_at);
     if (!active.length) {
-      view.innerHTML = '<div class="card panel"><h3>No scanner license</h3><p>Create a license in My License first, then return here to customize its scanner background.</p><button class="btn btn-primary" data-tab="license">Go to My License</button></div>';
+      view.innerHTML = '<div class="card panel"><h3>No scanner license</h3><p>Create a license in My License first, then return here to customize its scanner background.</p><button class="btn btn-primary" data-tab="subscription">Go to My License</button></div>';
       return;
     }
     if (!active.some(l => l.id === state.guiLicenseId)) state.guiLicenseId = active[0].id;
@@ -1207,7 +1238,7 @@
       steps: ['Keep the scanner open until it shows 100% — do not close it during the scan.',
               'Check your internet connection (VPN / school or work network can block it).',
               'Optional: install <b>Cloudflare WARP</b>, turn it on, run the scanner again.',
-              'A copy of the report is saved next to the scanner as <span class="mono">hero-report-PIN.json</span> — staff can ask for it.'],
+              'Nothing is saved on the player\'s PC — the report only goes to the website, so the scan must be run again if the upload failed.'],
       links: [['https://one.one.one.one/', 'Cloudflare WARP (optional)']] },
     { icon: '◎', tag: 'Discord', title: 'Discord connect shows an error',
       text: 'The scanner opens the Discord connect page in your browser. Use the Discord account you play with.',
@@ -1263,6 +1294,9 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v22', 'Scanner v4.5: new Cheat hardware tab — DMA cards (PCILeech FPGA), KMBox, Cronus Zen / StrikePack, XIM, Titan and Arduino mouse boards, even if they were unplugged before the check. New spoofer checks in Warnings (MAC changed by hand, Machine ID rewritten recently). The scan bar now moves at a steady pace from start to finish, and the scan takes a little longer to be thorough.'],
+      ['v21', 'Scanner v4.4.1: the scanner no longer saves hero-report-PIN.json on the player\'s PC (Desktop / Downloads). The report goes only to the website. Old leftover hero-report files are deleted and never flagged.'],
+      ['v20', 'Scanner v4.4: new Service memory tab. The scanner now reads what Windows services remember in RAM (DPS, PcaSvc, SysMain, Explorer, DNS cache) — programs that ran and cheat websites that were opened, even after the file was deleted and the logs were cleared, until the PC restarts. Cheat files found there are real detections; random / loader names and deleted Downloads / Temp programs are orange for you to check.'],
       ['v19', 'Permissions with a time: give HeRo Check / HeRo Shield / Admin for 1 hour, 1 day, 2 days, 1 week, 1 month, any amount of hours / days / weeks / months / years, or Lifetime — it stops by itself and shows "Expired". New Activity logs page (admin): every permission given / removed, every license created / revoked, every PIN created / deleted and every purchase, with who did it and when. Clients (non-admin) can create 1 scan PIN per day. Scanner v4.3 File journal tab. Fixes: a used PIN could be sent again (the "used" check never ran); scanner-only licenses did not send your signatures to the scanner; Discord history lookup did not work without a FiveM server.'],
       ['4.1.0', 'New FiveM tab in the scan report: every mod in the FiveM folders is opened and read, including .rpf archives (and archives inside archives). No-recoil / no-spread / damage-boosted weapons.meta and no-bush / no-grass / no-water visibility mods are shown as red lines, in the FiveM tab and in Detects. Graphics mods (visualsettings, timecycle) are orange, ReShade / ENB green. Plugins and scripts are judged by their code, not their name. Filter box on every report tab. Discord tab: cheat servers he LEFT are shown too — found in the Discord / browser cache on his PC (server icons, invite pages, channel links) and in his earlier checks; the date he joined the cheat servers he is in; servers he joined since his last check; cheat-looking server names in orange.'],
       ['4.0.0', 'Much stronger cheat detection: reads UTF-16 strings (C#/.NET cheats were invisible before), cheat score per program (menu features like triggerbot / silent aim / no recoil, FiveM executor code, injection APIs, ImGui overlay, unsigned, cheat-named folder), menu names found even in renamed loaders in Downloads/Temp/AppData, cheat-named programs that ran (even deleted), cheat files inside .zip archives, ReShade/ENB recognised. Startup &amp; scheduled-task persistence, loaded kernel drivers (unsigned / user-folder / exploitable), live network connections, ShimCache &amp; PCA execution history, Windows event log (cleared logs, driver installs, Defender alerts, clock changes), hosts file &amp; firewall blocking, hidden NTFS streams, VM detection, Rockstar / Epic accounts, cheat tools running (Cheat Engine, injectors, ReClass). Fewer false positives: RGB / motherboard drivers and normal apps (Discord, Steam) no longer flagged as cheating. Tabbed report on the dashboard.'],
