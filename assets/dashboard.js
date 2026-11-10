@@ -163,6 +163,18 @@
       $('#u-avatar').hidden = false;
       $('#u-fallback').hidden = true;
     }
+    // 👁️ Admin (test): every tab is visible, but nothing can be changed (the server refuses every change)
+    if (acc.viewer && !document.getElementById('viewonly-bar')) {
+      document.body.classList.add('view-only');
+      const bar = document.createElement('div');
+      bar.id = 'viewonly-bar';
+      bar.textContent = '👁️ Admin (test) — view only: you can open every tab, but you cannot change anything.';
+      bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#1b2440;color:#cfe3ff;border:1px solid #2f9bff;border-radius:12px;padding:10px 16px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px);text-align:center';
+      document.body.appendChild(bar);
+      const st = document.createElement('style');
+      st.textContent = 'body.view-only main .btn-primary,body.view-only main .btn-danger,body.view-only main button[type=submit]{opacity:.45;cursor:not-allowed}';
+      document.head.appendChild(st);
+    }
     // Permission-based tab visibility
     state.access = acc;
     document.querySelectorAll('[data-perm]').forEach(el => {
@@ -266,7 +278,7 @@
   function wsAvatar(user) { return user.avatar ? `<img class="workspace-avatar" src="${esc(user.avatar)}" alt="Discord avatar" referrerpolicy="no-referrer">` : `<div class="workspace-avatar-fallback">${esc((user.name || '?')[0])}</div>`; }
   function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.name || 'Discord user')}</h2><p>Discord account · ${esc(user.id)}</p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
   function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
-  function wsAccess() { const a=state.user.access || {}; return [a.admin&&'Admin',a.heroshield&&'Legacy HeRoShield role',a.herocheck&&'HeRoCheck'].filter(Boolean).join(' · ') || 'No staff permissions'; }
+  function wsAccess() { const a=state.user.access || {}; if (a.viewer) return 'Admin (test) — view only'; return [a.admin&&'Admin',a.heroshield&&'Legacy HeRoShield role',a.herocheck&&'HeRoCheck'].filter(Boolean).join(' · ') || 'No staff permissions'; }
   async function renderProfile(view) {
     view.innerHTML=loading();
     try {
@@ -695,6 +707,7 @@
       }
       history = state.discHist[dc.user.id].filter((h) => h.pin !== pin && h.discord_check && Array.isArray(h.discord_check.guilds) && (h.discord_check.at || h.created_at) < dc.at);
     }
+    const byId = !!(dc && dc.source === 'id');
     const leftSince = new Map();   // guild id → { name, at (last check he was still in it) }
     for (const h of history) for (const g of h.discord_check.guilds) {
       const id = String(g.id), at = h.discord_check.at || h.created_at;
@@ -703,7 +716,7 @@
       if (!p || p.at < at) leftSince.set(id, { id, name: g.name, icon: g.icon, at, pin: h.pin });
     }
     const lastHist = history.slice().sort((a, b) => ((b.discord_check.at || '') > (a.discord_check.at || '') ? 1 : -1))[0];
-    const joinedSince = lastHist ? guilds.filter((g) => !lastHist.discord_check.guilds.some((o) => String(o.id) === String(g.id))) : [];
+    const joinedSince = lastHist && !byId ? guilds.filter((g) => !lastHist.discord_check.guilds.some((o) => String(o.id) === String(g.id))) : [];
     const leftList = [...leftSince.values()].map((x) => ({ ...x, listed: cheatIds.get(x.id), nameHit: CHEAT_NAME.test(x.name || '') }));
     const leftCheat = leftList.filter((x) => x.listed || x.nameHit);
     const discRed = cheatGuilds.length + pastCheat.filter((x) => x.listed).length + leftCheat.filter((x) => x.listed && !pastCheat.some((p) => p.id === x.id)).length;
@@ -836,7 +849,7 @@
           ...pastCheat.map((x) => gcard({ id: x.id, name: x.name, inv: x.inv, icon: x.icon }, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
             `Not in it any more — found on this PC (${esc(x.src.slice(0, 3).join(', '))}) · last seen ${esc(ago(x.last))}${x.first && x.first !== x.last ? ' · first seen ' + esc(ago(x.first)) : ''}`)),
           ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => gcard(x, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
-            `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — left since`)),
+            byId ? `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — may still be in it` : `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — left since`)),
         ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
         const leftSection = head('Cheat servers he LEFT', leftCards.length, 'Leaving a server does not erase it: Discord and the browsers keep the server icons, invite pages and channel links on the PC, and earlier checks keep his old server list.')
           + grid(leftCards, L('DiscordTraces').length || history.length ? 'No cheat server found in his past servers.' : 'No Discord traces on the PC (cache cleared, or an older scanner) and no earlier check.');
@@ -852,11 +865,15 @@
         const joinedSection = joinedSince.length ? `<div style="height:18px"></div>` + head('Joined since his last check', joinedSince.length, `Servers he is in now but was not in at his check of ${esc(ago(lastHist.discord_check.at || lastHist.created_at))}.`)
           + grid(joinedSince.filter((g) => match(g.name, g.id)).map((g) => gcard(g, cheatIds.has(String(g.id)) ? 'red' : CHEAT_NAME.test(g.name || '') ? 'orange' : 'grey', 'NEW')), '') : '';
 
-        if (!dc) return `<div class="rp-card orange" style="margin-bottom:16px"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
-            <div class="rp-title">The player did not connect Discord</div><span class="rp-tag">Not verified</span></div>
-            <div class="rp-txt">The scanner opens the page automatically. You can also send this link to the player:</div>
-            <div class="rp-code">${esc(location.origin)}/verify?pin=${esc(pin)}</div>
-            ${localDiscord ? `<div class="rp-txt">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}</div>`
+        const lookupBox = (title, tag, note) => `<div class="rp-card ${dc ? 'blue' : 'orange'}" style="margin-bottom:16px"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
+            <div class="rp-title">${title}</div><span class="rp-tag">${tag}</span></div>
+            <div class="rp-txt">${note}</div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <input id="disc-id" class="input mono" style="flex:1;min-width:220px" placeholder="Discord ID (17–20 digits)" value="${esc((dc && dc.source === 'id' && dc.user && dc.user.id) || localDiscord || '')}">
+              <button class="btn btn-primary" data-dlookup>Check this Discord</button></div>
+            ${localDiscord ? `<div class="rp-txt" style="margin-top:8px">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}
+            <div class="rp-txt" style="color:var(--dim);margin-top:8px">Servers he is in and left are read from the PC (Discord & browser cache) — no login needed. With the ID, the site also gets his profile and checks every server <b>your bot</b> is in. Optional: the player can still log in at <span class="mono">${esc(location.origin)}/verify?pin=${esc(pin)}</span> for his full server list.</div></div>`;
+        if (!dc) return lookupBox('Discord check by ID', 'No login needed', 'Type the player\'s Discord ID (or keep the one read from his PC) and click Check.')
           + `<p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>` + leftSection + otherSection;
 
         const u = dc.user || {};
@@ -869,13 +886,14 @@
         return `<div class="rp-card ${discRed ? 'red' : discOrange ? 'orange' : 'green'}" style="margin-bottom:16px"><div class="rp-guild">
             ${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="border-radius:50%">` : `<div class="gi">${IC.disc}</div>`}
             <div style="flex:1"><div class="rp-title" style="padding:0">${esc(u.name)} <span style="color:var(--dim);font-weight:400">@${esc(u.username)}</span></div>
-              <div class="mono" style="color:var(--dim);font-size:11.5px">${esc(u.id)} · account created ${esc((u.created || '').slice(0, 10))} · connected ${fmtDate(dc.at)}</div></div>
+              <div class="mono" style="color:var(--dim);font-size:11.5px">${esc(u.id)} · account created ${esc((u.created || '').slice(0, 10))} · ${dc.source === 'id' ? 'checked by ID' : 'connected'} ${fmtDate(dc.at)}</div></div>
             <span class="rp-tag">${discRed ? discRed + ' cheat server' + (discRed > 1 ? 's' : '') + ' (now + left)' : discOrange ? discOrange + ' to check' : 'No cheat servers'}</span></div>
-            ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one connected here — the player may be hiding his main account.</div>` : ''}
+            ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one ${dc.source === 'id' ? 'checked here' : 'connected here'} — the player may be hiding his main account.</div>` : ''}
           </div>
+          ${dc.source === 'id' ? lookupBox('Checked by Discord ID', dc.bot ? `${dc.botServers} bot servers checked` : 'No bot set', dc.bot ? 'Profile and the servers your bot is in were checked. Check another ID:' : 'Set DISCORD_BOT_TOKEN on Render to get his profile and the servers your bot is in. The PC traces below work without it.') : ''}
           <p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>
-          ${head(`Servers he is in now`, guilds.length)}
-          ${grid(nowCards, 'The player is in no servers.')}
+          ${head(dc.source === 'id' ? 'Servers he is in (servers your bot is in)' : 'Servers he is in now', guilds.length)}
+          ${grid(nowCards, dc.source === 'id' ? 'He is in none of the servers your bot is in.' : 'The player is in no servers.')}
           <div style="height:18px"></div>${leftSection}${joinedSection}${otherSection}`;
       },
 
@@ -1002,6 +1020,17 @@
       </div>`;
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
+    view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
+      const id = (view.querySelector('#disc-id').value || '').replace(/\D/g, '');
+      if (!/^\d{17,20}$/.test(id)) return toast('Enter a Discord ID (17–20 digits)', true);
+      ev.target.disabled = true; ev.target.textContent = 'Checking…';
+      try {
+        await api('/api/discord-lookup', { method: 'POST', body: { pin, id } });
+        state.pins = (await api('/api/pins')).pins || state.pins;
+        if (state.discHist) delete state.discHist[id];
+        renderPinReport(view, pin, 'discord');
+      } catch (e) { toast(e.message, true); ev.target.disabled = false; ev.target.textContent = 'Check this Discord'; }
+    });
     const qi = view.querySelector('[data-rpq]');
     if (qi) {
       qi.addEventListener('input', () => { clearTimeout(qi._t); qi._t = setTimeout(() => { renderPinReport(view, pin, tab, qi.value).then(() => { const n = view.querySelector('[data-rpq]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }); }, 250); });
@@ -1317,6 +1346,8 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v26', 'New permission 👁️ Admin (test): sees every tab of the dashboard like an Admin, but every change is refused (view only). Admins also get the scanner with unlimited PINs. Run supabase-v26-viewer.sql once in Supabase.'],
+      ['v25', 'Discord check without login: the player no longer has to log in with Discord. Type his Discord ID (or keep the one read from his PC) in the Discord tab — the site gets his profile and checks every server your bot is in, and the scanner reads the servers he is in and left from the PC. The login page stays available as an option.'],
       ['v24', 'Discord: servers he left now show their name and logo (scanner v4.5.2 reads the logo from the Discord cache, and the site looks up names on Discord). Recycle bin: every deleted file shows its real name, where it was and when it was deleted — cheat names in red.'],
       ['v23', 'Scanner v4.5.1: Service memory is now quiet on normal PCs — deleted installers, old Discord versions and Windows tools are no longer listed, glued paths are split correctly, and the fake DPS dates (they are the program\'s build date, not the run date) are no longer shown.'],
       ['v22', 'Scanner v4.5: new Cheat hardware tab — DMA cards (PCILeech FPGA), KMBox, Cronus Zen / StrikePack, XIM, Titan and Arduino mouse boards, even if they were unplugged before the check. New spoofer checks in Warnings (MAC changed by hand, Machine ID rewritten recently). The scan bar now moves at a steady pace from start to finish, and the scan takes a little longer to be thorough.'],
@@ -1465,20 +1496,21 @@
         <label class="perm-field"><span>Discord User ID</span><input class="input" id="role-id" placeholder="Enter Discord user ID" inputmode="numeric"></label>
         <div class="perm-field"><span>Dashboard Permission</span>
           <label class="perm-radio"><input type="radio" name="role-type" value="herocheck" checked> HeRoCheck — Scanner Dashboard</label>
-          ${owner ? '<label class="perm-radio"><input type="radio" name="role-type" value="admin"> Admin — Management Dashboard</label>' : ''}
+          <label class="perm-radio"><input type="radio" name="role-type" value="viewer"> 👁️ Admin (test) — sees every tab, cannot change anything</label>
+          ${owner ? '<label class="perm-radio"><input type="radio" name="role-type" value="admin"> Admin — Management Dashboard + scanner (unlimited PINs)</label>' : ''}
         </div>
         ${durationPicker('roledur', [1, 'day'])}
         <button class="btn btn-primary perm-save" id="role-save">Save permission</button>
-        <p class="workspace-note" style="margin-top:10px">Only the environment owner can grant Admin. Every change is written to Activity logs.</p>
+        <p class="workspace-note" style="margin-top:10px">Only the environment owner can grant Admin. Admin (test) can open every tab but every change is refused by the server. Every change is written to Activity logs.</p>
       </div>
-      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Time left</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.herocheck || u.heroshield) ? timeLeft(u.expires_at) : '-'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<div class="actions-cell"><button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>${(u.admin || u.herocheck) && !u.envHerocheck ? `<button class="btn btn-danger btn-sm" data-role-revoke="${esc(u.discord_id)}">Revoke</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Time left</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.viewer ? '👁️ Admin (test)' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.viewer || u.herocheck || u.heroshield) ? timeLeft(u.expires_at) : '-'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<div class="actions-cell"><button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>${(u.admin || u.viewer || u.herocheck) && !u.envHerocheck ? `<button class="btn btn-danger btn-sm" data-role-revoke="${esc(u.discord_id)}">Revoke</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table></div></div>`;
     const roleOf = () => view.querySelector('input[name="role-type"]:checked')?.value || 'herocheck';
-    const roleShow = wireDuration(view, 'roledur', () => (roleOf() === 'admin' ? 'Admin' : 'HeRoCheck'));
+    const roleShow = wireDuration(view, 'roledur', () => (roleOf() === 'admin' ? 'Admin' : roleOf() === 'viewer' ? 'Admin (test)' : 'HeRoCheck'));
     view.querySelectorAll('input[name="role-type"]').forEach((r) => r.addEventListener('change', roleShow));
     view.querySelectorAll('[data-role-id]').forEach(b => b.addEventListener('click', () => { view.querySelector('#role-id').value = b.dataset.roleId; view.querySelector('#role-id').focus(); }));
     view.querySelectorAll('[data-role-revoke]').forEach(b => b.addEventListener('click', async () => {
       if (!(await modal({ title: 'Revoke access', text: `Remove dashboard access for ${b.dataset.roleRevoke}?`, ok: 'Revoke', danger: true }))) return;
-      const payload = { discordId: b.dataset.roleRevoke, herocheck: false, heroshield: false };
+      const payload = { discordId: b.dataset.roleRevoke, herocheck: false, heroshield: false, viewer: false };
       if (owner) payload.admin = false;
       try { await api('/api/access', { method: 'POST', body: payload }); toast('Access revoked'); await renderRoleManager(view); } catch (e) { toast(e.message, true); }
     }));
@@ -1486,7 +1518,7 @@
       const discordId = view.querySelector('#role-id').value.trim();
       const role = roleOf();
       if (!/^\d{15,22}$/.test(discordId)) return toast('Enter a valid Discord user ID', true);
-      const payload = {discordId, herocheck:role==='herocheck', heroshield:false};
+      const payload = {discordId, herocheck:role==='herocheck', heroshield:false, viewer:role==='viewer'};
       payload.duration = readDuration(view, 'roledur');
       if (owner) payload.admin = role==='admin';
       try { await api('/api/access', {method:'POST',body:payload}); toast('Permissions updated'); await renderRoleManager(view); }

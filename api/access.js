@@ -5,7 +5,9 @@ export default wrap(async (req, res) => {
   const me = await requireAccess(req, 'admin');
 
   if (req.method === 'GET') {
-    const rows = await sb('user_access?select=discord_id,name,avatar,admin,heroshield,herocheck,expires_at,granted_by,granted_at,last_login,created_at&order=last_login.desc.nullslast&limit=500');
+    const cols = 'discord_id,name,avatar,admin,heroshield,herocheck,expires_at,granted_by,granted_at,last_login,created_at';
+    const rows = await sb(`user_access?select=${cols},viewer&order=last_login.desc.nullslast&limit=500`)
+      .catch(() => sb(`user_access?select=${cols}&order=last_login.desc.nullslast&limit=500`));   // before supabase-v26-viewer.sql
     // mark who already has access from Render env, and list env IDs that never logged in
     const env = envIds();
     const list = (rows || []).slice();
@@ -29,21 +31,29 @@ export default wrap(async (req, res) => {
     const b = readBody(req);
     const id = str(b.discordId, 40).trim();
     if (!/^\d{5,25}$/.test(id)) throw httpError(400, 'Enter a valid Discord user ID (numbers only)');
-    const before = (await sb(`user_access?discord_id=eq.${enc(id)}&select=name,admin,heroshield,herocheck,expires_at`))?.[0] || {};
+    const before = (await sb(`user_access?discord_id=eq.${enc(id)}&select=name,admin,viewer,heroshield,herocheck,expires_at`)
+      .catch(() => sb(`user_access?discord_id=eq.${enc(id)}&select=name,admin,heroshield,herocheck,expires_at`)))?.[0] || {};
     // an expired grant counts as nothing (so giving it again is logged as a new grant)
-    if (before.expires_at && Date.parse(before.expires_at) <= Date.now()) { before.admin = before.heroshield = before.herocheck = false; }
+    if (before.expires_at && Date.parse(before.expires_at) <= Date.now()) { before.admin = before.viewer = before.heroshield = before.herocheck = false; }
     const row = { discord_id: id };
     if (b.admin !== undefined) {
       if (!isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can grant or revoke Admin');
       if (isAdmin({ id })) throw httpError(403, 'Environment owner role cannot be modified');
       row.admin = !!b.admin;
+      if (row.admin) row.viewer = false;
+    }
+    if (b.viewer !== undefined) {   // 👁️ Admin (test) — view only; the owner and Admins can give it
+      if (isAdmin({ id })) throw httpError(403, 'Environment owner role cannot be modified');
+      if (before.admin && !isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can change an Admin');
+      row.viewer = !!b.viewer;
+      if (row.viewer) row.admin = false;
     }
     if (b.heroshield !== undefined) row.heroshield = !!b.heroshield;
     if (b.herocheck !== undefined) row.herocheck = !!b.herocheck;
     if (b.name) row.name = str(b.name, 80);
 
     const after = { ...before, ...row };
-    const hasAny = !!(after.admin || after.heroshield || after.herocheck);
+    const hasAny = !!(after.admin || after.viewer || after.heroshield || after.herocheck);
     let durText = null;
     if (b.duration && hasAny) {
       row.expires_at = expiryFrom(b.duration.amount, b.duration.unit);
@@ -51,19 +61,19 @@ export default wrap(async (req, res) => {
     }
     if (!hasAny) row.expires_at = null;                 // nothing left to expire
     const wasExpired = !!(before.expires_at && Date.parse(before.expires_at) <= Date.now());
-    const newlyGiven = ['admin', 'heroshield', 'herocheck'].some((k) => row[k] && !before[k]);
+    const newlyGiven = ['admin', 'viewer', 'heroshield', 'herocheck'].some((k) => row[k] && !before[k]);
     if (hasAny && (b.duration || newlyGiven)) { row.granted_by = String(me.id); row.granted_at = new Date().toISOString(); }
     if (hasAny && newlyGiven && !b.duration && wasExpired) { row.expires_at = null; durText = 'lifetime'; }   // re-given without a time = lifetime
 
     await sb('user_access?on_conflict=discord_id', {
       method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: row,
-    });
+    }).catch((e) => { if ('viewer' in row && /viewer/.test(e.message)) throw httpError(500, 'Run supabase-v26-viewer.sql in Supabase first (adds the Admin test permission)'); throw e; });
     clearAccessCache(id);
 
     // activity log: what changed
-    const names = { admin: 'Admin', heroshield: 'HeRo Shield', herocheck: 'HeRo Check' };
+    const names = { admin: 'Admin', viewer: 'Admin (test, view only)', heroshield: 'HeRo Shield', herocheck: 'HeRo Check' };
     const given = [], removed = [];
-    for (const k of ['admin', 'heroshield', 'herocheck']) {
+    for (const k of ['admin', 'viewer', 'heroshield', 'herocheck']) {
       if (row[k] === undefined) continue;
       if (row[k] && !before[k]) given.push(names[k]);
       if (!row[k] && before[k]) removed.push(names[k]);
@@ -71,7 +81,7 @@ export default wrap(async (req, res) => {
     const expires = row.expires_at !== undefined ? row.expires_at : before.expires_at || null;
     if (given.length || (durText && hasAny))
       await audit(me, 'permission.grant', { target: id, targetName: row.name || before.name, detail: {
-        permissions: (given.length ? given : ['admin', 'heroshield', 'herocheck'].filter((k) => after[k]).map((k) => names[k])),
+        permissions: (given.length ? given : ['admin', 'viewer', 'heroshield', 'herocheck'].filter((k) => after[k]).map((k) => names[k])),
         duration: durText || (before.expires_at ? 'unchanged' : 'lifetime'), expires_at: expires,
       } });
     if (removed.length)

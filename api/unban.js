@@ -14,7 +14,9 @@ export default wrap(async (req, res) => {
   } else {
     const user = getSession(req);
     if (!user) throw httpError(401, 'Not logged in');
-    if (!(await getAccess(user)).heroshield) throw httpError(403, 'No HeRo Shield access for this account');
+    const acc = await getAccess(user);
+    if (!acc.heroshield) throw httpError(403, 'No HeRo Shield access for this account');
+    if (acc.viewer) throw httpError(403, 'View-only account (Admin test) — you can look, but not change anything');
     serverId = (await requireOwnedServer(user, b.server)).id;
     fromDashboard = true;
   }

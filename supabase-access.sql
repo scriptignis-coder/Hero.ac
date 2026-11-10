@@ -15,3 +15,7 @@ notify pgrst, 'reload schema';
 
 -- Upgrade existing deployments safely:
 alter table public.user_access add column if not exists admin boolean not null default false;
+
+-- v26: 👁️ Admin (test) — sees every tab, cannot change anything
+alter table public.user_access add column if not exists viewer boolean not null default false;
+notify pgrst, 'reload schema';

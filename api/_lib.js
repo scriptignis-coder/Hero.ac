@@ -198,7 +198,7 @@ export async function getAccess(user) {
   const access = { heroshield: env.heroshield.includes(id), herocheck: env.herocheck.includes(id), admin: false };
   {
     try {
-      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin,expires_at`);
+      const rows = await sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin,viewer,expires_at`).catch(() => sb(`user_access?discord_id=eq.${enc(id)}&select=heroshield,herocheck,admin,expires_at`));
       // a permission given for a limited time (1 hour, 2 days, 1 month…) stops by itself when it runs out
       const expired = rows && rows[0] && rows[0].expires_at && Date.parse(rows[0].expires_at) <= Date.now();
       if (rows && rows[0] && !expired) {
@@ -206,6 +206,8 @@ export async function getAccess(user) {
         access.herocheck = access.herocheck || !!rows[0].herocheck;
         access.admin = !!rows[0].admin;
         if (access.admin) { access.herocheck = true; access.heroshield = true; }
+        // 👁️ Admin (test): sees every tab like an Admin, but cannot change anything (enforced in requireAccess)
+        else if (rows[0].viewer) { access.viewer = true; access.admin = true; access.herocheck = true; access.heroshield = true; }
       }
     } catch (e) {
       console.error('user_access lookup failed (run supabase-access.sql):', e.message);
@@ -262,6 +264,8 @@ export async function audit(actor, action, { target = null, targetName = null, d
 export async function requireAccess(req, perm) {
   const user = requireUser(req);
   const access = await getAccess(user);
+  if (access.viewer && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || 'GET').toUpperCase()))
+    throw httpError(403, 'View-only account (Admin test) — you can look, but not change anything');
   if (!access[perm]) {
     const label = perm === 'heroshield' ? 'HeRo Shield' : perm === 'herocheck' ? 'HeRo Check' : 'admin';
     throw httpError(403, `No ${label} access for this account`);

@@ -280,3 +280,7 @@ notify pgrst, 'reload schema';
 
 -- refresh the API cache once more at the end
 notify pgrst, 'reload schema';
+
+-- v26: 👁️ Admin (test) — sees every tab, cannot change anything
+alter table public.user_access add column if not exists viewer boolean not null default false;
+notify pgrst, 'reload schema';
