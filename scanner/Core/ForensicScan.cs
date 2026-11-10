@@ -29,6 +29,8 @@ public sealed class ForensicScan
     private DateTime? _winInstall;
     private int _recycleCount = -1;
     private bool _amcacheTiny;
+    private Action<double, string?>? _sub;   // progress inside the current (long) step
+    private static long _walked;              // folders + files visited by SafeEnumerate
 
     public ForensicScan(List<Signatures.Sig> sigs) => _sigs = sigs;
 
@@ -36,61 +38,100 @@ public sealed class ForensicScan
     {
         var sw = Stopwatch.StartNew();
         var report = new ScanReport { Pin = pin };
-        void P(int pct, string s) => progress?.Report((pct, s));
-        void Hold(int ms = 750) => System.Threading.Thread.Sleep(ms);
+        // Even progress: every step has a weight ≈ how long it takes, so the bar moves at a steady pace
+        // (the long steps — whole-disk sweep, service memory — report their own progress inside their share).
+        var W = new Dictionary<string, double>
+        {
+            ["init"] = 1.4, ["sys"] = 1.2, ["vm"] = 1.2, ["proc"] = 1.6, ["mods"] = 1.2, ["dns"] = 1.2, ["net"] = 1.2,
+            ["pf"] = 1.6, ["bam"] = 1.2, ["drop"] = 1.6, ["fivem"] = 2.4, ["start"] = 1.2, ["tasks"] = 1.2, ["drv"] = 1.4,
+            ["recent"] = 1.2, ["disk"] = 30, ["warn"] = 1.2, ["bin"] = 1.2, ["usn"] = 3.5, ["mem"] = 11, ["exec"] = 1.8,
+            ["cmd"] = 1.2, ["bypass"] = 1.4, ["av"] = 1.2, ["hw"] = 2.2, ["spoof"] = 1.4, ["usb"] = 1.2, ["acc"] = 1.2,
+            ["discord"] = 2, ["hosts"] = 1.2, ["evt"] = 3, ["ads"] = 1.6, ["vss"] = 1.2,
+        };
+        double total = W.Values.Sum(), done = 0, curW = 0; string curStatus = ""; int lastPct = 0;
+        void Report(double frac, string? status = null)
+        {
+            if (status != null) curStatus = status;
+            int pct = (int)Math.Round(2 + 94 * (done + curW * Math.Max(0, Math.Min(1, frac))) / total);
+            pct = Math.Max(lastPct, Math.Min(96, pct)); lastPct = pct;
+            progress?.Report((pct, curStatus));
+        }
+        void Step(string key, string status) { done += curW; curW = W[key]; Report(0, status); }
+        _sub = (f, st) => Report(f, st);
+        // short steps hold ~1 s so the player sees each check go by and the bar keeps a steady pace
+        void Hold(int ms = 1050) { Report(1); System.Threading.Thread.Sleep(ms); }
 
-        P(2, "Loading modules…"); Hold(900);
-        P(5, "Collecting system information…");
+        Step("init", "Loading modules…"); Hold(900);
+        Step("sys", "Collecting system information…");
         report.System = CollectSystemInfo(); Hold();
 
-        P(10, "Detecting virtual machines…");
+        Step("vm", "Detecting virtual machines…");
         DetectVirtualMachine(report); Hold();
 
-        P(14, "Scanning active processes…");
+        Step("proc", "Scanning active processes…");
         report.Detections.AddRange(ScanRunningProcesses());
         ScanRunningAnalysisTools(report); Hold();
 
-        P(18, "Checking network / DNS for cheat domains…");
+        Step("mods", "Checking DLLs loaded inside FiveM…");
+        ScanGameModules(report);
+
+        Step("dns", "Checking network / DNS for cheat domains…");
         report.Detections.AddRange(ScanNetworkIndicators()); Hold();
 
-        P(22, "Scanning active network connections…");
+        Step("net", "Scanning active network connections…");
         report.NetworkConnections = ScanNetworkConnections(report); Hold();
 
-        P(26, "Reading execution history…");
+        Step("pf", "Reading execution history…");
         report.Detections.AddRange(ScanPrefetch()); Hold();
 
-        P(30, "Reading background activity…");
+        Step("bam", "Reading background activity…");
         report.Detections.AddRange(ScanBam()); Hold();
 
-        P(34, "Checking Temp & Downloads…");
+        Step("drop", "Checking Temp & Downloads…");
         report.Detections.AddRange(ScanDropFolders()); Hold();
 
-        P(38, "Scanning the FiveM folder…");
+        Step("fivem", "Scanning the FiveM folder…");
         ScanFiveM(report); Hold();
 
-        P(42, "Scanning startup & persistence…");
+        Step("start", "Scanning startup & persistence…");
         ScanStartupPersistence(report); Hold();
 
-        P(46, "Scanning scheduled tasks…");
+        Step("tasks", "Scanning scheduled tasks…");
         ScanScheduledTasks(report); Hold();
 
-        P(50, "Enumerating loaded drivers…");
+        Step("drv", "Enumerating loaded drivers…");
         ScanLoadedDrivers(report); Hold();
 
-        P(54, "Reading recent file access…");
+        Step("recent", "Reading recent file access…");
         report.RecentFiles = ScanRecentFiles(report); Hold();
 
         // deep sweep of every drive — this is the slow, thorough part
-        P(58, "Deep-scanning drives & files…");
-        ScanWholeDisk(report, progress);
+        Step("disk", "Deep-scanning drives & files…");
+        ScanWholeDisk(report, progress); Report(1);
 
-        P(76, "Validating services & integrity…");
+        Step("warn", "Validating services & integrity…");
         report.Warnings.AddRange(ScanWarnings(report.System)); Hold();
 
-        P(79, "Reading deleted files…");
-        report.DeletedFiles = ScanRecycleBin(); Hold();
+        Step("bin", "Reading deleted files…");
+        report.DeletedFiles = ScanRecycleBin();
+        foreach (var d in report.DeletedFiles.Where(x => x.Flag == 2))
+            report.Detections.Add(new Detection
+            {
+                File = d.File, Signature = "Cheat file in the recycle bin — " + d.Why, Path = d.Path,
+                Method = DetectMethod.RecycleBin, Severity = d.Why.StartsWith("known") ? Severity.High : Severity.Medium,
+                Deleted = true, When = d.DeletedAt.Length > 0 ? "deleted " + d.DeletedAt : "deleted",
+                Features = new() { "Deleted", d.StillInBin ? "Still in the recycle bin" : "Bin entry half-wiped" },
+                Explain = $"\"{d.File}\" was deleted from {PathX.GetDirectoryName(d.Path)} on {d.DeletedAt}. Windows' recycle bin keeps its original name and location."
+            });
+        Hold();
 
-        P(82, "Building execution timeline…");
+        Step("usn", "Reading the NTFS change journal (deleted / renamed files)…");
+        ScanUsnJournal(report); Hold();
+
+        Step("mem", "Reading what Windows services remember (DPS / PcaSvc / Explorer / DNS)…");
+        ScanMemoryTraces(report); Report(1);
+
+        Step("exec", "Building execution timeline…");
         report.ExecutedPrograms = CollectExecutedPrograms(); Hold();
 
         // a KNOWN cheat that ran anywhere on the PC (even if since deleted) is a detection
@@ -101,14 +142,14 @@ public sealed class ForensicScan
             if (!gone && e.Path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             {
                 // the program is still on disk: judge it on its code, not on its name
-                var d = ConfirmNamed(e.Path, e.Name, sig, CheatWordIn(Path.GetFileNameWithoutExtension(e.Name)), DetectMethod.Prefetch, e.LastRun);
+                var d = ConfirmNamed(e.Path, e.Name, sig, CheatWordIn(PathX.GetFileNameWithoutExtension(e.Name)), DetectMethod.Prefetch, e.LastRun);
                 if (d != null) { d.Explain = $"It ran on this PC ({e.Source}). " + d.Explain; report.Detections.Add(d); }
                 else e.Flagged = false;
                 continue;
             }
             if (sig == null)
             {
-                var w = CheatWordIn(Path.GetFileNameWithoutExtension(e.Name));
+                var w = CheatWordIn(PathX.GetFileNameWithoutExtension(e.Name));
                 if (w == null) continue;
                 report.Detections.Add(new Detection
                 {
@@ -125,38 +166,44 @@ public sealed class ForensicScan
                 + (gone ? " — the file is now deleted." : "."), gone));
         }
 
-        P(85, "Reading PowerShell & command history…");
+        Step("cmd", "Reading PowerShell & command history…");
         report.Commands = ScanCommandHistory(report); Hold();
 
-        P(87, "Checking for bypass / cleaning…");
+        Step("bypass", "Checking for bypass / cleaning…");
         ScanBypassTells(report); Hold();
 
-        P(89, "Checking antivirus, exclusions & injection hooks…");
+        Step("av", "Checking antivirus, exclusions & injection hooks…");
         ScanAntivirusAndHooks(report); Hold();
 
-        P(91, "Reading USB devices & browsers…");
+        Step("hw", "Checking cheat hardware (DMA cards, KMBox, Cronus, XIM, Arduino)…");
+        ScanCheatHardware(report); Hold();
+
+        Step("spoof", "Checking HWID spoofer traces…");
+        ScanSpooferTraces(report); Hold();
+
+        Step("usb", "Reading USB devices & browsers…");
         report.UsbDevices = ReadUsbDevices();
         report.Browsers = ReadBrowsers(); Hold();
 
-        P(92, "Reading linked accounts…");
+        Step("acc", "Reading linked accounts…");
         report.SteamAccounts = ReadSteamAccounts();
         report.DiscordId = ReadDiscordId();
-        P(92, "Reading Discord servers from the Discord cache…");
+        Step("discord", "Reading Discord servers from the Discord cache…");
         try { report.DiscordTraces = DiscordCache.Read(DiscordCache.DefaultRoots()); if (report.DiscordTraces.Count > 0) _artifacts.Add("Discord cache"); } catch { }
         report.EpicAccounts = ReadEpicAccounts();
         report.RockstarAccounts = ReadRockstarAccounts(); Hold();
 
-        P(93, "Checking hosts file & firewall…");
+        Step("hosts", "Checking hosts file & firewall…");
         ScanHostsFile(report);
         ScanFirewallRules(report); Hold();
 
-        P(94, "Reading Windows Event Log…");
+        Step("evt", "Reading Windows Event Log…");
         ScanEventLog(report); Hold();
 
-        P(95, "Scanning for alternate data streams…");
+        Step("ads", "Scanning for alternate data streams…");
         ScanAlternateDataStreams(report); Hold();
 
-        P(96, "Checking Volume Shadow Copies…");
+        Step("vss", "Checking Volume Shadow Copies…");
         ScanVSSAndAntiForensic(report); Hold();
 
         // de-duplicate detections
@@ -174,8 +221,9 @@ public sealed class ForensicScan
         report.FilesScanned = _filesScanned;
         sw.Stop();
         report.DurationSeconds = Math.Round(sw.Elapsed.TotalSeconds, 1);
-        P(98, "Compiling results…"); Hold(900);
-        P(100, "Finalizing report…"); Hold(600);
+        done += curW; curW = 1.5; Report(0, "Compiling results…"); System.Threading.Thread.Sleep(900);
+        progress?.Report((98, "Finalizing report…")); System.Threading.Thread.Sleep(700);
+        _sub = null;
         return report;
     }
 
@@ -641,14 +689,14 @@ public sealed class ForensicScan
     private IEnumerable<Detection> ScanPrefetch()
     {
         var hits = new List<Detection>();
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
+        var dir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
         if (!Directory.Exists(dir)) return hits;
         _artifacts.Add("Prefetch");
         string[] files; try { files = Directory.GetFiles(dir, "*.pf"); } catch { return hits; }
         _filesScanned += files.Length;
         foreach (var pf in files)
         {
-            var name = Path.GetFileName(pf).ToLowerInvariant();
+            var name = PathX.GetFileName(pf).ToLowerInvariant();
             foreach (var sig in _sigs)
             {
                 var m = sig.FileNames.FirstOrDefault(fn => name.StartsWith(fn + "-"));
@@ -683,7 +731,7 @@ public sealed class ForensicScan
                     var low = v.ToLowerInvariant();
                     var sig = _sigs.FirstOrDefault(s => s.FileNames.Any(fn => low.EndsWith("\\" + fn)));
                     if (sig != null)
-                        hits.Add(Det(Path.GetFileName(v), sig, v, DetectMethod.Bam, "recorded by BAM",
+                        hits.Add(Det(PathX.GetFileName(v), sig, v, DetectMethod.Bam, "recorded by BAM",
                             "The Background Activity Moderator recorded this executable running under a user account.", false));
                 }
             }
@@ -702,15 +750,15 @@ public sealed class ForensicScan
         var folders = new[]
         {
             Path.GetTempPath(),
-            Path.Combine(up, "Downloads"),
+            PathX.Combine(up, "Downloads"),
             Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            Path.Combine(up, "Desktop"),
-            Path.Combine(up, "Documents"),
+            PathX.Combine(up, "Desktop"),
+            PathX.Combine(up, "Documents"),
             // v4.0: scan Videos and Pictures too (cheaters hide loaders there)
-            Path.Combine(up, "Videos"),
-            Path.Combine(up, "Pictures"),
-            Path.Combine(up, "Music"),
+            PathX.Combine(up, "Videos"),
+            PathX.Combine(up, "Pictures"),
+            PathX.Combine(up, "Music"),
         };
         var ex = new[] { ".rar", ".zip", ".7z" };   // programs & scripts are read by the deep scan
         foreach (var f in folders.Distinct())
@@ -722,13 +770,13 @@ public sealed class ForensicScan
             foreach (var path in files)
             {
                 _filesScanned++;
-                var name = Path.GetFileName(path).ToLowerInvariant();
+                var name = PathX.GetFileName(path).ToLowerInvariant();
 
                 if (IsOwnOrDevPath(path.ToLowerInvariant())) continue;
                 // programs / scripts here are read and judged by the deep scan (same rules) — only archives here
                 if (name.EndsWith(".zip")) ScanZipEntries(path, hits);
 
-                var dext = Path.GetExtension(name);
+                var dext = PathX.GetExtension(name);
                 // .rar / .7z cannot be opened here: a cheat name on one is a lead only
                 var wd = dext is ".rar" or ".7z" ? CheatWordIn(name) : null;
                 if (wd != null)
@@ -761,12 +809,12 @@ public sealed class ForensicScan
             {
                 if (++n > 5000) break;
                 var entry = en.FullName.Replace('/', '\\');
-                var nm = Path.GetFileName(entry).ToLowerInvariant();
+                var nm = PathX.GetFileName(entry).ToLowerInvariant();
                 if (nm.Length == 0) continue;
-                var ext = Path.GetExtension(nm);
+                var ext = PathX.GetExtension(nm);
                 if (ext is not (".exe" or ".dll" or ".sys" or ".asi" or ".lua" or ".bat" or ".ps1")) continue;
                 var sig = _sigs.FirstOrDefault(x => x.FileNames.Contains(nm));
-                var w = CheatWordIn(nm) ?? CheatWordIn(Path.GetDirectoryName(entry) ?? "");
+                var w = CheatWordIn(nm) ?? CheatWordIn(PathX.GetDirectoryName(entry) ?? "");
                 if (en.Length <= 0 || en.Length > 64L * 1024 * 1024) continue;
                 byte[] data;
                 try
@@ -862,15 +910,15 @@ public sealed class ForensicScan
                 if (string.IsNullOrEmpty(startupDir) || !Directory.Exists(startupDir)) continue;
                 foreach (var f in Directory.GetFiles(startupDir))
                 {
-                    var name = Path.GetFileName(f).ToLowerInvariant();
+                    var name = PathX.GetFileName(f).ToLowerInvariant();
                     if (name == "desktop.ini") continue;
-                    var ext = Path.GetExtension(name);
+                    var ext = PathX.GetExtension(name);
                     // a raw script / exe dropped in Startup (not a normal shortcut) is unusual
                     bool susp = ext is ".exe" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".js"
                         || sigNames.Contains(name) || CheatWordIn(name) != null;
                     report.StartupEntries.Add(new StartupEntry
                     {
-                        Name = Path.GetFileName(f), Command = f, Location = "Startup folder", Suspicious = susp
+                        Name = PathX.GetFileName(f), Command = f, Location = "Startup folder", Suspicious = susp
                     });
                 }
             }
@@ -991,7 +1039,7 @@ public sealed class ForensicScan
                 var state = drv["State"]?.ToString() ?? "";
                 var path = ResolveDriverPath(raw, win);
                 var low = path.ToLowerInvariant();
-                var file = Path.GetFileName(low);
+                var file = PathX.GetFileName(low);
 
                 // skip Microsoft's own drivers (hundreds of them, all fine)
                 string company = "";
@@ -1003,7 +1051,7 @@ public sealed class ForensicScan
                 bool inWindows = low.StartsWith(win.ToLowerInvariant());
                 bool signed = inWindows || (File.Exists(path) && IsSigned(path));
                 bool userPath = low.Contains(@"\users\") || low.Contains(@"\temp\") || low.Contains(@"\downloads\");
-                bool vuln = VulnerableDrivers.ContainsKey(name) || VulnerableDrivers.ContainsKey(Path.GetFileNameWithoutExtension(file));
+                bool vuln = VulnerableDrivers.ContainsKey(name) || VulnerableDrivers.ContainsKey(PathX.GetFileNameWithoutExtension(file));
                 bool sigHit = file.Length > 0 && sigNames.Contains(file);
 
                 report.LoadedDrivers.Add(new DriverEntry
@@ -1031,7 +1079,7 @@ public sealed class ForensicScan
                 }
                 else if (vuln)
                 {
-                    var key = VulnerableDrivers.ContainsKey(name) ? name : Path.GetFileNameWithoutExtension(file);
+                    var key = VulnerableDrivers.ContainsKey(name) ? name : PathX.GetFileNameWithoutExtension(file);
                     vulnFound.Add(VulnerableDrivers[key]);
                 }
 
@@ -1064,8 +1112,8 @@ public sealed class ForensicScan
         if (string.IsNullOrWhiteSpace(p)) return "";
         p = p.Trim().Trim('"');
         if (p.StartsWith(@"\??\")) p = p.Substring(4);
-        if (p.StartsWith(@"\SystemRoot\", StringComparison.OrdinalIgnoreCase)) p = Path.Combine(win, p.Substring(12));
-        else if (p.StartsWith(@"System32\", StringComparison.OrdinalIgnoreCase)) p = Path.Combine(win, p);
+        if (p.StartsWith(@"\SystemRoot\", StringComparison.OrdinalIgnoreCase)) p = PathX.Combine(win, p.Substring(12));
+        else if (p.StartsWith(@"System32\", StringComparison.OrdinalIgnoreCase)) p = PathX.Combine(win, p);
         return Environment.ExpandEnvironmentVariables(p);
     }
 
@@ -1073,7 +1121,7 @@ public sealed class ForensicScan
     private bool IsSuspiciousLaunch(string cmd, HashSet<string> sigNames, out string exe)
     {
         var path = ExtractExePath(cmd);
-        exe = Path.GetFileName(path).ToLowerInvariant();
+        exe = PathX.GetFileName(path).ToLowerInvariant();
         var e = exe;
         if (sigNames.Contains(e)) return true;
         if (CheatWordIn(e) != null) return true;
@@ -1117,7 +1165,7 @@ public sealed class ForensicScan
         var sigNames = new HashSet<string>(_sigs.SelectMany(s => s.FileNames));
         try
         {
-            var recentDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            var recentDir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Microsoft", "Windows", "Recent");
             if (!Directory.Exists(recentDir)) return list;
             _artifacts.Add("Recent files (LNK)");
@@ -1130,7 +1178,7 @@ public sealed class ForensicScan
                     // only look at recent entries (last 30 days)
                     if ((DateTime.Now - fi.LastWriteTime).TotalDays > 30) continue;
 
-                    var lnkName = Path.GetFileNameWithoutExtension(lnk);
+                    var lnkName = PathX.GetFileNameWithoutExtension(lnk);
                     bool isExe = lnkName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
                         || lnkName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
                         || lnkName.EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
@@ -1200,7 +1248,7 @@ public sealed class ForensicScan
         foreach (var s in _sigs)
             foreach (var f in s.FileNames)
             {
-                var stem = Path.GetFileNameWithoutExtension(f).ToLowerInvariant();
+                var stem = PathX.GetFileNameWithoutExtension(f).ToLowerInvariant();
                 if (stem.Length >= 5 && !stop.Contains(stem)) needles.Add((stem, s));
             }
         needles = needles.GroupBy(n => n.needle).Select(g => g.First()).ToList();
@@ -1213,6 +1261,9 @@ public sealed class ForensicScan
         DriveInfo[] drives;
         try { drives = DriveInfo.GetDrives(); } catch { return; }
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long walk0 = _walked; double estEntries = 0;
+        foreach (var dv in drives)
+            try { if ((dv.DriveType == DriveType.Fixed || dv.DriveType == DriveType.Removable) && dv.IsReady) estEntries += NtfsInfo.FileRecords(dv.Name) * 0.92; } catch { }
 
         foreach (var drive in drives)
         {
@@ -1225,14 +1276,15 @@ public sealed class ForensicScan
                 ".rpf", ".ytd", ".ydr", ".ymap", ".oiv", ".ydd", ".yft" }, maxDepth: 40))
             {
                 _filesScanned++;
-                if ((_filesScanned & 0x3FF) == 0)
+                if ((_filesScanned & 0xFF) == 0)
                 {
-                    int pct = 58 + (int)(16.0 * (1.0 - 1.0 / (1.0 + _filesScanned / 15000.0)));
-                    progress?.Report((pct, $"Deep-scanning drives & files… {_filesScanned:n0} files"));
+                    // share of the disk already walked (NTFS tells how many file records exist); fallback: a soft curve
+                    double f = estEntries > 0 ? Math.Min(0.98, (_walked - walk0) / estEntries) : 1.0 - 1.0 / (1.0 + _filesScanned / 15000.0);
+                    _sub?.Invoke(f, $"Deep-scanning drives & files… {_filesScanned:n0} files");
                 }
 
-                var name = Path.GetFileName(path).ToLowerInvariant();
-                var ext = Path.GetExtension(name);
+                var name = PathX.GetFileName(path).ToLowerInvariant();
+                var ext = PathX.GetExtension(name);
                 var low = path.ToLowerInvariant();
                 bool inGame = IsGamePath(low);
 
@@ -1341,9 +1393,15 @@ public sealed class ForensicScan
                     foreach (var (dom, dsig) in domainList)
                         if (content.Contains(dom))
                         {
-                            if (_suspicious.Count < 400)
-                                _suspicious.Add(new SuspiciousFile { Path = path,
-                                    Kind = $"Contains known indicator domain {dom} ({dsig.Name}); verify whether referenced or contacted" });
+                            // the domain comes from YOUR signature list (a cheat's own server) — a renamed loader
+                            if (seen.Add(path))
+                                report.Detections.Add(new Detection
+                                {
+                                    File = name, Signature = dsig.Name + " (domain)", Path = path, Sha256 = Sha256File(path),
+                                    Method = DetectMethod.SuspiciousExecutable, Severity = Severity.High, When = SafeWrite(path),
+                                    Features = new List<string>(dsig.Features) { "C2 domain" },
+                                    Explain = $"This file contains \"{dom}\", the {dsig.Name} cheat's domain from your signature list — a renamed loader."
+                                });
                             cHit = true; break;
                         }
                     if (cHit) continue;
@@ -1381,7 +1439,7 @@ public sealed class ForensicScan
                 // dropper: random file name and/or a chain of random folders in AppData/Temp, unsigned, no publisher
                 if (ext == ".exe" && dropZone && !legit && !seen.Contains(path))
                 {
-                    bool rndName = LooksRandom(Path.GetFileNameWithoutExtension(path));
+                    bool rndName = LooksRandom(PathX.GetFileNameWithoutExtension(path));
                     int chain = WeirdFolderChain(path);
                     if ((rndName || chain >= 2) && !IsSigned(path) && NoPublisher(path) && seen.Add(path))
                     {
@@ -1392,7 +1450,16 @@ public sealed class ForensicScan
                         if (chain >= 2) why.Add($"hidden in {chain} random folders");
                         if (prot != null) why.Add($"protected with {prot}");
                         why.Add("unsigned"); why.Add("no publisher");
-                        if (_suspicious.Count < 400)
+                        if (high)   // several independent signs together: random name/folders + packer/unsigned/no publisher
+                            report.Detections.Add(new Detection
+                            {
+                                File = name, Signature = "Hidden cheat loader", Path = path,
+                                Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
+                                Severity = Severity.High, When = SafeWrite(path), Features = why,
+                                Explain = "Cheat loaders drop themselves with random names into random AppData/Temp folders so nobody finds them: "
+                                          + string.Join(", ", why) + ". Normal programs have a real name, a publisher and live in Program Files."
+                            });
+                        else if (_suspicious.Count < 400)
                             _suspicious.Add(new SuspiciousFile { Path = path,
                                 Kind = "Unusual unsigned executable: " + string.Join(", ", why) + "; requires independent evidence" });
                         continue;
@@ -1405,7 +1472,16 @@ public sealed class ForensicScan
                     var packer = StrongPacker(path);
                     if (packer != null && !IsSigned(path) && seen.Add(path))
                     {
-                        if (_suspicious.Count < 400)
+                        if (nameHit != null)   // named like a cheat AND code hidden by a commercial protector
+                            report.Detections.Add(new Detection
+                            {
+                                File = name, Signature = $"Protected loader ({packer}) named \"{nameHit}\"",
+                                Path = path, Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
+                                Severity = Severity.High, When = SafeWrite(path),
+                                Features = new() { packer, $"named \"{nameHit}\"", "unsigned", "in Downloads/Temp/AppData" },
+                                Explain = $"Named like a cheat, its code is encrypted with {packer}, unsigned, in a download/temp folder — this is how paid FiveM cheat loaders are shipped."
+                            });
+                        else if (_suspicious.Count < 400)
                             _suspicious.Add(new SuspiciousFile { Path = path,
                                 Kind = $"Packed unsigned executable ({packer}); packing alone is not proof" });
                         continue;
@@ -1469,7 +1545,7 @@ public sealed class ForensicScan
     // C:\Users\name (or above) is never "one app folder"
     private static bool IsUserRoot(string dir)
     {
-        var parts = dir.Replace('/', '\\').TrimEnd('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        var parts = dir.Replace('/', '\\').TrimEnd('\\').Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length <= 3 && parts.Length >= 1 && (parts.Length < 2 || parts[1].Equals("users", StringComparison.OrdinalIgnoreCase) || parts.Length <= 2);
     }
 
@@ -1480,11 +1556,18 @@ public sealed class ForensicScan
         {
             if (!k.capture || !k.input) continue;
             // report each kit once, at its top folder (skip it when its parent folder is the same kit)
-            if (IsKit(Path.GetDirectoryName(dir) ?? "")) continue;
-            var exes = _kits.Where(o => o.Key.Equals(dir, StringComparison.OrdinalIgnoreCase) || (Path.GetDirectoryName(o.Key) ?? "").Equals(dir, StringComparison.OrdinalIgnoreCase))
+            if (IsKit(PathX.GetDirectoryName(dir) ?? "")) continue;
+            var exes = _kits.Where(o => o.Key.Equals(dir, StringComparison.OrdinalIgnoreCase) || (PathX.GetDirectoryName(o.Key) ?? "").Equals(dir, StringComparison.OrdinalIgnoreCase))
                             .SelectMany(o => o.Value.exes ?? new List<string>()).Distinct().ToList();
-            _suspicious.Add(new SuspiciousFile { Path = dir,
-                Kind = "Screen capture + input libraries coexist (possible automation kit, also legitimate accessibility/testing software); verify usage" });
+            report.Detections.Add(new Detection
+            {
+                File = exes.Count > 0 ? PathX.GetFileName(exes[0]) : PathX.GetFileName(dir), Signature = "Colorbot / external aim kit",
+                Path = dir + (exes.Count > 0 ? "  (" + string.Join(", ", exes.Take(3).Select(PathX.GetFileName)) + ")" : ""),
+                Method = DetectMethod.SuspiciousExecutable, Severity = Severity.High, When = SafeWrite(exes.FirstOrDefault() ?? dir),
+                Features = new() { "screen reading (OpenCV / OCR)", "fake controller / mouse input", "external aimbot / triggerbot" },
+                Explain = "This folder (in Downloads/Temp/AppData) has both a screen-reading library (OpenCV / Tesseract) AND a fake controller/mouse driver "
+                          + "(vJoy / ViGEm / Interception / XInput emu). Together that is a colorbot: it looks at the game picture and moves the aim for the player."
+            });
         }
     }
 
@@ -1499,7 +1582,7 @@ public sealed class ForensicScan
             _artifacts.Add("FiveM folder: " + root);
             report.FiveM.Add(new FiveMItem
             {
-                Kind = "Folder", Name = Path.GetFileName(root), Path = root, Level = 0,
+                Kind = "Folder", Name = PathX.GetFileName(root), Path = root, Level = 0,
                 When = SafeWrite(root), Detail = "FiveM install found"
             });
             IEnumerable<string> files;
@@ -1507,8 +1590,8 @@ public sealed class ForensicScan
             foreach (var path in files)
             {
                 _filesScanned++;
-                var name = Path.GetFileName(path).ToLowerInvariant();
-                var ext = Path.GetExtension(name);
+                var name = PathX.GetFileName(path).ToLowerInvariant();
+                var ext = PathX.GetExtension(name);
                 var low = path.ToLowerInvariant();
                 // FiveM's own files and server-streamed cache are not the player's mods
                 bool own = low.Contains("\\cache\\") || low.Contains("\\citizen\\") || low.Contains("\\crashes\\")
@@ -1586,7 +1669,7 @@ public sealed class ForensicScan
     // Opens an RPF mod, lists its files, reads the .meta/.xml/.dat inside and decides what the mod does.
     private int AnalyzeRpf(ScanReport report, string path, int depth = 0, string? shownPath = null, Stream? source = null)
     {
-        var name = Path.GetFileName(path);
+        var name = PathX.GetFileName(path);
         var item = new FiveMItem { Kind = "Mod archive", Name = name, Path = shownPath ?? path, Level = 0 };
         try
         {
@@ -1773,18 +1856,18 @@ public sealed class ForensicScan
             all[name] = new ExecutedProgram
             {
                 Name = name, Path = path, LastRun = label, Source = src,
-                Flagged = sigNames.Contains(name) || CheatWordIn(Path.GetFileNameWithoutExtension(name)) != null
+                Flagged = sigNames.Contains(name) || CheatWordIn(PathX.GetFileNameWithoutExtension(name)) != null
             };
         }
 
         // 1) Prefetch
         try
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
+            var dir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
             if (Directory.Exists(dir))
                 foreach (var pf in Directory.GetFiles(dir, "*.pf"))
                 {
-                    var fn = Path.GetFileName(pf);
+                    var fn = PathX.GetFileName(pf);
                     var dash = fn.LastIndexOf('-');
                     var name = dash > 0 ? fn.Substring(0, dash) : fn;
                     if (name.ToLowerInvariant().EndsWith(".exe"))
@@ -1796,7 +1879,7 @@ public sealed class ForensicScan
         // 2) PCA (Windows 11)
         try
         {
-            var pca = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            var pca = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 "appcompat", "pca", "PcaAppLaunchDic.txt");
             if (File.Exists(pca))
             {
@@ -1807,7 +1890,7 @@ public sealed class ForensicScan
                     if (parts.Length < 2) continue;
                     var path = parts[0].Trim();
                     DateTime.TryParse(parts[1].Trim(), out var when);
-                    Add(Path.GetFileName(path), path, when, "PCA");
+                    Add(PathX.GetFileName(path), path, when, "PCA");
                 }
             }
         }
@@ -1831,7 +1914,7 @@ public sealed class ForensicScan
                                 when = DateTime.FromFileTime(BitConverter.ToInt64(data, 0));
                         }
                         catch { }
-                        Add(Path.GetFileName(v), v, when, "BAM");
+                        Add(PathX.GetFileName(v), v, when, "BAM");
                     }
                 }
         }
@@ -1863,7 +1946,7 @@ public sealed class ForensicScan
                             }
                         }
                         catch { }
-                        Add(Path.GetFileName(name), name, when, "UserAssist");
+                        Add(PathX.GetFileName(name), name, when, "UserAssist");
                     }
                 }
             }
@@ -1883,7 +1966,7 @@ public sealed class ForensicScan
                     var low = v.ToLowerInvariant();
                     if (!low.Contains(".exe")) continue;
                     var path = v.Split(new[] { ".FriendlyAppName", ".ApplicationCompany" }, StringSplitOptions.None)[0];
-                    Add(Path.GetFileName(path), path, DateTime.MinValue, "MUICache");
+                    Add(PathX.GetFileName(path), path, DateTime.MinValue, "MUICache");
                 }
             }
         }
@@ -1892,10 +1975,10 @@ public sealed class ForensicScan
         // 6) v4.0: PCA general database (Windows 11) — includes programs that crashed / were blocked
         try
         {
-            var pcaDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "appcompat", "pca");
+            var pcaDir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "appcompat", "pca");
             foreach (var db in new[] { "PcaGeneralDb0.txt", "PcaGeneralDb1.txt" })
             {
-                var fp = Path.Combine(pcaDir, db);
+                var fp = PathX.Combine(pcaDir, db);
                 if (!File.Exists(fp)) continue;
                 _artifacts.Add("PCA " + db);
                 // format: time|runStatus|path|description|vendor|version|programId|exitCode
@@ -1907,7 +1990,7 @@ public sealed class ForensicScan
                     if (!path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
                     DateTime.TryParse(parts[0].Trim(), System.Globalization.CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.AssumeUniversal, out var when);
-                    Add(Path.GetFileName(path), path, when, "PCA");
+                    Add(PathX.GetFileName(path), path, when, "PCA");
                 }
             }
         }
@@ -1916,7 +1999,7 @@ public sealed class ForensicScan
         // 7) v4.0: AmCache hive presence (the hive itself is locked by Windows while running)
         try
         {
-            var am = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "appcompat", "Programs", "Amcache.hve");
+            var am = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "appcompat", "Programs", "Amcache.hve");
             if (File.Exists(am))
             {
                 _artifacts.Add("AmCache");
@@ -1935,7 +2018,7 @@ public sealed class ForensicScan
             {
                 _artifacts.Add("ShimCache (AppCompatCache)");
                 foreach (var path in ParseShimCache(data))
-                    Add(Path.GetFileName(path), path, DateTime.MinValue, "ShimCache");
+                    Add(PathX.GetFileName(path), path, DateTime.MinValue, "ShimCache");
             }
         }
         catch { }
@@ -1966,7 +2049,7 @@ public sealed class ForensicScan
         // Prefetch enabled but almost empty = history wiped
         try
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
+            var dir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Prefetch");
             bool enabled = true;
             using (var k = Registry.LocalMachine.OpenSubKey(
                 @"SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters"))
@@ -1994,7 +2077,7 @@ public sealed class ForensicScan
         // Security event log unusually small and freshly created
         try
         {
-            var log = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            var log = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 "System32", "winevt", "Logs", "Security.evtx");
             var fi = new FileInfo(log);
             if (fi.Exists && fi.Length < 100 * 1024 && (DateTime.Now - fi.CreationTime).TotalDays < 3)
@@ -2059,7 +2142,7 @@ public sealed class ForensicScan
         // v4.0: Jump lists / Recent items wiped
         try
         {
-            var recent = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Windows", "Recent");
+            var recent = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Microsoft", "Windows", "Recent");
             if (Directory.Exists(recent) && _winInstall.HasValue && (DateTime.Now - _winInstall.Value).TotalDays > 14)
             {
                 int n = Directory.GetFiles(recent, "*.lnk").Length;
@@ -2088,7 +2171,7 @@ public sealed class ForensicScan
         // PowerShell PSReadLine history
         try
         {
-            var hist = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            var hist = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Microsoft", "Windows", "PowerShell", "PSReadLine", "ConsoleHost_history.txt");
             if (File.Exists(hist))
             {
@@ -2134,7 +2217,7 @@ public sealed class ForensicScan
         // v4.0: CMD history (doskey / command processor)
         try
         {
-            var cmdHist = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            var cmdHist = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Microsoft", "Windows", "cmd_history.txt");
             if (File.Exists(cmdHist))
             {
@@ -2279,7 +2362,7 @@ public sealed class ForensicScan
     {
         try
         {
-            var hostsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            var hostsPath = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 "System32", "drivers", "etc", "hosts");
             if (!File.Exists(hostsPath)) return;
             _artifacts.Add("hosts file");
@@ -2309,7 +2392,7 @@ public sealed class ForensicScan
                     Category = "Evasion",
                     Title = $"Hosts file blocking {suspicious.Count} game/anticheat domain(s)",
                     Detail = "The Windows hosts file redirects game or anticheat domains — " +
-                        string.Join(", ", suspicious.Take(3).Select(s => s.Length > 60 ? s[..60] : s))
+                        string.Join(", ", suspicious.Take(3).Select(s => s.Length > 60 ? s.Substring(0, 60) : s))
                 });
             }
         }
@@ -2492,9 +2575,9 @@ public sealed class ForensicScan
         var up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var foldersToCheck = new[]
         {
-            Path.Combine(up, "Downloads"),
-            Path.Combine(up, "Desktop"),
-            Path.Combine(up, "Documents"),
+            PathX.Combine(up, "Downloads"),
+            PathX.Combine(up, "Desktop"),
+            PathX.Combine(up, "Documents"),
             Path.GetTempPath(),
         };
 
@@ -2526,7 +2609,7 @@ public sealed class ForensicScan
                                || sl.EndsWith(".ps1") || sl.EndsWith(".vbs") || sl.EndsWith(".lua") ? "executable" : "data";
                     _suspicious.Add(new SuspiciousFile
                     {
-                        Path = Path.Combine(folder, host) + ":" + stream,
+                        Path = PathX.Combine(folder, host) + ":" + stream,
                         Kind = kind == "executable" ? "Hidden executable in NTFS stream (ADS)" : "Hidden NTFS data stream (ADS)"
                     });
                     if (kind == "executable")
@@ -2614,16 +2697,16 @@ public sealed class ForensicScan
         var ra = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var map = new (string name, string path)[]
         {
-            ("Chrome", Path.Combine(la, "Google", "Chrome", "User Data")),
-            ("Edge", Path.Combine(la, "Microsoft", "Edge", "User Data")),
-            ("Brave", Path.Combine(la, "BraveSoftware", "Brave-Browser", "User Data")),
-            ("Opera", Path.Combine(ra, "Opera Software", "Opera Stable")),
-            ("Opera GX", Path.Combine(ra, "Opera Software", "Opera GX Stable")),
-            ("Firefox", Path.Combine(ra, "Mozilla", "Firefox", "Profiles")),
-            ("Vivaldi", Path.Combine(la, "Vivaldi", "User Data")),
+            ("Chrome", PathX.Combine(la, "Google", "Chrome", "User Data")),
+            ("Edge", PathX.Combine(la, "Microsoft", "Edge", "User Data")),
+            ("Brave", PathX.Combine(la, "BraveSoftware", "Brave-Browser", "User Data")),
+            ("Opera", PathX.Combine(ra, "Opera Software", "Opera Stable")),
+            ("Opera GX", PathX.Combine(ra, "Opera Software", "Opera GX Stable")),
+            ("Firefox", PathX.Combine(ra, "Mozilla", "Firefox", "Profiles")),
+            ("Vivaldi", PathX.Combine(la, "Vivaldi", "User Data")),
             // v4.0
-            ("Tor Browser", Path.Combine(up(), "Desktop", "Tor Browser")),
-            ("Waterfox", Path.Combine(ra, "Waterfox", "Profiles")),
+            ("Tor Browser", PathX.Combine(up(), "Desktop", "Tor Browser")),
+            ("Waterfox", PathX.Combine(ra, "Waterfox", "Profiles")),
         };
         var list = new List<string>();
         foreach (var (n, p) in map)
@@ -2639,7 +2722,7 @@ public sealed class ForensicScan
     {
         try
         {
-            var p = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            var p = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "discord", "settings.json");
             if (!File.Exists(p)) return null;
             _artifacts.Add("Discord settings.json");
@@ -2659,7 +2742,7 @@ public sealed class ForensicScan
             using (var k = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam"))
                 steam = k?.GetValue("SteamPath")?.ToString();
             if (steam == null) return list;
-            var vdf = Path.Combine(steam, "config", "loginusers.vdf");
+            var vdf = PathX.Combine(steam, "config", "loginusers.vdf");
             if (!File.Exists(vdf)) return list;
             _artifacts.Add("Steam loginusers.vdf");
             string id = "", name = "";
@@ -2670,7 +2753,7 @@ public sealed class ForensicScan
                 else if (line.StartsWith("\"AccountName\"") || line.StartsWith("\"PersonaName\""))
                 {
                     var parts = line.Split('"').Where(x => x.Trim().Length > 0).ToArray();
-                    if (parts.Length >= 2) name = parts[^1];
+                    if (parts.Length >= 2) name = parts[parts.Length - 1];
                 }
                 if (id != "" && name != "") { list.Add($"{name} — {id}"); id = name = ""; }
             }
@@ -2686,12 +2769,12 @@ public sealed class ForensicScan
         try
         {
             var la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var settingsDir = Path.Combine(la, "EpicGamesLauncher", "Saved", "Config", "Windows");
+            var settingsDir = PathX.Combine(la, "EpicGamesLauncher", "Saved", "Config", "Windows");
             if (!Directory.Exists(settingsDir)) return list;
             _artifacts.Add("Epic Games launcher");
 
             // check for logged-in user from GameUserSettings.ini
-            var ini = Path.Combine(settingsDir, "GameUserSettings.ini");
+            var ini = PathX.Combine(settingsDir, "GameUserSettings.ini");
             if (File.Exists(ini))
             {
                 foreach (var line in File.ReadLines(ini))
@@ -2715,16 +2798,16 @@ public sealed class ForensicScan
         try
         {
             var la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var scDir = Path.Combine(la, "Rockstar Games", "Social Club");
+            var scDir = PathX.Combine(la, "Rockstar Games", "Social Club");
             _artifacts.Add("Rockstar Social Club");
 
             // Documents\Rockstar Games\Social Club\Profiles\<profile id>
-            var profileDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            var profileDir = PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 "Rockstar Games", "Social Club", "Profiles");
             if (Directory.Exists(profileDir))
                 foreach (var dir in Directory.GetDirectories(profileDir))
                 {
-                    var id = Path.GetFileName(dir);
+                    var id = PathX.GetFileName(dir);
                     list.Add($"Profile {id} — last used {Ago(Directory.GetLastWriteTime(dir))}");
                 }
         }
@@ -2738,35 +2821,509 @@ public sealed class ForensicScan
     private List<DeletedFile> ScanRecycleBin()
     {
         var list = new List<DeletedFile>();
-        try
+        DriveInfo[] drives; try { drives = DriveInfo.GetDrives(); } catch { drives = Array.Empty<DriveInfo>(); }
+        foreach (var dv in drives)
         {
-            var rb = new DirectoryInfo(@"C:\$Recycle.Bin");
-            if (!rb.Exists) return list;
-            _artifacts.Add("Recycle bin contents");
-            foreach (var userDir in rb.GetDirectories())
+            try { if (dv.DriveType != DriveType.Fixed || !dv.IsReady) continue; } catch { continue; }
+            var rb = new DirectoryInfo(PathX.Combine(dv.RootDirectory.FullName, "$Recycle.Bin"));
+            try { if (!rb.Exists) continue; } catch { continue; }
+            _artifacts.Add("Recycle bin " + dv.Name);
+            DirectoryInfo[] users; try { users = rb.GetDirectories(); } catch { continue; }
+            foreach (var userDir in users)
             {
-                FileInfo[] files;
-                try { files = userDir.GetFiles("$R*", SearchOption.TopDirectoryOnly); } catch { continue; }
-                foreach (var f in files)
+                FileInfo[] infos;
+                try { infos = userDir.GetFiles("$I*", SearchOption.TopDirectoryOnly); } catch { continue; }
+                foreach (var fi in infos)
                 {
-                    var realExt = Path.GetExtension(f.Name).ToLowerInvariant();
-                    var exe = realExt is ".exe" or ".dll" or ".sys";
-                    list.Add(new DeletedFile
+                    try
                     {
-                        File = "*" + realExt + " (" + Math.Round(f.Length / 1024.0) + " KB)",
-                        When = Ago(f.LastWriteTime),
-                        Executable = exe
-                    });
+                        var data = File.ReadAllBytes(fi.FullName);
+                        var d = ParseRecycleInfo(data);
+                        if (d == null) continue;
+                        var rName = "$R" + fi.Name.Substring(2);
+                        var rPath = PathX.Combine(userDir.FullName, rName);
+                        bool isDir = Directory.Exists(rPath);
+                        d.StillInBin = isDir || File.Exists(rPath);
+                        d.Folder = isDir;
+                        list.Add(d);
+                    }
+                    catch { }
                 }
             }
         }
-        catch { }
-        return list.OrderByDescending(d => d.Executable).Take(50).ToList();
+        // mark cheats by name
+        foreach (var d in list)
+        {
+            var lname = d.File.ToLowerInvariant();
+            var sig = _sigs.FirstOrDefault(sg => sg.FileNames.Contains(lname));
+            var w = sig == null ? CheatWordIn(PathX.GetFileNameWithoutExtension(d.File)) : null;
+            if (sig != null) { d.Flag = 2; d.Why = "known cheat file (" + sig.Name + ")"; }
+            else if (w != null) { d.Flag = 2; d.Why = "named like a cheat (\"" + w + "\")"; }
+            else if (d.Executable && LooksRandom(PathX.GetFileNameWithoutExtension(d.File))) { d.Flag = 1; d.Why = "random-named program"; }
+        }
+        return list.OrderByDescending(d => d.Flag).ThenByDescending(d => d.Executable).ThenByDescending(d => d.DeletedAt)
+                   .Take(300).ToList();
+    }
+
+    /// <summary>Reads a recycle-bin $I file: original path, size and when it was deleted (Windows Vista → 11).</summary>
+    internal static DeletedFile? ParseRecycleInfo(byte[] b)
+    {
+        if (b.Length < 24) return null;
+        long ver = BitConverter.ToInt64(b, 0);
+        long size = BitConverter.ToInt64(b, 8);
+        long ft = BitConverter.ToInt64(b, 16);
+        string path;
+        if (ver == 2 && b.Length >= 28)
+        {
+            int n = BitConverter.ToInt32(b, 24);
+            if (n <= 0 || 28 + n * 2 > b.Length) n = (b.Length - 28) / 2;
+            path = System.Text.Encoding.Unicode.GetString(b, 28, Math.Max(0, n * 2));
+        }
+        else if (ver == 1) path = System.Text.Encoding.Unicode.GetString(b, 24, Math.Min(520, b.Length - 24));
+        else return null;
+        int z = path.IndexOf('\0'); if (z >= 0) path = path.Substring(0, z);
+        if (path.Length == 0) return null;
+        DateTime when = DateTime.MinValue;
+        try { if (ft > 0) when = DateTime.FromFileTimeUtc(ft).ToLocalTime(); } catch { }
+        var name = PathX.GetFileName(path);
+        var ext = PathX.GetExtension(name).ToLowerInvariant();
+        return new DeletedFile
+        {
+            File = name, Path = path, SizeKb = Math.Max(0, size) / 1024,
+            DeletedAt = when == DateTime.MinValue ? "" : when.ToString("yyyy-MM-dd HH:mm"),
+            When = when == DateTime.MinValue ? "" : Ago(when),
+            Executable = ext is ".exe" or ".dll" or ".sys" or ".bat" or ".cmd" or ".ps1" or ".ahk" or ".lua" or ".asi" or ".py" or ".jar" or ".scr",
+        };
     }
 
     // ================================================================
     //  HELPERS
     // ================================================================
+    // ================================================================
+    //  v4.4: MEMORY OF WINDOWS SERVICES — programs that ran (even deleted) + websites visited
+    // ================================================================
+    // ================================================================
+    //  v4.5 CHEAT HARDWARE — DMA cards, KMBox, Cronus, XIM, Titan, Arduino
+    // ================================================================
+    private void ScanCheatHardware(ScanReport report)
+    {
+        List<Hardware.Dev> devs;
+        try { devs = Hardware.ReadAll(); } catch { return; }
+        _artifacts.Add("Device history (USB / PCI / HID)");
+        ApplyHardware(report, devs);
+        report.HardwareInfo = Hardware.Status ?? "";
+    }
+
+    internal void ApplyHardware(ScanReport report, List<Hardware.Dev> devs)
+    {
+        report.Hardware = Hardware.Classify(devs);
+        foreach (var h in report.Hardware)
+        {
+            if (h.Level >= 2)
+                report.Detections.Add(new Detection
+                {
+                    File = h.Name, Signature = h.Kind + " (cheat hardware)", Path = h.InstanceId,
+                    Method = DetectMethod.Hardware,
+                    Severity = h.Kind is "DMA card" or "KMBox" ? Severity.High : Severity.Medium,
+                    When = h.Present ? "plugged in now" : (h.LastSeen.Length > 0 ? "last connected " + h.LastSeen : "connected before"),
+                    Features = new() { h.Kind, h.Present ? "Plugged in now" : "Connected before" },
+                    Explain = "Windows' device history shows " + h.Why,
+                });
+            else
+                report.Warnings.Add(new Warning { Title = h.Kind + ": " + h.Name, Detail = h.Why + (h.LastSeen.Length > 0 ? " Last connected " + h.LastSeen + "." : ""), Category = "Hardware" });
+        }
+    }
+
+    // ================================================================
+    //  v4.5 HWID SPOOFER TRACES
+    // ================================================================
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int RegQueryInfoKey(Microsoft.Win32.SafeHandles.SafeRegistryHandle h, IntPtr cls, IntPtr clsLen, IntPtr res,
+        IntPtr subKeys, IntPtr maxSub, IntPtr maxCls, IntPtr values, IntPtr maxValName, IntPtr maxValLen, IntPtr secDesc, out long lastWrite);
+
+    private static DateTime? KeyWritten(RegistryKey? k)
+    {
+        if (k == null) return null;
+        try { return RegQueryInfoKey(k.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, out var ft) == 0 ? DateTime.FromFileTimeUtc(ft).ToLocalTime() : null; }
+        catch { return null; }
+    }
+
+    private void ScanSpooferTraces(ScanReport report)
+    {
+        _artifacts.Add("HWID spoofer traces");
+        DateTime? installed = null;
+        try
+        {
+            using var cv = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            if (cv?.GetValue("InstallDate") is int sec && sec > 0) installed = DateTimeOffset.FromUnixTimeSeconds((uint)sec).LocalDateTime;
+        }
+        catch { }
+        bool oldInstall = installed == null || (DateTime.Now - installed.Value).TotalDays > 30;
+
+        // 1) MAC address typed in by hand (network adapter "NetworkAddress") — HWID spoofers change it
+        try
+        {
+            using var cls = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}");
+            foreach (var sub in cls?.GetSubKeyNames() ?? Array.Empty<string>())
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(sub, @"^\d{4}$")) continue;
+                using var k = cls!.OpenSubKey(sub);
+                var mac = k?.GetValue("NetworkAddress")?.ToString();
+                if (string.IsNullOrWhiteSpace(mac)) continue;
+                var name = k?.GetValue("DriverDesc")?.ToString() ?? "network adapter";
+                report.Warnings.Add(new Warning
+                {
+                    Title = "MAC address changed by hand", Category = "Spoofer",
+                    Detail = $"\"{name}\" uses a MAC address that was typed in manually ({mac}). HWID spoofers change the MAC so a banned PC looks new."
+                });
+            }
+        }
+        catch { }
+
+        // 2) Machine IDs rewritten recently on an old Windows install
+        if (oldInstall)
+            foreach (var (path, label) in new[] {
+                (@"SOFTWARE\Microsoft\Cryptography", "Windows Machine ID (MachineGuid)"),
+                (@"SYSTEM\CurrentControlSet\Control\IDConfigDB\Hardware Profiles\0001", "Hardware profile ID (HwProfileGuid)") })
+            {
+                try
+                {
+                    using var k = Registry.LocalMachine.OpenSubKey(path);
+                    var w = KeyWritten(k);
+                    if (w != null && (DateTime.Now - w.Value).TotalDays < 14 && w.Value <= DateTime.Now.AddMinutes(5))
+                        report.Warnings.Add(new Warning
+                        {
+                            Title = label + " changed recently", Category = "Spoofer",
+                            Detail = $"Changed on {w:yyyy-MM-dd HH:mm}, but Windows was installed {(installed?.ToString("yyyy-MM-dd") ?? "long before")}. These IDs never change by themselves — HWID spoofers rewrite them."
+                        });
+                }
+                catch { }
+            }
+    }
+
+    private void ScanMemoryTraces(ScanReport report)
+    {
+        Dictionary<string, MemoryTraces.Found> found;
+        try { found = MemoryTraces.ReadAll(onProgress: f => _sub?.Invoke(f, null)); } catch { return; }
+        report.MemoryInfo = MemoryTraces.Status ?? "";
+        if (found.Count == 0) return;
+        _artifacts.Add("Service memory (DPS / PcaSvc / Explorer / DNS)");
+        Dictionary<string, string> vols;
+        try { vols = MemoryTraces.VolumeMap(); } catch { vols = new(); }
+        ApplyMemoryTraces(report, found.Values.ToList(), vols, p => File.Exists(p));
+    }
+
+    internal void ApplyMemoryTraces(ScanReport report, List<MemoryTraces.Found> found, Dictionary<string, string> vols, Func<string, bool> exists)
+    {
+        string Map(string p)
+        {
+            if (p.StartsWith("\\Device\\", StringComparison.OrdinalIgnoreCase))
+                foreach (var kv in vols)
+                    if (p.StartsWith(kv.Key + "\\", StringComparison.OrdinalIgnoreCase)) return kv.Value + p.Substring(kv.Key.Length);
+            return p;
+        }
+        bool Runnable(string n) { var e = PathX.GetExtension(n).ToLowerInvariant(); return e is ".exe" or ".ahk" or ".lua" or ".asi" or ".py" or ".bat" or ".cmd" or ".ps1" or ".jar" or ".scr" or ".com" or ".dll"; }
+        bool UserPlace(string low) => IsDropZone(low) || low.Contains("\\desktop\\") || low.Contains("\\documents\\") || low.Contains("\\appdata\\");
+        var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows).ToLowerInvariant(); if (win.Length == 0) win = @"c:\windows";
+        var pf = (Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) ?? "").ToLowerInvariant();
+        var pf86 = (Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) ?? "").ToLowerInvariant();
+        var sigBrands = _sigs.Select(sg => new string(sg.Name.ToLowerInvariant().TakeWhile(ch => char.IsLetterOrDigit(ch) || ch == '.').ToArray()).Replace(".gg", "").Replace(".", ""))
+                             .Where(b => b.Length >= 4).Distinct().ToList();
+        var sigDomains = _sigs.SelectMany(sg => sg.Domains.Select(d => (d: d.ToLowerInvariant().Trim(), sg))).Where(x => x.d.Length > 3).ToList();
+
+        var rows = new Dictionary<string, MemoryTrace>(StringComparer.OrdinalIgnoreCase);
+        var detected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int seenPrograms = 0, gone = 0;
+        bool isWindowsProgram(string n)
+        {
+            foreach (var d in new[] { "System32", "SysWOW64", "System32\\wbem", "System32\\oobe" })
+                if (exists(PathX.Combine(win, d.Replace("\\\\", "\\"), n))) return true;
+            return false;
+        }
+        foreach (var f in found)
+        {
+            var src = string.Join(", ", f.Sources.OrderBy(x => x));
+            if (f.Kind != MemoryTraces.Kind.Domain && IsOwnOrDevPath(f.Text.ToLowerInvariant())) continue;   // the scanner itself
+            if (f.Kind == MemoryTraces.Kind.Domain)
+            {
+                var hit = sigDomains.FirstOrDefault(x => f.Text == x.d || f.Text.EndsWith("." + x.d, StringComparison.Ordinal));
+                string? word = null;
+                if (hit.sg == null)
+                {
+                    // a label of the domain is a cheat brand from your signature list (eulen.cc, skript.gg …) or a cheat word
+                    var labels = f.Text.Split('.', '-');
+                    var brand = sigBrands.FirstOrDefault(b => labels.Any(l => l == b || (b.Length >= 5 && l.StartsWith(b, StringComparison.Ordinal))));
+                    word = brand ?? CheatWordIn(f.Text.Replace('.', ' ').Replace('-', ' '));
+                }
+                if (hit.sg == null && word == null) continue;
+                var row = new MemoryTrace { Path = f.Text, Name = f.Text, Source = src, Exists = true, Level = hit.sg != null ? 2 : 1,
+                    Why = hit.sg != null ? $"cheat website from your list ({hit.sg.Name})" : $"website named like a cheat (\"{word}\")" };
+                rows[f.Text] = row;
+                if (hit.sg != null && detected.Add("dom|" + hit.sg.Name))
+                    report.Detections.Add(new Detection
+                    {
+                        File = f.Text, Signature = hit.sg.Name + " (website visited)", Path = $"DNS memory ({src})",
+                        Method = DetectMethod.MemoryTrace, Severity = Severity.High, When = "recently",
+                        Features = new List<string>(hit.sg.Features) { "cheat domain resolved" },
+                        Explain = $"Windows' DNS service still remembers \"{f.Text}\" — the {hit.sg.Name} cheat's website from your signature list was opened on this PC."
+                    });
+                continue;
+            }
+
+            var path = f.Kind == MemoryTraces.Kind.Dps ? f.Text : Map(f.Text);
+            var name = PathX.GetFileName(path);
+            if (string.IsNullOrEmpty(name) || !Runnable(name)) continue;
+            if (f.Kind == MemoryTraces.Kind.Dps && isWindowsProgram(name)) continue;   // svchost, TiWorker, consent … live in System32
+            var low = path.ToLowerInvariant();
+            bool full = path.Length > 3 && path[1] == ':';
+            if (full && (low.StartsWith(win + "\\") || (pf.Length > 0 && low.StartsWith(pf + "\\") && !low.Contains("\\fivem")) || (pf86.Length > 0 && low.StartsWith(pf86 + "\\")))) continue;   // Windows / installed programs
+            seenPrograms++;
+            bool ex = full ? exists(path) : false;
+            if (full && !ex) gone++;
+            var stem = PathX.GetFileNameWithoutExtension(name);
+            var lname = name.ToLowerInvariant();
+            var sig = _sigs.FirstOrDefault(sg => sg.FileNames.Contains(lname));
+            var word2 = CheatWordIn(stem);
+            int level = 0; string why = "";
+            if (sig != null) { level = 2; why = $"known cheat file ({sig.Name})"; }
+            else if (word2 != null && (!full || !ex)) { level = 2; why = $"ran, named like a cheat (\"{word2}\"), and the file is gone"; }
+            else if (word2 != null) { level = 1; why = $"named like a cheat (\"{word2}\") — the deep scan read its code"; }
+            else if (full && !ex && LooksRandom(stem) && UserPlace(low)) { level = 1; why = "random-named program that ran and is now deleted"; }
+            else if (!full && LooksRandom(stem)) { level = 1; why = "random-named program that ran (DPS record)"; }
+            else if ((!full || !ex) && System.Text.RegularExpressions.Regex.IsMatch(stem, "(?i)loader|injector|inject|spoof|bypass|unban|hwid")) { level = 1; why = "loader / spoofer-type name that ran" + (full ? " and is now deleted" : " (DPS record)"); }
+            else continue;   // normal programs (installers, old app versions, Windows tools…): every PC has hundreds — not shown
+
+            var key = (full ? low : "dps|" + lname);
+            if (rows.TryGetValue(key, out var old)) { if (level > old.Level) { old.Level = level; old.Why = why; } old.Source = string.Join(", ", (old.Source + ", " + src).Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries).Distinct()); continue; }
+            rows[key] = new MemoryTrace { Path = path, Name = name, Source = src, When = null, Exists = ex, Level = level, Why = why };
+
+            if (sig != null && detected.Add("sig|" + sig.Name + "|" + lname))
+                report.Detections.Add(Det(name, sig, path, DetectMethod.MemoryTrace, "recently",
+                    $"Windows still remembers \"{name}\" in the memory of {src}" + (full && !ex ? " — the file was deleted after it ran." : "."), full && !ex));
+        }
+
+        var list = rows.Values.OrderByDescending(r => r.Level).ThenByDescending(r => r.When ?? "").ThenBy(r => r.Name).Take(800).ToList();
+        report.MemoryTraces = list;
+        report.MemoryInfo = (report.MemoryInfo.Length > 0 ? report.MemoryInfo + " · " : "") + $"{seenPrograms} program traces, {gone} already deleted";
+        var red = list.Where(r => r.Level == 2 && !r.Why.StartsWith("known") && !r.Why.StartsWith("cheat website")).Select(r => r.Name).Distinct().ToList();
+        if (red.Count > 0)
+            report.Warnings.Add(new Warning
+            {
+                Title = $"{red.Count} cheat-named program(s) ran and were deleted (service memory)",
+                Category = "Cleaning",
+                Detail = "Windows services (DPS / PcaSvc / Explorer) still remember: " + string.Join(", ", red.Take(8)) + (red.Count > 8 ? $" … +{red.Count - 8}" : "") + ". See the Memory tab.",
+            });
+    }
+
+    // ================================================================
+    //  v4.3: DLLs LOADED INSIDE THE RUNNING GAME (injected cheats live here)
+    // ================================================================
+    private static readonly string[] OverlayDlls =
+    {
+        "rtsshooks", "graphics-hook", "discordhook", "gameoverlayrenderer", "nvspcap", "owclient", "overwolf", "medal",
+        "reshade", "fraps", "bdcamvk", "bdcam", "action_x64", "msiafterburner", "xsplit", "nahimic", "ss3devprops",
+        "razer", "obs-", "streamlabs", "nvidia", "gfsdk", "nvngx", "amdxc", "atiu", "igd", "d3dcompiler", "steam", "epic",
+    };
+
+    private void ScanGameModules(ScanReport report)
+    {
+        Process[] procs;
+        try { procs = Process.GetProcesses(); } catch { return; }
+        var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows).ToLowerInvariant();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in procs)
+        {
+            string pn; try { pn = p.ProcessName.ToLowerInvariant(); } catch { continue; }
+            bool game = (pn.StartsWith("fivem") && pn.Contains("gtaprocess")) || pn == "gta5" || pn == "gta5_enhanced";
+            if (!game) continue;
+            _artifacts.Add("Modules loaded in FiveM");
+            string? gameExe = null; try { gameExe = p.MainModule?.FileName; } catch { }
+            var gameDir = gameExe != null ? (PathX.GetDirectoryName(gameExe) ?? "").ToLowerInvariant() : "";
+            // GTA V install folder (FiveM keeps it in CitizenFX.ini → IVPath=)
+            var gtaDir = "";
+            try
+            {
+                var ini = PathX.Combine(PathX.GetDirectoryName(gameExe ?? "") ?? "", "CitizenFX.ini");
+                if (File.Exists(ini))
+                    foreach (var line in File.ReadAllLines(ini))
+                        if (line.StartsWith("IVPath=", StringComparison.OrdinalIgnoreCase)) gtaDir = line.Substring(7).Trim().TrimEnd('\\').ToLowerInvariant();
+            }
+            catch { }
+            ProcessModuleCollection mods;
+            try { mods = p.Modules; } catch { continue; }
+            foreach (ProcessModule m in mods)
+            {
+                string path; try { path = m.FileName ?? ""; } catch { continue; }
+                if (path.Length == 0 || !seen.Add(path)) continue;
+                var low = path.ToLowerInvariant();
+                var name = PathX.GetFileName(path);
+                var lname = name.ToLowerInvariant();
+                if (low.StartsWith(win + "\\")) continue;                                      // Windows / drivers' user-mode parts
+                bool fivemOwn = low.Contains("\\fivem.app\\") && !low.Contains("\\plugins\\") && !low.Contains("\\mods\\");
+                bool gtaOwn = (gameDir.Length > 0 && low.StartsWith(gameDir + "\\") && !low.Contains("\\plugins\\"))
+                              || (gtaDir.Length > 0 && low.StartsWith(gtaDir + "\\") && !low.Contains("\\plugins\\") && !low.Contains("\\scripts\\"));
+                if (fivemOwn || gtaOwn) continue;
+                bool userDrop = IsDropZone(low) || low.Contains("\\desktop\\") || low.Contains("\\documents\\");
+                if (!userDrop && OverlayDlls.Any(o => lname.Contains(o))) continue;               // overlays / recorders / GPU
+                if (IsSigned(path)) continue;
+
+                // unsigned DLL inside the game: read its code
+                var d = ConfirmNamed(path, name, _sigs.FirstOrDefault(s => s.FileNames.Contains(lname)), CheatWordIn(PathX.GetFileNameWithoutExtension(name)),
+                                     DetectMethod.InjectedModule, "loaded in FiveM now");
+                if (d != null)
+                {
+                    d.Severity = Severity.High;
+                    d.Features = new List<string> { "loaded inside FiveM" }.Concat(d.Features).Distinct().Take(8).ToList();
+                    d.Explain = "This DLL is loaded INSIDE the running game right now. " + d.Explain;
+                    report.Detections.Add(d);
+                    continue;
+                }
+                report.Warnings.Add(new Warning
+                {
+                    Title = $"Unsigned DLL loaded inside FiveM: {name}",
+                    Category = "Injection",
+                    Detail = $"{path} is running inside the game process and has no digital signature"
+                             + (userDrop ? ", from a download / temp / desktop folder — this is how injected cheats look." : ". Mods and overlays can do this too — check what it is."),
+                });
+                if (_suspicious.Count < 400) _suspicious.Add(new SuspiciousFile { Path = path, Kind = "Unsigned DLL loaded inside FiveM" });
+            }
+        }
+    }
+
+    // ================================================================
+    //  v4.3: NTFS CHANGE JOURNAL — files deleted / renamed in the last 7 days, even if gone
+    // ================================================================
+    private void ScanUsnJournal(ScanReport report)
+    {
+        var start = report.StartedUtc == default ? DateTime.UtcNow : report.StartedUtc;
+        List<UsnJournal.DriveResult> drives;
+        try { drives = UsnJournal.ReadAll(start.AddDays(-7)); } catch { return; }
+        ApplyJournal(report, drives, start);
+    }
+
+    internal void ApplyJournal(ScanReport report, List<UsnJournal.DriveResult> drives, DateTime start)
+    {
+        if (drives.Count == 0) return;
+        _artifacts.Add("USN journal");
+        var info = new List<string>();
+        var all = new List<UsnJournal.Entry>();
+        foreach (var d in drives)
+        {
+            info.Add(d.State == "ok"
+                ? $"{d.Drive} {d.Entries.Count} events" + (d.OldestUtc is DateTime o ? $" since {o.ToLocalTime():yyyy-MM-dd HH:mm}" : "")
+                : $"{d.Drive} {d.State}");
+            all.AddRange(d.Entries);
+            // a journal that starts only a few hours ago on a PC that has been on longer = deleted & recreated, or flooded
+            if (d.State == "ok" && d.OldestUtc is DateTime old && start - old < TimeSpan.FromHours(6) && d.Drive.StartsWith("C", StringComparison.OrdinalIgnoreCase))
+                report.Warnings.Add(new Warning
+                {
+                    Title = $"File-change journal of {d.Drive} only starts {(int)Math.Max(1, (start - old).TotalMinutes)} minutes before the check",
+                    Category = "Cleaning",
+                    Detail = "Windows normally keeps days of file history here. A journal this short was deleted and recreated (fsutil usn deletejournal) "
+                           + "or flooded on purpose to push old entries out — both hide which files were deleted.",
+                });
+        }
+        report.JournalInfo = string.Join(" · ", info);
+
+        bool IsRunnable(string n) { var e = PathX.GetExtension(n).ToLowerInvariant(); return e is ".exe" or ".ahk" or ".lua" or ".asi" or ".py" or ".bat" or ".ps1"; }
+        bool NoisyName(string stem)
+        {
+            var l = stem.ToLowerInvariant();
+            return l.Length <= 2 || l.All(c => char.IsDigit(c) || c == '-' || c == '_') || l.Contains("{") || l.StartsWith("tmp") || l.StartsWith("is-")
+                || new[] { "update", "setup", "install", "unins", "redist", "squirrel", "helper", "crashpad", "mpsigstub", "am_delta", "chrome", "msedge",
+                           "edge", "discord", "steam", "nvidia", "nv", "dotnet", "vc_", "windows", "defender", "onedrive", "teams", "spotify", "epic",
+                           "rockstar", "fivem", "citizen", "obs", "zoom", "python", "node", "git", "code" }.Any(w => l.Contains(w));
+        }
+        bool IsCode(string n) { var e = PathX.GetExtension(n).ToLowerInvariant(); return e is ".exe" or ".dll" or ".sys" or ".asi" or ".ahk" or ".lua" or ".py" or ".ps1" or ".bat" or ".jar"; }
+        Signatures.Sig? SigOf(string? n) => n == null ? null : _sigs.FirstOrDefault(s => s.FileNames.Contains(n.ToLowerInvariant()));
+        bool Recycled(UsnJournal.Entry e) => e.Name.StartsWith("$R", StringComparison.Ordinal) || e.Name.StartsWith("$I", StringComparison.Ordinal);
+
+        // names that went to the recycle bin: "$Rxxxx.exe" ← "cheat.exe"
+        var recycledFrom = all.Where(e => e.Action == "Renamed" && e.OldName != null && e.Name.StartsWith("$R", StringComparison.Ordinal))
+                              .GroupBy(e => e.Drive + "|" + e.Name, StringComparer.OrdinalIgnoreCase)
+                              .ToDictionary(g => g.Key, g => g.First().OldName!, StringComparer.OrdinalIgnoreCase);
+
+        // "$Rxxxx" files that were then deleted (recycle bin emptied): show one line, not two
+        var emptied = new HashSet<string>(all.Where(e => e.Action == "Deleted" && e.Name.StartsWith("$R", StringComparison.Ordinal)).Select(e => e.Drive + "|" + e.Name), StringComparer.OrdinalIgnoreCase);
+        var rows = new List<JournalEntry>();
+        var cleanedNames = new List<string>();
+        int recentCode = 0;
+        foreach (var e in all.OrderByDescending(x => x.TimeUtc))
+        {
+            if (e.Name.StartsWith("$I", StringComparison.Ordinal)) continue;   // recycle-bin index files
+            if (IsOwnOrDevPath(e.Name.ToLowerInvariant()) || (e.OldName != null && IsOwnOrDevPath(e.OldName.ToLowerInvariant()))) continue;   // the scanner's own exe / old reports
+            var shown = e.Name;
+            var action = e.Action;
+            string? old = e.OldName;
+            if (e.Action == "Renamed" && e.Name.StartsWith("$R", StringComparison.Ordinal) && emptied.Contains(e.Drive + "|" + e.Name)) continue;
+            if (e.Action == "Deleted" && e.Name.StartsWith("$R", StringComparison.Ordinal) && recycledFrom.TryGetValue(e.Drive + "|" + e.Name, out var orig))
+            { shown = orig; action = "Deleted"; old = null; }
+            else if (e.Action == "Renamed" && e.Name.StartsWith("$R", StringComparison.Ordinal) && old != null)
+            { shown = old; action = "Recycled"; old = null; }
+            if (e.Action == "Created" && !IsCode(e.Name)) continue;           // creations: only programs / scripts
+
+            var row = new JournalEntry { Name = shown, OldName = old, Action = action, When = e.TimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), Drive = e.Drive };
+            var stem = PathX.GetFileNameWithoutExtension(shown);
+            var sig = SigOf(shown) ?? SigOf(old);
+            var word = CheatWordIn(stem) ?? (old != null ? CheatWordIn(PathX.GetFileNameWithoutExtension(old)) : null);
+            bool beforeCheck = start - e.TimeUtc < TimeSpan.FromHours(3) && e.TimeUtc <= start.AddMinutes(1);
+
+            if (sig != null)
+            {
+                row.Level = 2;
+                row.Why = $"known cheat file ({sig.Name})";
+                report.Detections.Add(Det(sig.FileNames.Contains(shown.ToLowerInvariant()) ? shown : old ?? shown, sig, $"{e.Drive}\\… ({action.ToLowerInvariant()} {row.When})", DetectMethod.UsnJournal, row.When,
+                    $"Windows' file-change journal recorded the known cheat file \"{shown}\"{(old != null ? $" (was \"{old}\")" : "")} being {action.ToLowerInvariant()} on {row.When}"
+                    + (beforeCheck ? " — less than 3 hours before this check." : "."), action is "Deleted" or "Recycled"));
+            }
+            else if (action == "Renamed" && old != null && IsCode(old) && CheatWordIn(PathX.GetFileNameWithoutExtension(old)) != null && CheatWordIn(stem) == null)
+            {
+                row.Level = 2;
+                row.Why = $"cheat-named file renamed to a normal name (\"{CheatWordIn(PathX.GetFileNameWithoutExtension(old))}\")";
+                cleanedNames.Add($"{old} → {shown}");
+            }
+            else if (word != null && IsCode(shown) && action is "Deleted" or "Recycled" or "Renamed")
+            {
+                row.Level = 2;
+                row.Why = $"named like a cheat (\"{word}\")";
+                cleanedNames.Add($"{shown} ({action.ToLowerInvariant()})");
+            }
+            else if (IsCode(shown) && LooksRandom(stem) && action is "Deleted" or "Recycled")
+            {
+                row.Level = 1;
+                row.Why = "random-named program deleted (cheat loaders use random names)";
+            }
+            else if (beforeCheck && action is "Deleted" or "Recycled" && IsRunnable(shown) && !NoisyName(stem))
+            {
+                row.Level = 1;
+                row.Why = "program deleted shortly before the check";
+            }
+            // the warning only counts the strong ones (cheat-named / known / random-named), not every updater's temp file
+            if (beforeCheck && action is "Deleted" or "Recycled" or "Renamed" && (row.Level == 2 || row.Why.StartsWith("random"))) recentCode++;
+            if (action == "Created" && row.Level == 0) continue;   // thousands of normal installs/updates: keep only flagged creations
+            rows.Add(row);
+        }
+
+        if (cleanedNames.Count > 0)
+            report.Warnings.Add(new Warning
+            {
+                Title = $"{cleanedNames.Count} cheat-named file(s) deleted or renamed (file-change journal)",
+                Category = "Cleaning",
+                Detail = "The NTFS journal still remembers them although the files are gone: " + string.Join(", ", cleanedNames.Distinct().Take(8))
+                         + (cleanedNames.Count > 8 ? $" … +{cleanedNames.Count - 8}" : "") + ". See the Journal tab for the times.",
+            });
+        if (recentCode >= 1)
+            report.Warnings.Add(new Warning
+            {
+                Title = $"{recentCode} suspicious program(s) deleted in the 3 hours before the check",
+                Category = "Cleaning",
+                Detail = "Deleted shortly before the screenshare — ask the player what they were. See the Journal tab.",
+            });
+
+        // keep the important rows first, then the newest; cap the size of the report
+        report.Journal = rows.OrderByDescending(r => r.Level).ThenByDescending(r => r.When).Take(1500).ToList();
+    }
+
     private Detection Det(string file, Signatures.Sig sig, string path, DetectMethod m, string when, string why, bool deleted)
         => new()
         {
@@ -2777,8 +3334,8 @@ public sealed class ForensicScan
 
     private static IEnumerable<string> FiveMRoots() => new[]
     {
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FiveM"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CitizenFX"),
+        PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FiveM"),
+        PathX.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "CitizenFX"),
     };
 
     private static IEnumerable<string> SafeEnumerate(string root, string[]? exts, int maxDepth)
@@ -2791,8 +3348,9 @@ public sealed class ForensicScan
             string[] files = Array.Empty<string>(), dirs = Array.Empty<string>();
             try { files = Directory.GetFiles(dir); } catch { }
             try { if (depth < maxDepth) dirs = Directory.GetDirectories(dir); } catch { }
+            _walked += files.Length + 1;
             foreach (var f in files)
-                if (exts == null || exts.Contains(Path.GetExtension(f).ToLowerInvariant()))
+                if (exts == null || exts.Contains(PathX.GetExtension(f).ToLowerInvariant()))
                     yield return f;
             foreach (var d in dirs) stack.Push((d, depth + 1));
         }
@@ -2917,7 +3475,7 @@ public sealed class ForensicScan
             var brand = BrandStrings.FirstOrDefault(b => ContainsWord(text, b) || low.Replace(" ", "").Contains(b.Replace(" ", "")));
             return new Detection
             {
-                File = Path.GetFileName(path), Signature = brand != null ? $"Cheat config ({brand})" : "Cheat config file",
+                File = PathX.GetFileName(path), Signature = brand != null ? $"Cheat config ({brand})" : "Cheat config file",
                 Path = path, Sha256 = Sha256File(path), Method = DetectMethod.SuspiciousExecutable,
                 Severity = brand != null || keys.Count >= 6 ? Severity.High : Severity.Medium, When = SafeWrite(path),
                 Features = keys.Take(8).ToList(),
@@ -2944,6 +3502,8 @@ public sealed class ForensicScan
     private static bool LooksRandom(string stem, int minLen = 6)
     {
         if (stem.Length < minLen || stem.Length > 20 || !stem.All(char.IsLetterOrDigit)) return false;
+        if (System.Text.RegularExpressions.Regex.IsMatch(stem, "(?i)update|setup|install|helper|service|client|launch|manager|server|player|driver|config|viewer|agent|host|broker|runner|worker|studio|engine|center|monitor|capture|record|editor|loader|tool|sync|cloud|store|game"))
+            return false;   // AvEmUpdate, OneDriveSetup … contain real words
         int up = stem.Count(char.IsUpper), lo = stem.Count(char.IsLower);
         if (up < 2 || lo < 2) return false;
         int score = 0;
@@ -2953,7 +3513,7 @@ public sealed class ForensicScan
         int n = stem.Length;
         if (char.IsUpper(stem[n - 1]) && char.IsLower(stem[n - 2])) score += 1;   // ShareX / HyperX alone stay normal
         // two-letter camel pieces ("Ha", "Co", "Ls", "Zh") — real words are longer
-        var tokens = System.Text.RegularExpressions.Regex.Matches(stem, "[A-Z][a-z]+").Select(m => m.Value).ToList();
+        var tokens = System.Text.RegularExpressions.Regex.Matches(stem, "[A-Z][a-z]+").Cast<System.Text.RegularExpressions.Match>().Select(m => m.Value).ToList();
         int tiny = tokens.Count(t => t.Length == 2);
         if (tiny >= 2) score += 2;
         // a digit between letters of different case ("G7y")
@@ -2995,9 +3555,9 @@ public sealed class ForensicScan
                      || low.Contains("\\xinputemu\\") || name.StartsWith("x360ce");
         bool exe = name.EndsWith(".exe");
         if (!capture && !input && !exe) return;
-        var dir = Path.GetDirectoryName(path) ?? "";
+        var dir = PathX.GetDirectoryName(path) ?? "";
         // the file's folder and its parent (a kit = one app folder with its x64/ x86/ libs subfolders)
-        foreach (var key in new[] { dir, Path.GetDirectoryName(dir) ?? "" })
+        foreach (var key in new[] { dir, PathX.GetDirectoryName(dir) ?? "" })
         {
             if (key.Length < 4 || IsUserRoot(key)) continue;
             _kits.TryGetValue(key, out var k);
@@ -3012,7 +3572,7 @@ public sealed class ForensicScan
     // "Loader.exe", "FiveMLoader.exe", "Injector.exe", "Executor.exe", "Spoofer.exe" — what cheat programs are called
     private static string? LoaderWord(string name)
     {
-        var stem = Path.GetFileNameWithoutExtension(name).ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "");
+        var stem = PathX.GetFileNameWithoutExtension(name).ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "");
         // exact name ("Loader.exe") or a cheat-context prefix ("FiveMLoader", "EulenExecutor") —
         // never "Downloader", "Uploader", "ModLoader", "TaskExecutor"
         string[] ctx = { "fivem", "gta", "gtav", "cheat", "hack", "menu", "dll", "eulen", "skript", "susano", "redengine", "lua", "hwid", "ac", "external", "internal", "ext", "int" };
@@ -3029,14 +3589,14 @@ public sealed class ForensicScan
     private static List<SuspiciousFile> GroupByFolder(List<SuspiciousFile> list)
     {
         var outList = new List<SuspiciousFile>();
-        foreach (var g in list.GroupBy(x => (Dir: Path.GetDirectoryName(x.Path) ?? "", Kind: System.Text.RegularExpressions.Regex.Replace(x.Kind, @"\s*\(.*\)$", ""))))
+        foreach (var g in list.GroupBy(x => (Dir: PathX.GetDirectoryName(x.Path) ?? "", Kind: System.Text.RegularExpressions.Regex.Replace(x.Kind, @"\s*\(.*\)$", ""))))
         {
             var items = g.ToList();
             if (items.Count >= 3)
                 outList.Add(new SuspiciousFile
                 {
                     Path = g.Key.Dir,
-                    Kind = $"Folder — {items.Count} files: {g.Key.Kind} ({string.Join(", ", items.Take(5).Select(i => Path.GetFileName(i.Path)))}{(items.Count > 5 ? ", …" : "")})"
+                    Kind = $"Folder — {items.Count} files: {g.Key.Kind} ({string.Join(", ", items.Take(5).Select(i => PathX.GetFileName(i.Path)))}{(items.Count > 5 ? ", …" : "")})"
                 });
             else outList.AddRange(items);
         }
@@ -3064,7 +3624,7 @@ public sealed class ForensicScan
         bool brand = brands == 1;
         if (isScript)
         {
-            var scriptAnalysis = ScriptIntelligence.Analyze(content, Path.GetExtension(file).ToLowerInvariant());
+            var scriptAnalysis = ScriptIntelligence.Analyze(content, PathX.GetExtension(file).ToLowerInvariant());
             if (scriptAnalysis.NeedsReview)
                 return new(null, scriptAnalysis.Reason);
             int core = CoreFeatures.Count(w => ContainsWord(content, w));
@@ -3106,7 +3666,7 @@ public sealed class ForensicScan
     private Detection? ConfirmNamed(string path, string file, Signatures.Sig? sig, string? word, DetectMethod method, string when)
     {
         var low = path.ToLowerInvariant();
-        var ext = Path.GetExtension(low);
+        var ext = PathX.GetExtension(low);
         bool isScript = ext is ".lua" or ".py" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".js";
         string? content = isScript ? ReadTextLower(path) : ReadAsLower(path);
         if (content == null) return null;
@@ -3174,7 +3734,7 @@ public sealed class ForensicScan
 
             try
             {
-                var folder = Path.GetFileName(Path.GetDirectoryName(path) ?? "").ToLowerInvariant();
+                var folder = PathX.GetFileName(PathX.GetDirectoryName(path) ?? "").ToLowerInvariant();
                 var fw = CheatWordIn(folder) ?? BrandStrings.FirstOrDefault(x => x.Length >= 6 && folder.Replace(" ", "").Contains(x.Replace(" ", "")));
                 if (fw != null) { score += 2; reasons.Add($"folder named \"{folder}\""); }
             }
@@ -3188,7 +3748,7 @@ public sealed class ForensicScan
 
     // this tool's own files, build output of any C#/.NET project, the FiveM dev's server folders
     private static bool IsOwnOrDevPath(string low) =>
-        low.Contains("heroshield") || low.Contains("hero_shield") || low.Contains("hero-shield") || low.Contains("heroscanner")
+        low.Contains("heroshield") || low.Contains("hero_shield") || low.Contains("hero-shield") || low.Contains("heroscanner") || low.Contains("hero-report-")
         || low.Contains("\\bin\\release\\") || low.Contains("\\bin\\debug\\") || low.Contains("\\obj\\release\\")
         || low.Contains("\\obj\\debug\\") || low.Contains("\\.rartemp\\") || low.Contains(".rartemp\\")
         || low.Contains("\\node_modules\\") || low.Contains("\\.git\\")
@@ -3264,7 +3824,7 @@ public sealed class ForensicScan
     {
         if (total < 64 * 1024) return 0;
         double h = 0;
-        foreach (var c in counts) if (c > 0) { double p = (double)c / total; h -= p * Math.Log2(p); }
+        foreach (var c in counts) if (c > 0) { double p = (double)c / total; h -= p * Math.Log(p, 2); }
         return Math.Round(h, 2);
     }
 
@@ -3340,6 +3900,13 @@ public sealed class ForensicScan
         try { return (DateTime.Now - File.GetLastWriteTime(f)).TotalDays <= 14; } catch { return false; }
     }
 
+    private static string Hex(byte[] b)
+    {
+        var sb = new StringBuilder(b.Length * 2);
+        foreach (var x in b) sb.Append(x.ToString("x2"));
+        return sb.ToString();
+    }
+
     private static string? Sha256File(string path)
     {
         try
@@ -3348,7 +3915,7 @@ public sealed class ForensicScan
             if (!fi.Exists || fi.Length > 200 * 1024 * 1024) return null;
             using var sha = System.Security.Cryptography.SHA256.Create();
             using var fs = File.OpenRead(path);
-            return Convert.ToHexString(sha.ComputeHash(fs)).ToLowerInvariant();
+            return Hex(sha.ComputeHash(fs));
         }
         catch { return null; }
     }
@@ -3375,7 +3942,7 @@ public sealed class ForensicScan
     private static string Hash(string s)
     {
         using var sha = System.Security.Cryptography.SHA256.Create();
-        return Convert.ToHexString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(s)))[..16].ToLowerInvariant();
+        return Hex(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(s))).Substring(0, 16);
     }
 
     private static DateTime SafeTime(string f) { try { return File.GetLastWriteTime(f); } catch { return DateTime.MinValue; } }

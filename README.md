@@ -1,8 +1,8 @@
-# HeRo Shield — website
+# HeRo Shield — website + scanner
 
-Node site for Render: `npm start` (server.js). Everything else is in **DOCS.md**.
-
-- `api/` — backend routes · `assets/` — dashboard JS, images · `database/` — Supabase SQL · `tests/` — `npm test`
-- The Windows scanner lives in its own folder / repo (not needed by the website).
-
-Setup: Supabase → SQL Editor → run `database/supabase-all.sql` (it includes v19). Set the env vars from `.env.example` on Render.
+- Website: `server.js` (Node) + `api/` + `assets/` + `*.html` — deploy on Render (`npm start`).
+- Database: run `supabase-all.sql` once in Supabase → SQL editor (safe to run again).
+- Scanner (v4.5.2, .NET Framework 4.8): `scanner/` — `BUILD.bat` on Windows, or push to GitHub and
+  `.github/workflows/build-scanner.yml` builds `HeRoShield.exe` into release v1.0.
+- Settings: copy `.env.example` → environment variables on Render.
+  Optional: `DISCORD_BOT_TOKEN` also lets the site find names of servers the player left.

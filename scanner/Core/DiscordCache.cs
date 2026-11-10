@@ -14,6 +14,7 @@ namespace HeRoShield.Core;
 public static class DiscordCache
 {
     private static readonly Regex Icon = new(@"cdn\.discordapp\.com/(icons|banners|splashes|discovery-splashes)/(\d{17,20})/", RegexOptions.Compiled);
+    private static readonly Regex IconHash = new(@"cdn\.discordapp\.com/icons/(\d{17,20})/((?:a_)?[0-9a-f]{32})", RegexOptions.Compiled);
     private static readonly Regex ApiGuild = new(@"discord(?:app)?\.com/api/(?:v\d+/)?guilds/(\d{17,20})", RegexOptions.Compiled);
     private static readonly Regex Channel = new(@"discord(?:app)?\.com/channels/(\d{17,20})/\d{17,20}", RegexOptions.Compiled);
     private static readonly Regex ApiInvite = new(@"discord(?:app)?\.com/api/(?:v\d+/)?invites?/([A-Za-z0-9-]{2,32})", RegexOptions.Compiled);
@@ -26,12 +27,12 @@ public static class DiscordCache
         var roam = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         foreach (var (n, d) in new[] { ("Discord app", "discord"), ("Discord PTB", "discordptb"), ("Discord Canary", "discordcanary"),
-                                       ("Discord Dev", "discorddevelopment"), ("Vesktop", Path.Combine("vesktop", "sessionData")), ("Lightcord", "Lightcord") })
-            yield return (n, Path.Combine(roam, d));
-        foreach (var (n, d) in new[] { ("Chrome", Path.Combine(local, "Google", "Chrome", "User Data")), ("Edge", Path.Combine(local, "Microsoft", "Edge", "User Data")),
-                                       ("Brave", Path.Combine(local, "BraveSoftware", "Brave-Browser", "User Data")), ("Vivaldi", Path.Combine(local, "Vivaldi", "User Data")),
-                                       ("Opera", Path.Combine(roam, "Opera Software", "Opera Stable")), ("Opera GX", Path.Combine(roam, "Opera Software", "Opera GX Stable")),
-                                       ("Opera", Path.Combine(local, "Opera Software", "Opera Stable")), ("Opera GX", Path.Combine(local, "Opera Software", "Opera GX Stable")) })
+                                       ("Discord Dev", "discorddevelopment"), ("Vesktop", PathX.Combine("vesktop", "sessionData")), ("Lightcord", "Lightcord") })
+            yield return (n, PathX.Combine(roam, d));
+        foreach (var (n, d) in new[] { ("Chrome", PathX.Combine(local, "Google", "Chrome", "User Data")), ("Edge", PathX.Combine(local, "Microsoft", "Edge", "User Data")),
+                                       ("Brave", PathX.Combine(local, "BraveSoftware", "Brave-Browser", "User Data")), ("Vivaldi", PathX.Combine(local, "Vivaldi", "User Data")),
+                                       ("Opera", PathX.Combine(roam, "Opera Software", "Opera Stable")), ("Opera GX", PathX.Combine(roam, "Opera Software", "Opera GX Stable")),
+                                       ("Opera", PathX.Combine(local, "Opera Software", "Opera Stable")), ("Opera GX", PathX.Combine(local, "Opera Software", "Opera GX Stable")) })
         {
             if (!Directory.Exists(d)) continue;
             yield return (n, d);   // Opera keeps the profile in the root
@@ -39,7 +40,7 @@ public static class DiscordCache
             try { profiles = Directory.GetDirectories(d); } catch { continue; }
             foreach (var p in profiles)
             {
-                var b = Path.GetFileName(p);
+                var b = PathX.GetFileName(p);
                 if (b == "Default" || b.StartsWith("Profile ", StringComparison.OrdinalIgnoreCase)) yield return (n, p);
             }
         }
@@ -47,7 +48,7 @@ public static class DiscordCache
 
     private sealed class Acc
     {
-        public string? Name, Invite;
+        public string? Name, Invite, Icon;
         public HashSet<string> Sources = new();
         public DateTime First = DateTime.MaxValue, Last = DateTime.MinValue;
     }
@@ -60,7 +61,7 @@ public static class DiscordCache
         int files = 0;
         bool Out() => files >= maxFiles || sw.Elapsed.TotalSeconds > maxSeconds;
 
-        void Note(string id, string client, string what, DateTime t, string? name = null, string? invite = null)
+        void Note(string id, string client, string what, DateTime t, string? name = null, string? invite = null, string? icon = null)
         {
             if (!map.TryGetValue(id, out var a)) map[id] = a = new Acc();
             a.Sources.Add($"{client}: {what}");
@@ -68,6 +69,7 @@ public static class DiscordCache
             if (t > a.Last) a.Last = t;
             if (!string.IsNullOrWhiteSpace(name)) a.Name = name;
             if (invite != null) a.Invite = invite;
+            if (!string.IsNullOrEmpty(icon) && (a.Icon == null || t >= a.Last)) a.Icon = icon;
         }
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -76,7 +78,7 @@ public static class DiscordCache
             if (Out()) break;
             if (!Directory.Exists(dir)) continue;
             // HTTP cache (new "simple" format and the old block-file format)
-            foreach (var cache in new[] { Path.Combine(dir, "Cache", "Cache_Data"), Path.Combine(dir, "Cache") })
+            foreach (var cache in new[] { PathX.Combine(dir, "Cache", "Cache_Data"), PathX.Combine(dir, "Cache") })
             {
                 if (!seen.Add(cache) || !Directory.Exists(cache)) continue;
                 IEnumerable<string> list;
@@ -89,8 +91,8 @@ public static class DiscordCache
                 }
             }
             // Local Storage / Session Storage / IndexedDB (leveldb) — only for Discord itself / discord.com
-            foreach (var sub in new[] { Path.Combine(dir, "Local Storage", "leveldb"), Path.Combine(dir, "Session Storage"),
-                                        Path.Combine(dir, "IndexedDB", "https_discord.com_0.indexeddb.leveldb") })
+            foreach (var sub in new[] { PathX.Combine(dir, "Local Storage", "leveldb"), PathX.Combine(dir, "Session Storage"),
+                                        PathX.Combine(dir, "IndexedDB", "https_discord.com_0.indexeddb.leveldb") })
             {
                 if (!seen.Add(sub) || !Directory.Exists(sub)) continue;
                 bool app = client.StartsWith("Discord") || client is "Vesktop" or "Lightcord";
@@ -99,7 +101,7 @@ public static class DiscordCache
                 foreach (var f in list)
                 {
                     if (Out()) break;
-                    var ext = Path.GetExtension(f).ToLowerInvariant();
+                    var ext = PathX.GetExtension(f).ToLowerInvariant();
                     if (ext != ".log" && ext != ".ldb") continue;
                     files++;
                     try
@@ -112,6 +114,7 @@ public static class DiscordCache
                         if (app || text.Contains("discord.com", StringComparison.Ordinal))
                             foreach (Match m in GuildIdField.Matches(text)) Note(m.Groups[1].Value, client, "local storage", t);
                         foreach (Match m in Icon.Matches(text)) Note(m.Groups[2].Value, client, "server icon", t);
+                        foreach (Match m in IconHash.Matches(text)) Note(m.Groups[1].Value, client, "server icon", t, icon: m.Groups[2].Value);
                     }
                     catch { }
                 }
@@ -120,7 +123,7 @@ public static class DiscordCache
 
         var result = map.Select(kv => new DiscordTrace
         {
-            GuildId = kv.Key, Name = kv.Value.Name, Invite = kv.Value.Invite,
+            GuildId = kv.Key, Name = kv.Value.Name, Invite = kv.Value.Invite, Icon = kv.Value.Icon,
             Sources = kv.Value.Sources.OrderBy(x => x).Take(8).ToList(),
             FirstSeen = kv.Value.First == DateTime.MaxValue ? null : kv.Value.First.ToString("yyyy-MM-ddTHH:mm:ss"),
             LastSeen = kv.Value.Last == DateTime.MinValue ? null : kv.Value.Last.ToString("yyyy-MM-ddTHH:mm:ss"),
@@ -137,7 +140,7 @@ public static class DiscordCache
         return result.OrderByDescending(r => r.Name != null).ThenByDescending(r => r.LastSeen).Take(600).ToList();
     }
 
-    private delegate void Noter(string id, string client, string what, DateTime t, string? name = null, string? invite = null);
+    private delegate void Noter(string id, string client, string what, DateTime t, string? name = null, string? invite = null, string? icon = null);
 
     private static void ReadCacheFile(string f, string client, Noter note, Dictionary<string, Acc> invites)
     {
@@ -149,6 +152,7 @@ public static class DiscordCache
             if (fi.Length > 48L * 1024 * 1024) return;
             var text = ReadShared(f, (int)fi.Length);
             foreach (Match m in Icon.Matches(text)) note(m.Groups[2].Value, client, "server icon", t);
+            foreach (Match m in IconHash.Matches(text)) note(m.Groups[1].Value, client, "server icon", t, icon: m.Groups[2].Value);
             foreach (Match m in ApiGuild.Matches(text)) note(m.Groups[1].Value, client, "server page", t);
             foreach (Match m in ApiInvite.Matches(text)) AddInvite(invites, m.Groups[1].Value, client, t);
             return;
@@ -160,14 +164,14 @@ public static class DiscordCache
             head = new byte[(int)Math.Min(fs.Length, 4096)];
             int r = 0; while (r < head.Length) { int k = fs.Read(head, r, head.Length - r); if (k <= 0) break; r += k; }
         }
-        if (!head.AsSpan(0, 8).SequenceEqual(SimpleMagic)) return;
+        for (int q = 0; q < 8; q++) if (head[q] != SimpleMagic[q]) return;
         int keyLen = (int)Math.Min(BitConverter.ToUInt32(head, 12), (uint)(head.Length - 24));
         if (keyLen <= 0) return;
         var key = Encoding.ASCII.GetString(head, 24, keyLen);
         if (!key.Contains("discord", StringComparison.OrdinalIgnoreCase)) return;
 
         var mi = Icon.Match(key);
-        if (mi.Success) { note(mi.Groups[2].Value, client, "server icon", t); return; }
+        if (mi.Success) { var ih = IconHash.Match(key); note(mi.Groups[2].Value, client, "server icon", t, icon: ih.Success ? ih.Groups[2].Value : null); return; }
         var mc = Channel.Match(key);
         if (mc.Success) note(mc.Groups[1].Value, client, "opened a channel", t);
         var mg = ApiGuild.Match(key);
@@ -182,16 +186,16 @@ public static class DiscordCache
         int start = 24 + keyLen;
         int end = IndexOf(all, EofMagic, start);
         if (end <= start) return;
-        var body = all.AsSpan(start, end - start).ToArray();
+        var body = new byte[end - start]; Buffer.BlockCopy(all, start, body, 0, body.Length);
         var json = Decode(body);
         if (json == null) return;
         try
         {
             using var doc = JsonDocument.Parse(json);
             string? code = minv.Success ? minv.Groups[1].Value : null;
-            Walk(doc.RootElement, 0, (id, gname) =>
+            Walk(doc.RootElement, 0, (id, gname, gicon) =>
             {
-                note(id, client, code != null ? "opened invite" : "server info", t, gname, code);
+                note(id, client, code != null ? "opened invite" : "server info", t, gname, code, gicon);
                 if (code != null) invites.Remove(code);
             });
         }
@@ -207,7 +211,7 @@ public static class DiscordCache
         if (t > a.Last) a.Last = t;
     }
 
-    private static void Walk(JsonElement e, int depth, Action<string, string?> found)
+    private static void Walk(JsonElement e, int depth, Action<string, string?, string?> found)
     {
         if (depth > 6) return;
         if (e.ValueKind == JsonValueKind.Array) { int i = 0; foreach (var x in e.EnumerateArray()) { if (i++ > 400) break; Walk(x, depth + 1, found); } return; }
@@ -216,7 +220,8 @@ public static class DiscordCache
             && e.TryGetProperty("features", out var feat) && feat.ValueKind == JsonValueKind.Array)
         {
             string? n = e.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String ? nm.GetString() : null;
-            found(id.GetString()!, n);
+            string? ic = e.TryGetProperty("icon", out var ie) && ie.ValueKind == JsonValueKind.String ? ie.GetString() : null;
+            found(id.GetString()!, n, ic);
         }
         foreach (var p in e.EnumerateObject())
             if (p.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array) Walk(p.Value, depth + 1, found);
@@ -239,14 +244,15 @@ public static class DiscordCache
         catch { }
         try
         {
-            using var br = new BrotliStream(new MemoryStream(body), CompressionMode.Decompress);
+            using var br = new Org.Brotli.Dec.BrotliInputStream(new MemoryStream(body));   // Google's C# Brotli decoder (MIT), .NET Framework has none
             using var ms = new MemoryStream(); br.CopyTo(ms); var o = ms.ToArray();
             if (o.Length > 0 && Js(o[0])) return Encoding.UTF8.GetString(o);
         }
         catch { }
         try
         {
-            using var df = new ZLibStream(new MemoryStream(body), CompressionMode.Decompress);
+            if (body.Length < 3 || (body[0] & 0x0F) != 8) throw new InvalidDataException();
+            using var df = new DeflateStream(new MemoryStream(body, 2, body.Length - 2), CompressionMode.Decompress);   // zlib = 2-byte header + deflate
             using var ms = new MemoryStream(); df.CopyTo(ms); var o = ms.ToArray();
             if (o.Length > 0 && Js(o[0])) return Encoding.UTF8.GetString(o);
         }
@@ -269,6 +275,6 @@ public static class DiscordCache
         using var fs = new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         var b = new byte[len]; int r = 0;
         while (r < len) { int k = fs.Read(b, r, len - r); if (k <= 0) break; r += k; }
-        return Encoding.Latin1.GetString(b, 0, r);
+        return Encoding.GetEncoding(28591).GetString(b, 0, r);
     }
 }

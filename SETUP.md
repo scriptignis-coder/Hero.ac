@@ -39,6 +39,6 @@ Give staff access: dashboard → **Access** (or the env IDs above).
 
 ## If something fails
 - Scanner says "could not send the result (HTTP …)": the text after HTTP says why.
-  The report is also saved next to the .exe as `hero-report-PIN.json`.
+  Nothing is saved on the player's PC: the report is sent only to the website.
 - "PIN NOT FOUND" in the scanner: the PIN was deleted or typed wrong — make a new link.
 - Render log "Could not find the table …": run **supabase-all.sql** again.

@@ -39,7 +39,7 @@ public partial class MainWindow : Window
         _api ??= Environment.GetEnvironmentVariable("HERO_API");
 
         // per-player download link: PIN (and the site it came from) baked into this .exe
-        var (embPin, embApi) = Embedded.Read(Environment.ProcessPath);
+        var (embPin, embApi) = Embedded.Read(System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName);
         if (string.IsNullOrWhiteSpace(_pin) && !string.IsNullOrWhiteSpace(embPin)) _pin = embPin!;
 
         // API can also be set once by placing api.txt next to the exe (your backend URL)
@@ -175,12 +175,12 @@ public partial class MainWindow : Window
         // Do not expose detection details in the client UI; the staff dashboard handles review.
         Toast.Visibility = Visibility.Collapsed;
 
-        // save a local copy
+        // The report goes ONLY to the website — nothing is written on the player's PC.
+        // (Older versions left hero-report-<PIN>.json next to the exe; remove those leftovers.)
         try
         {
-            var outPath = Path.Combine(AppContext.BaseDirectory, $"hero-report-{_pin}.json");
-            File.WriteAllText(outPath, System.Text.Json.JsonSerializer.Serialize(report,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            foreach (var old in Directory.GetFiles(AppContext.BaseDirectory, "hero-report-*.json"))
+                try { File.Delete(old); } catch { }
         }
         catch { }
 
@@ -369,9 +369,11 @@ public partial class MainWindow : Window
             _pctTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
             _pctTimer.Tick += (_, _) =>
             {
-                // ease toward the target, but always creep forward a little so it feels alive
-                double step = Math.Max(0.06, (_targetPct - _displayPct) * 0.10);
-                if (_displayPct < _targetPct) _displayPct = Math.Min(_targetPct, _displayPct + step);
+                // glide toward the target at a steady speed (max ~2.4 %/s) so the bar never jumps,
+                // a bit faster only if it falls far behind
+                double gap = _targetPct - _displayPct;
+                double step = Math.Min(gap, gap > 12 ? 0.16 : 0.08);
+                if (step > 0) _displayPct += step;
                 RenderPct(_displayPct);
             };
             _pctTimer.Start();

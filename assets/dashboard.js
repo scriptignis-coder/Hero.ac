@@ -622,6 +622,21 @@
     // the owner's cheat-server list (cached for the session)
     if (!state.cheatServers) { try { state.cheatServers = (await api('/api/cheat-servers')).servers || []; } catch { state.cheatServers = []; } }
     const cheatIds = new Map(state.cheatServers.map((c) => [String(c.guild_id), c]));
+    // servers known only by their ID / invite → ask the site to look up the name and logo on Discord (cached)
+    {
+      state.guildInfo = state.guildInfo || {};
+      const need = L('DiscordTraces').filter((t) => !F(t, 'Name') || !F(t, 'Icon'));
+      const ids = [...new Set(need.map((t) => String(F(t, 'GuildId') || '')).filter((x) => /^\d{17,20}$/.test(x) && !(x in state.guildInfo)))].slice(0, 60);
+      const invs = [...new Set(need.filter((t) => !F(t, 'GuildId') && F(t, 'Invite')).map((t) => String(F(t, 'Invite')).toLowerCase()).filter((x) => !('inv:' + x in state.guildInfo)))].slice(0, 30);
+      if (ids.length || invs.length) {
+        try {
+          const g = await api(`/api/guild-info?ids=${ids.join(',')}&inv=${invs.map(encodeURIComponent).join(',')}`);
+          Object.assign(state.guildInfo, g.info || {});
+          for (const x of ids) if (!(x in state.guildInfo)) state.guildInfo[x] = null;
+          for (const x of invs) if (!('inv:' + x in state.guildInfo)) state.guildInfo['inv:' + x] = null;
+        } catch {}
+      }
+    }
 
     const dets = L('Detections').slice().sort((a, b) => (F(b, 'Severity') || 0) - (F(a, 'Severity') || 0));
     const warns = L('Warnings'), mods = L('Mods'), suspAll = L('Suspicious');
@@ -658,11 +673,14 @@
       const key = id || 'inv:' + inv;
       const name = F(t, 'Name') || (listed && listed.name) || (guilds.find((g) => String(g.id) === id) || {}).name || '';
       const prev = traceMap.get(key);
-      const x = { id, inv, name: name || (prev && prev.name) || '', listed: listed || (prev && prev.listed), last: F(t, 'LastSeen') || '', first: F(t, 'FirstSeen') || '',
+      const x = { id, inv, name: name || (prev && prev.name) || '', icon: F(t, 'Icon') || (prev && prev.icon) || (listed && listed.icon) || '', listed: listed || (prev && prev.listed), last: F(t, 'LastSeen') || '', first: F(t, 'FirstSeen') || '',
         src: [...new Set([...(prev ? prev.src : []), ...(F(t, 'Sources') || [])])], inNow: !!id && curIds.has(id) };
       if (prev && prev.last > x.last) x.last = prev.last;
       traceMap.set(key, x);
     }
+    // names / icons the site looked up on Discord for servers we only knew by ID
+    const gi = state.guildInfo || {};
+    for (const x of traceMap.values()) { const r = gi[x.id] || (x.inv && gi['inv:' + x.inv]); if (r) { if (!x.name && r.name) x.name = r.name; if (!x.icon && r.icon) x.icon = r.icon; if (!x.id && r.id) x.id = r.id; } }
     const traces = [...traceMap.values()].map((x) => ({ ...x, nameHit: CHEAT_NAME.test(x.name) }));
     const pastCheat = traces.filter((x) => (x.listed || x.nameHit) && !x.inNow).sort((a, b) => (b.listed ? 1 : 0) - (a.listed ? 1 : 0) || (b.last > a.last ? 1 : -1));
     const pastOther = traces.filter((x) => !x.listed && !x.nameHit && !x.inNow && x.id);
@@ -806,7 +824,7 @@
 
       discord: () => {
         const ago = (d) => (d ? fmtDate(d) : '?');
-        const icon = (g) => (discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="">` : `<div class="gi">${esc(((g && g.name) || '?')[0])}</div>`);
+        const icon = (g) => (discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="" onerror="this.outerHTML='<div class=&quot;gi&quot;>${esc(((g && g.name) || '?')[0])}</div>'">` : `<div class="gi">${esc(((g && g.name) || '?')[0])}</div>`);
         const gcard = (g, c, tag, sub = '') => `<div class="rp-card ${c}"><div class="rp-guild">${icon(g)}
             <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name || 'Unknown server')}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id || (g.inv ? 'invite discord.gg/' + g.inv : ''))}${g.owner ? ' · owner' : ''}</div>
             ${sub ? `<div style="color:var(--muted);font-size:12px;margin-top:4px">${sub}</div>` : ''}</div>
@@ -815,7 +833,7 @@
 
         // 1) servers he LEFT — from the PC (Discord / browser cache) and from his earlier checks
         const leftCards = [
-          ...pastCheat.map((x) => gcard({ id: x.id, name: x.name, inv: x.inv }, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
+          ...pastCheat.map((x) => gcard({ id: x.id, name: x.name, inv: x.inv, icon: x.icon }, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
             `Not in it any more — found on this PC (${esc(x.src.slice(0, 3).join(', '))}) · last seen ${esc(ago(x.last))}${x.first && x.first !== x.last ? ' · first seen ' + esc(ago(x.first)) : ''}`)),
           ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => gcard(x, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
             `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — left since`)),
@@ -825,8 +843,8 @@
 
         // 2) all servers he was in before but not now (not cheat-looking)
         const otherRows = [
-          ...[...leftList.filter((x) => !x.listed && !x.nameHit)].map((x) => rowL('', `<b style="color:var(--text)">${esc(x.name)}</b> &nbsp;<span class="mono">${esc(x.id)}</span>`, 'left after ' + esc(ago(x.at)))),
-          ...pastOther.filter((x) => !leftSince.has(x.id)).map((x) => rowL('', `${x.name ? `<b style="color:var(--text)">${esc(x.name)}</b> &nbsp;` : ''}<span class="mono">${esc(x.id)}</span>`, 'seen on PC ' + esc(ago(x.last)))),
+          ...[...leftList.filter((x) => !x.listed && !x.nameHit)].map((x) => rowL('', `<span style="display:inline-flex;align-items:center;gap:10px">${x.icon ? `<img src="https://cdn.discordapp.com/icons/${esc(x.id)}/${esc(x.icon)}.png?size=32" alt="" onerror="this.style.visibility='hidden'" style="width:24px;height:24px;border-radius:50%">` : ''}<b style="color:var(--text)">${esc(x.name)}</b> <span class="mono" style="color:var(--dim)">${esc(x.id)}</span></span>`, 'left after ' + esc(ago(x.at)))),
+          ...pastOther.filter((x) => !leftSince.has(x.id)).map((x) => rowL('', `<span style="display:inline-flex;align-items:center;gap:10px">${x.icon ? `<img src="https://cdn.discordapp.com/icons/${esc(x.id)}/${esc(x.icon)}.png?size=32" alt="" onerror="this.style.visibility='hidden'" style="width:24px;height:24px;border-radius:50%">` : `<span style="width:24px;height:24px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${esc(((x.name || '?')[0] || '?').toUpperCase())}</span>`}${x.name ? `<b style="color:var(--text)">${esc(x.name)}</b>` : '<span style="color:var(--dim)">Unknown name</span>'} <span class="mono" style="color:var(--dim)">${esc(x.id)}</span></span>`, 'seen on PC ' + esc(ago(x.last)))),
         ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
         const otherSection = `<div style="height:18px"></div>` + head('Other servers he is not in now', otherRows.length, 'Servers seen on the PC or in earlier checks that he is not in today. Without a name = only the server ID is known (open discord.com/channels/ID if you share it).')
           + rows(otherRows.slice(0, 300), 'None.');
@@ -924,7 +942,7 @@
         const items = fl(memory, 'Name', 'Path', 'Source', 'Why', 'When');
         return head('Service memory (DPS / PcaSvc / Explorer / DNS)', items.length,
             'Windows services keep a list of programs that ran and websites that were opened in their memory until the PC restarts. Deleting the file or clearing the logs does not remove it — pro screenshare tools read the same place. '
-            + 'Red = cheat file / cheat name that was deleted. Orange = random-named, loader-type, deleted from Downloads / Temp, or a cheat-looking website.' + (memoryInfo ? ' · ' + esc(memoryInfo) : ''))
+            + 'Only what matters is shown: Red = known cheat file or cheat-named program that was deleted. Orange = random-named or loader / spoofer-type program, or a cheat-looking website. Normal programs (installers, Windows tools, old app versions) are hidden.' + (memoryInfo ? ' · ' + esc(memoryInfo) : ''))
           + rows(items.slice(0, 600).map((x) => rowL(lv(x),
               `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b>${F(x, 'Path') && F(x, 'Path') !== F(x, 'Name') ? ` <span style="color:var(--dim)">${esc(F(x, 'Path'))}</span>` : ''}`
               + ` &nbsp;<span style="color:var(--dim)">${F(x, 'Exists') ? '' : 'gone · '}${esc(F(x, 'Why') || '')} · ${esc(F(x, 'Source') || '')}</span>`,
@@ -932,7 +950,12 @@
             R('MemoryTraces') ? 'Nothing suspicious in service memory.' : 'This report has no service memory — the player used an older scanner (needs v4.4+).');
       },
 
-      files: () => head('Recycle bin', deleted.length) + rows(fl(deleted, 'File').map((x) => rowL(F(x, 'Executable') ? 'orange' : '', esc(F(x, 'File')), esc(F(x, 'When')))), 'Empty.')
+      files: () => head('Recycle bin', deleted.length, 'Every file in the recycle bin with its real name, where it was and when it was deleted. Red = cheat file / cheat name. Orange = random-named program.')
+        + rows(fl(deleted, 'File', 'Path', 'Why').map((x) => rowL(F(x, 'Flag') === 2 ? 'red' : F(x, 'Flag') === 1 || (F(x, 'Executable') && !F(x, 'Path')) ? 'orange' : '',
+            `<b style="color:var(--text)">${esc(F(x, 'File'))}</b>${F(x, 'Folder') ? ' <span style="color:var(--dim)">(folder)</span>' : ''}`
+            + (F(x, 'Path') ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(x, 'Path'))}${F(x, 'SizeKb') ? ' · ' + esc(String(F(x, 'SizeKb'))) + ' KB' : ''}</div>` : '')
+            + (F(x, 'Why') ? `<div style="color:#ff8597;font-size:12px;margin-top:2px">${esc(F(x, 'Why'))}</div>` : ''),
+            esc(F(x, 'DeletedAt') || F(x, 'When')))), 'Empty.')
         + '<div style="height:18px"></div>' + head('Recently opened', recent.length) + rows(fl(recent, 'Name', 'Path').slice(0, 150).map((x) => rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Name')), esc(F(x, 'When')))), 'Nothing (may have been cleared).')
         + '<div style="height:18px"></div>' + head('Game mods', mods.length) + rows(fl(mods, 'Path', 'File').slice(0, 300).map((m) => rowL('blue', esc(F(m, 'Path') || F(m, 'File')), (F(m, 'SizeMb') || 0) + ' MB')), 'No mods.'),
 
@@ -1294,6 +1317,8 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v24', 'Discord: servers he left now show their name and logo (scanner v4.5.2 reads the logo from the Discord cache, and the site looks up names on Discord). Recycle bin: every deleted file shows its real name, where it was and when it was deleted — cheat names in red.'],
+      ['v23', 'Scanner v4.5.1: Service memory is now quiet on normal PCs — deleted installers, old Discord versions and Windows tools are no longer listed, glued paths are split correctly, and the fake DPS dates (they are the program\'s build date, not the run date) are no longer shown.'],
       ['v22', 'Scanner v4.5: new Cheat hardware tab — DMA cards (PCILeech FPGA), KMBox, Cronus Zen / StrikePack, XIM, Titan and Arduino mouse boards, even if they were unplugged before the check. New spoofer checks in Warnings (MAC changed by hand, Machine ID rewritten recently). The scan bar now moves at a steady pace from start to finish, and the scan takes a little longer to be thorough.'],
       ['v21', 'Scanner v4.4.1: the scanner no longer saves hero-report-PIN.json on the player\'s PC (Desktop / Downloads). The report goes only to the website. Old leftover hero-report files are deleted and never flagged.'],
       ['v20', 'Scanner v4.4: new Service memory tab. The scanner now reads what Windows services remember in RAM (DPS, PcaSvc, SysMain, Explorer, DNS cache) — programs that ran and cheat websites that were opened, even after the file was deleted and the logs were cleared, until the PC restarts. Cheat files found there are real detections; random / loader names and deleted Downloads / Temp programs are orange for you to check.'],

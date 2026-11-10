@@ -2,7 +2,9 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- .NET Framework 4.8 is built into Windows 10 and 11: nothing to install for the player,
+         and the .exe is ~1-2 MB (like napse) instead of ~60 MB with the whole .NET 8 runtime inside. -->
+    <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -10,18 +12,21 @@
     <RootNamespace>HeRoShield</RootNamespace>
     <LangVersion>latest</LangVersion>
 
-    <!-- ONE self-contained .exe the client just downloads and runs (no DLLs, no .NET).
-         The bundle step needs the Avast/Defender exclusion on this folder (already set). -->
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- run as a 64-bit process on 64-bit Windows (so registry / System32 are not redirected) -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- the player only downloads the .exe: no .config file needed -->
+    <GenerateBindingRedirectsOutputType>false</GenerateBindingRedirectsOutputType>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <NoWarn>$(NoWarn);CS8632;CS0436</NoWarn>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>hero-icon.ico</ApplicationIcon>
 
-    <Version>4.1.0</Version>
+    <Version>4.5.2</Version>
     <Company>HeRo Shield</Company>
     <Product>HeRo Scanner</Product>
   </PropertyGroup>
@@ -31,12 +36,15 @@
     <Resource Include="hero-icon.ico" />
   </ItemGroup>
 
+  <!-- Everything below is part of Windows' own .NET Framework: no NuGet packages, no DLLs to ship. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.8" />
-    <PackageReference Include="System.Management" Version="8.0.0" />
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
 
   <ItemGroup>

@@ -61,7 +61,7 @@ internal static class ScriptIntelligence
             bool luaComment = ext == ".lua" && i + 1 < s.Length && c == '-' && s[i + 1] == '-';
             bool hashComment = ext is ".py" or ".ps1" && c == '#';
             bool remComment = ext is ".bat" or ".cmd" && (i == 0 || s[i - 1] == '\n')
-                              && s.AsSpan(i).StartsWith("rem ", StringComparison.OrdinalIgnoreCase);
+                              && string.Compare(s, i, "rem ", 0, 4, StringComparison.OrdinalIgnoreCase) == 0;
             if (slashComment || luaComment || hashComment || remComment)
             {
                 while (i < s.Length && s[i] != '\n') i++;

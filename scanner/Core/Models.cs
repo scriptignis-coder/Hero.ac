@@ -6,7 +6,13 @@ public enum DetectMethod
     SuspiciousExecutable, RecycleBin, FiveMPlugin,
     // v4.0 additions
     StartupPersistence, ScheduledTask, EventLog, RecentFile, NetworkIndicator,
-    KernelDriver, AmCache, ShimCache, AlternateDataStream
+    KernelDriver, AmCache, ShimCache, AlternateDataStream,
+    // v4.3
+    UsnJournal, InjectedModule,
+    // v4.4
+    MemoryTrace,
+    // v4.5
+    Hardware
 }
 
 public enum Severity { Low, Medium, High }
@@ -93,9 +99,16 @@ public sealed class SystemInfo
 /// <summary>A file found in the recycle bin.</summary>
 public sealed class DeletedFile
 {
-    public string File { get; set; } = "";
-    public string When { get; set; } = "";
+    public string File { get; set; } = "";         // original name ("aimbot.exe")
+    public string Path { get; set; } = "";         // where it was before it was deleted
+    public long SizeKb { get; set; }
+    public string DeletedAt { get; set; } = "";    // yyyy-MM-dd HH:mm
+    public string When { get; set; } = "";         // "3 days ago"
     public bool Executable { get; set; }
+    public bool Folder { get; set; }
+    public bool StillInBin { get; set; } = true;   // false = the recycle bin entry is half-wiped
+    public int Flag { get; set; }                  // 2 = cheat name, 1 = check it
+    public string Why { get; set; } = "";
 }
 
 /// <summary>A program Windows recorded as having run.</summary>
@@ -184,15 +197,40 @@ public sealed class DiscordTrace
     public string GuildId { get; set; } = "";      // empty when only an invite code was found
     public string? Name { get; set; }
     public string? Invite { get; set; }            // invite code he opened (discord.gg/CODE)
+    public string? Icon { get; set; }              // server icon hash → cdn.discordapp.com/icons/ID/HASH.png
     public List<string> Sources { get; set; } = new();   // "Discord app", "Chrome" … + what: icon, invite, channel, local storage
     public string? FirstSeen { get; set; }         // ISO dates of the cache files
     public string? LastSeen { get; set; }
 }
 
+/// <summary>A file the NTFS change journal saw being deleted / renamed / created (even if the file is gone).</summary>
+public sealed class JournalEntry
+{
+    public string Name { get; set; } = "";
+    public string? OldName { get; set; }
+    public string Action { get; set; } = "";     // Deleted | Renamed | Created | Recycled
+    public string When { get; set; } = "";       // local time yyyy-MM-dd HH:mm:ss
+    public string Drive { get; set; } = "";
+    public int Level { get; set; }               // 0 normal, 1 look at it, 2 cheat
+    public string Why { get; set; } = "";
+}
+
+/// <summary>A program path / DPS entry / domain found in the memory of a Windows service (v4.4).</summary>
+public sealed class MemoryTrace
+{
+    public string Path { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Source { get; set; } = "";      // DPS, PcaSvc, SysMain, explorer, Dnscache
+    public string? When { get; set; }             // DPS only: when it ran (UTC)
+    public bool Exists { get; set; }
+    public int Level { get; set; }                // 0 info, 1 check, 2 cheat
+    public string Why { get; set; } = "";
+}
+
 public sealed class ScanReport
 {
     public string Pin { get; set; } = "";
-    public string ScannerVersion { get; set; } = "4.1.0";
+    public string ScannerVersion { get; set; } = "4.5.2";
     public DateTime StartedUtc { get; set; } = DateTime.UtcNow;
     public double DurationSeconds { get; set; }
     public SystemInfo System { get; set; } = new();
@@ -226,9 +264,30 @@ public sealed class ScanReport
     public List<string> RockstarAccounts { get; set; } = new();
     public List<FiveMItem> FiveM { get; set; } = new();
     public List<DiscordTrace> DiscordTraces { get; set; } = new();
+    // v4.3
+    public List<JournalEntry> Journal { get; set; } = new();
+    public string JournalInfo { get; set; } = "";
+    // v4.4
+    public List<MemoryTrace> MemoryTraces { get; set; } = new();
+    public string MemoryInfo { get; set; } = "";
+    // v4.5
+    public List<HardwareDevice> Hardware { get; set; } = new();
+    public string HardwareInfo { get; set; } = "";
 
     public string Verdict =>
         Detections.Any(d => d.Severity == Severity.High) ? "cheating"
         : Detections.Count > 0 || Warnings.Count >= 3 ? "suspicious"
         : "clean";
+}
+
+/// <summary>A device that is (or was) connected to the PC — only the ones that matter for cheating are kept.</summary>
+public sealed class HardwareDevice
+{
+    public string Name { get; set; } = "";
+    public string Kind { get; set; } = "";        // DMA card / KMBox / Cronus / XIM / Arduino / FPGA …
+    public string InstanceId { get; set; } = "";
+    public bool Present { get; set; }             // plugged in right now
+    public string LastSeen { get; set; } = "";
+    public int Level { get; set; }                // 2 = cheat device, 1 = check it
+    public string Why { get; set; } = "";
 }

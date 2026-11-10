@@ -18,7 +18,7 @@ public static class BrowserAudit
         foreach (var (browser, profile, path, firefox) in Profiles())
         {
             if (!File.Exists(path)) continue;
-            var temp = Path.Combine(Path.GetTempPath(), "hero-browser-" + Guid.NewGuid().ToString("N") + ".sqlite");
+            var temp = PathX.Combine(Path.GetTempPath(), "hero-browser-" + Guid.NewGuid().ToString("N") + ".sqlite");
             try
             {
                 File.Copy(path, temp, true);
@@ -61,13 +61,13 @@ public static class BrowserAudit
                         while (rd.Read())
                         {
                             var file = rd.GetString(0);
-                            downloads.Add(new Download(browser, profile, Path.GetFileName(file), rd.GetString(1), ChromeDate(rd.GetInt64(2))));
+                            downloads.Add(new Download(browser, profile, PathX.GetFileName(file), rd.GetString(1), ChromeDate(rd.GetInt64(2))));
                         }
                     }
                     catch (SqliteException) { /* Old Chromium schema: leave this profile empty. */ }
                 }
             }
-            catch (Exception ex) when (ex is IOException or SqliteException or UnauthorizedAccessException) { /* Browser may be locked. */ }
+            catch (Exception) { /* Browser may be locked, or winsqlite3 missing on old Windows. */ }
             finally { try { File.Delete(temp); } catch { } }
         }
         return new Result(history, downloads);
@@ -80,7 +80,7 @@ public static class BrowserAudit
     }
     private static string FirefoxDate(long microseconds)
     {
-        try { return microseconds > 0 ? DateTime.UnixEpoch.AddTicks(checked(microseconds * 10)).ToString("O") : ""; }
+        try { return microseconds > 0 ? new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddTicks(checked(microseconds * 10)).ToString("O") : ""; }
         catch { return ""; }
     }
     private static bool IsSearchUrl(string url)
@@ -95,21 +95,21 @@ public static class BrowserAudit
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         foreach (var (name, root) in new[] {
-            ("Chrome", Path.Combine(local, "Google", "Chrome", "User Data")),
-            ("Edge", Path.Combine(local, "Microsoft", "Edge", "User Data")),
-            ("Brave", Path.Combine(local, "BraveSoftware", "Brave-Browser", "User Data")) })
+            ("Chrome", PathX.Combine(local, "Google", "Chrome", "User Data")),
+            ("Edge", PathX.Combine(local, "Microsoft", "Edge", "User Data")),
+            ("Brave", PathX.Combine(local, "BraveSoftware", "Brave-Browser", "User Data")) })
         {
             if (!Directory.Exists(root)) continue;
             foreach (var dir in Directory.EnumerateDirectories(root))
             {
-                var profile = Path.GetFileName(dir);
+                var profile = PathX.GetFileName(dir);
                 if (profile == "Default" || profile.StartsWith("Profile ", StringComparison.OrdinalIgnoreCase))
-                    yield return (name, profile, Path.Combine(dir, "History"), false);
+                    yield return (name, profile, PathX.Combine(dir, "History"), false);
             }
         }
-        var firefox = Path.Combine(roaming, "Mozilla", "Firefox", "Profiles");
+        var firefox = PathX.Combine(roaming, "Mozilla", "Firefox", "Profiles");
         if (Directory.Exists(firefox))
             foreach (var dir in Directory.EnumerateDirectories(firefox))
-                yield return ("Firefox", Path.GetFileName(dir), Path.Combine(dir, "places.sqlite"), true);
+                yield return ("Firefox", PathX.GetFileName(dir), PathX.Combine(dir, "places.sqlite"), true);
     }
 }

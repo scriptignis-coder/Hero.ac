@@ -11,6 +11,7 @@ const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
   '.json': 'application/json', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp', '.gif': 'image/gif', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.webm': 'video/webm',
 };
 const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json', 'tests', 'backup-before-v19', 'UPLOAD-TO-GITHUB', 'database'];
 // never serve database scripts, notes or env files

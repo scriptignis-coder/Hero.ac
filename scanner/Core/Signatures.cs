@@ -34,7 +34,7 @@ public static class Signatures
         // 1) an editable signatures.json next to the exe wins (operator can tweak it)
         try
         {
-            var path = Path.Combine(folder, "signatures.json");
+            var path = PathX.Combine(folder, "signatures.json");
             if (File.Exists(path)) return FromJson(File.ReadAllText(path));
         }
         catch { }

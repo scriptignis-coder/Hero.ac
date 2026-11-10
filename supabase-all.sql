@@ -1,5 +1,10 @@
--- HeRo Shield — FULL database setup. Run this ONE file in Supabase → SQL Editor.
--- Safe to run again: it only creates what is missing.
+-- =====================================================================
+-- HeRo Shield — COMPLETE database (all tables the website uses)
+-- Supabase → SQL Editor → New query → paste ALL of this → Run.
+-- Safe to run again on an existing database: it only adds what is missing,
+-- it never deletes data.
+-- =====================================================================
+
 
 -- ===== supabase.sql =====
 -- HeRo Shield - Supabase schema (SQL Editor -> Run)
@@ -102,6 +107,8 @@ alter table bans       enable row level security;
 alter table players    enable row level security;
 
 -- refresh the API cache
+notify pgrst, 'reload schema';
+
 
 -- ===== supabase-scanner.sql =====
 -- HeRo Shield — screenshare scanner add-on (run in Supabase SQL Editor after supabase.sql)
@@ -144,6 +151,8 @@ create table if not exists staff (
 create index if not exists staff_owner_idx on staff(owner_discord);
 alter table staff enable row level security;
 
+notify pgrst, 'reload schema';
+
 
 -- ===== supabase-access.sql =====
 -- HeRo Shield — dashboard permissions (run ONCE in Supabase → SQL Editor)
@@ -158,6 +167,11 @@ create table if not exists user_access (
   created_at  timestamptz not null default now()
 );
 alter table user_access enable row level security;  -- only the API (service_role) can read it
+
+notify pgrst, 'reload schema';
+
+-- Upgrade existing deployments safely:
+alter table public.user_access add column if not exists admin boolean not null default false;
 
 
 -- ===== supabase-discord.sql =====
@@ -179,5 +193,90 @@ create table if not exists cheat_servers (
 create index if not exists cheat_servers_owner_idx on cheat_servers(owner_discord);
 alter table cheat_servers enable row level security;
 
+notify pgrst, 'reload schema';
 
+
+-- ===== supabase-scanner-licenses-v13.sql =====
+-- HeRoShield V13: scanner-only licenses. Run after the existing supabase-all.sql.
+create extension if not exists pgcrypto;
+create table if not exists public.scanner_licenses (
+ id uuid primary key default gen_random_uuid(),
+ owner_discord text not null,
+ label text not null,
+ license_key text not null unique,
+ revoked_at timestamptz,
+ created_at timestamptz not null default now()
+);
+create index if not exists scanner_licenses_owner_idx on public.scanner_licenses(owner_discord,created_at desc);
+alter table public.scanner_licenses enable row level security;
+-- Backend uses service_role; do not grant client-side public read/write access.
+alter table public.scan_pins add column if not exists license_id uuid references public.scanner_licenses(id) on delete restrict;
+alter table public.scan_pins alter column server_id drop not null;
+create index if not exists scan_pins_license_idx on public.scan_pins(license_id,created_at desc);
+create unique index if not exists scan_pins_pin_unique_idx on public.scan_pins(pin);
+notify pgrst, 'reload schema';
+
+
+-- ===== supabase-scanner-gui-v14.sql =====
+-- Run AFTER the V13 all-in-one SQL. Safe for existing scanner_licenses rows.
+ALTER TABLE public.scanner_licenses
+ADD COLUMN IF NOT EXISTS scanner_bg TEXT NOT NULL DEFAULT '';
+NOTIFY pgrst, 'reload schema';
+
+
+-- ===== supabase-billing.sql =====
+-- Run once in Supabase SQL Editor. Server service_role only; never expose keys.
+create table if not exists public.paid_entitlements (
+ discord_id text primary key, plan text not null, lifetime boolean not null default false,
+ expires_at timestamptz, updated_at timestamptz not null default now()
+);
+create table if not exists public.billing_payments (
+ stripe_payment_id text primary key, discord_id text not null, plan text not null,
+ stripe_session_id text not null, created_at timestamptz not null default now()
+);
+alter table public.paid_entitlements enable row level security;
+alter table public.billing_payments enable row level security;
+revoke all on public.paid_entitlements from anon, authenticated;
+revoke all on public.billing_payments from anon, authenticated;
+
+
+-- ===== supabase-leaderboard.sql =====
+-- Run in Supabase SQL Editor. Private by default; server-side API uses service role.
+create table if not exists leaderboard_optins (
+  discord_id text primary key,
+  opted_in boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table leaderboard_optins enable row level security;
+create index if not exists leaderboard_optins_enabled_idx on leaderboard_optins(opted_in) where opted_in = true;
+notify pgrst, 'reload schema';
+
+
+-- ===== supabase-v19-permissions-logs.sql =====
+-- HeRo Shield v19 — timed permissions + activity logs (run ONCE in Supabase → SQL Editor; safe to run again)
+
+-- permissions can now end by themselves (1 hour, 2 days, 1 month… / NULL = lifetime)
+alter table public.user_access add column if not exists expires_at timestamptz;
+alter table public.user_access add column if not exists granted_by text;
+alter table public.user_access add column if not exists granted_at timestamptz;
+
+-- activity log: every permission given / removed, every license created / revoked, every PIN created
+create table if not exists public.audit_logs (
+  id              bigserial primary key,
+  created_at      timestamptz not null default now(),
+  actor_discord   text,
+  actor_name      text,
+  action          text not null,      -- permission.grant | permission.revoke | permission.remove | license.create | license.revoke | pin.create | pin.delete | plan.purchase | staff.remove
+  target_discord  text,
+  target_name     text,
+  detail          jsonb
+);
+create index if not exists audit_logs_created_idx on public.audit_logs (created_at desc);
+create index if not exists audit_logs_actor_idx   on public.audit_logs (actor_discord, action, created_at desc);
+alter table public.audit_logs enable row level security;   -- only the API (service_role) can read / write it
+
+notify pgrst, 'reload schema';
+
+
+-- refresh the API cache once more at the end
 notify pgrst, 'reload schema';

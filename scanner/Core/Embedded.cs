@@ -31,7 +31,7 @@ public static class Embedded
         // 2) PIN in the file name (browser may add " (1)")
         try
         {
-            var name = Path.GetFileNameWithoutExtension(exePath);
+            var name = PathX.GetFileNameWithoutExtension(exePath);
             var m = Name.Match(name);
             if (m.Success && !m.Groups[1].Value.Equals("scanner", StringComparison.OrdinalIgnoreCase))
                 return (m.Groups[1].Value.ToUpperInvariant(), null);
