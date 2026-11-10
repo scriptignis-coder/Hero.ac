@@ -545,7 +545,7 @@
   // ---------- scan report (HeRo Scanner v4) — napse-style ----------
   const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
     'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream',
-    'File journal', 'Inside FiveM', 'Service memory', 'Hardware'];
+    'File journal', 'Inside FiveM', 'Service memory', 'Hardware', 'USB drive', 'Jump list'];
   const SEV = ['low', 'medium', 'high'];
   const discordIcon = (g) => g.icon ? `https://cdn.discordapp.com/icons/${g.id || g.guild_id}/${g.icon}.png?size=64` : '';
 
@@ -659,6 +659,10 @@
     const jRed = journal.filter((x) => F(x, 'Level') === 2).length, jOrange = journal.filter((x) => F(x, 'Level') === 1).length;
     const memory = L('MemoryTraces'), memoryInfo = R('MemoryInfo') || '';
     const hw = L('Hardware'), hwInfo = R('HardwareInfo') || '';
+    const timeline = L('Timeline'), usbs = L('UsbStorage'), jumps = L('JumpLists');
+    const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
+    const uOrange = usbs.filter((x) => F(x, 'Level') >= 1).length + dets.filter((d) => F(d, 'Method') === 21).length;
+    const jRed2 = jumps.filter((x) => F(x, 'Level') === 2).length, jOrange2 = jumps.filter((x) => F(x, 'Level') === 1).length;
     const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
     const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
@@ -760,6 +764,7 @@
     const cats = [
       ['overview', 'Overview', '', 'blue'],
       ['detects', 'Detects', dets.length, 'red'],
+      ['timeline', 'Timeline 24h', tRed ? tRed + ' cheat' : tOrange ? tOrange + ' check' : timeline.length || '–', tRed ? 'red' : tOrange ? 'orange' : 'blue'],
       ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
       ['warnings', 'Warnings', warns.length, 'orange'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
@@ -771,6 +776,8 @@
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
+      ['usb', 'USB drives', uOrange ? uOrange + ' check' : usbs.length || '–', uOrange ? 'orange' : 'blue'],
+      ['opened', 'Opened files', jRed2 ? jRed2 + ' cheat' : jOrange2 ? jOrange2 + ' check' : jumps.length || '–', jRed2 ? 'red' : jOrange2 ? 'orange' : 'blue'],
       ['hardware', 'Cheat hardware', hRed ? hRed + ' cheat' : hOrange ? hOrange + ' check' : (R('Hardware') ? '0' : '–'), hRed ? 'red' : hOrange ? 'orange' : 'blue'],
       ['memory', 'Service memory', mRed ? mRed + ' cheat' : mOrange ? mOrange + ' check' : memory.length || '–', mRed ? 'red' : mOrange ? 'orange' : 'blue'],
       ['journal', 'File journal', jRed ? jRed + ' cheat' : jOrange ? jOrange + ' check' : journal.length || '–', jRed ? 'red' : jOrange ? 'orange' : 'blue'],
@@ -941,6 +948,46 @@
               `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b>${F(x, 'OldName') ? ` <span style="color:var(--dim)">← was ${esc(F(x, 'OldName'))}</span>` : ''} &nbsp;<span style="color:var(--dim)">${esc(act(x))}${F(x, 'Why') ? ' · ' + esc(F(x, 'Why')) : ''}</span>`,
               esc(F(x, 'When')))),
             R('Journal') ? 'Nothing deleted or renamed in the last 7 days.' : 'This report has no journal — the player used an older scanner (needs v4.3+).');
+      },
+
+      timeline: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
+        const icon = { Ran: '▶️', Deleted: '🗑️', Renamed: '✏️', USB: '🔌', Opened: '📂', Injected: '💉', Log: '📋', Scan: '🛡️' };
+        const items = fl(timeline, 'Text', 'Path', 'Kind', 'At');
+        return head('Timeline — the 24 hours before the check', items.length,
+            'Everything Windows recorded with a time, newest first: programs that ran, files deleted / renamed, USB drives, files opened, cleared logs. '
+            + 'Look at what happened just before the check started — a cheat that ran, then a cleaner, a USB stick pulled out, files deleted… Red = cheat, orange = check it.')
+          + rows(items.slice(0, 500).map((x) => rowL(lv(x),
+              `${icon[F(x, 'Kind')] || '•'} <b style="color:var(--text)">${esc(F(x, 'Text'))}</b>${F(x, 'Path') && !String(F(x, 'Text')).includes(F(x, 'Path')) ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(x, 'Path'))}</div>` : ''}`,
+              esc(F(x, 'At') || ''))),
+            R('Timeline') ? 'Nothing recorded in the last 24 hours.' : 'This report has no timeline — the player used an older scanner (needs v4.7+).');
+      },
+
+      usb: () => {
+        const items = fl(usbs, 'Name', 'Serial', 'Why', 'LastConnected');
+        const ran = dets.filter((d) => F(d, 'Method') === 21);
+        return head('USB drives', items.length,
+            'Every USB stick / external drive Windows remembers, with the last time it was plugged in. Orange = plugged in shortly before the check and pulled out. '
+            + 'Cheats are sometimes kept on a USB stick and removed before a screenshare.')
+          + (ran.length ? rows(ran.map((d) => rowL(F(d, 'Severity') === 2 ? 'red' : 'orange', `<b style="color:var(--text)">${esc(F(d, 'Signature'))}</b><div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(d, 'Path'))}</div>`, esc(F(d, 'When') || ''))), '') + '<div style="height:12px"></div>' : '')
+          + rows(items.map((x) => rowL(F(x, 'Level') >= 1 ? 'orange' : '',
+              `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> ${F(x, 'Present') ? '<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(47,155,255,.15);color:#8cc8ff;font-size:11px;font-weight:700">plugged in now</span>' : ''}`
+              + `${F(x, 'Why') ? `<div style="color:#ffb35c;font-size:12px;margin-top:2px">${esc(F(x, 'Why'))}</div>` : ''}${F(x, 'Serial') ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">serial ${esc(F(x, 'Serial'))}</div>` : ''}`,
+              esc(F(x, 'LastConnected') || ''))),
+            R('UsbStorage') ? 'No USB drive in Windows\' history.' : 'This report has no USB history — the player used an older scanner (needs v4.7+).');
+      },
+
+      opened: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
+        const items = fl(jumps, 'Path', 'Why', 'Source', 'When');
+        return head('Opened files (Jump Lists + Recent shortcuts)', items.length,
+            'Windows remembers the full path of programs and scripts that were opened (the lists you see when you right-click an app in the taskbar). It stays after the file is deleted. '
+            + 'Red = cheat file / cheat name. Orange = random-named program, or a program opened from Downloads / Temp that is now deleted.')
+          + rows(items.slice(0, 300).map((x) => rowL(lv(x),
+              `<b style="color:var(--text)">${esc(String(F(x, 'Path') || '').split('\\').pop())}</b> ${F(x, 'Exists') ? '' : '<span style="color:#ff8597;font-size:12px">· deleted</span>'}`
+              + `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(x, 'Path'))}</div>${F(x, 'Why') ? `<div style="color:var(--dim);font-size:12px;margin-top:2px">${esc(F(x, 'Why'))} · ${esc(F(x, 'Source'))}</div>` : ''}`,
+              esc(F(x, 'When') || ''))),
+            R('JumpLists') ? 'No program or script in the Jump Lists.' : 'This report has no Jump Lists — the player used an older scanner (needs v4.7+).');
       },
 
       hardware: () => {
@@ -1346,6 +1393,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v27', 'Scanner v4.7: new tabs Timeline 24h (everything that happened before the check, newest first), USB drives (sticks plugged in / pulled out, programs that ran from a USB stick) and Opened files (Jump Lists — programs and scripts opened, even deleted). Injection: a DLL running inside FiveM whose file was deleted, or a random-named unsigned DLL from Downloads / Temp, is now a detection.'],
       ['v26', 'New permission 👁️ Admin (test): sees every tab of the dashboard like an Admin, but every change is refused (view only). Admins also get the scanner with unlimited PINs. Run supabase-v26-viewer.sql once in Supabase.'],
       ['v25', 'Discord check without login: the player no longer has to log in with Discord. Type his Discord ID (or keep the one read from his PC) in the Discord tab — the site gets his profile and checks every server your bot is in, and the scanner reads the servers he is in and left from the PC. The login page stays available as an option.'],
       ['v24', 'Discord: servers he left now show their name and logo (scanner v4.5.2 reads the logo from the Discord cache, and the site looks up names on Discord). Recycle bin: every deleted file shows its real name, where it was and when it was deleted — cheat names in red.'],

@@ -1,6 +1,8 @@
 // Per-player scanner download:  GET /dl/ABCD2345
-// Streams the scanner .exe named "HeRoShield-ABCD2345.exe" with "HEROPIN:ABCD2345|API:<this site>"
-// appended at the end, so the player just runs it — no PIN to type.
+// Streams the scanner .exe named "HeRoShield-ABCD2345.exe" — the scanner reads the PIN from its file name.
+// Since v4.6 the file itself is NOT changed: every player gets the exact same bytes (same SHA-256), so
+// Windows Defender / SmartScreen can build reputation for it and a code signature stays valid.
+// (SCANNER_EMBED_PIN=1 in Render brings back the old "PIN appended to the file" behaviour.)
 // The .exe comes from SCANNER_EXE_URL (default: the GitHub release) and is cached on disk for 10 min.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -64,7 +66,7 @@ export async function handleDownload(req, res, rawPin) {
 
   const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
-  const tail = Buffer.from(`\nHEROPIN:${pin}|API:${proto}://${host}\n`, 'ascii');
+  const tail = process.env.SCANNER_EMBED_PIN === '1' ? Buffer.from(`\nHEROPIN:${pin}|API:${proto}://${host}\n`, 'ascii') : Buffer.alloc(0);
   res.writeHead(200, {
     'Content-Type': 'application/octet-stream',
     'Content-Disposition': `attachment; filename="HeRoShield-${pin}.exe"`,
@@ -75,5 +77,5 @@ export async function handleDownload(req, res, rawPin) {
   const rs = fs.createReadStream(CACHE);
   rs.on('error', () => res.destroy());
   rs.pipe(res, { end: false });
-  rs.on('end', () => res.end(tail));
+  rs.on('end', () => res.end(tail.length ? tail : undefined));
 }
