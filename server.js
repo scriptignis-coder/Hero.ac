@@ -109,6 +109,11 @@ const server = http.createServer(async (req, res) => {
       req.rawBody=Buffer.concat(chunks).toString('utf8'); req.body={};
       const handler=await getHandler('billing-webhook'); wrapRes(res); return await handler(req,res);
     }
+    // Turnstile check (must run before the generic /api/ router)
+    if (pathname === '/api/human' && req.method === 'POST') {
+      const { verifyHuman } = await import(pathToFileURL(path.join(ROOT, 'api', '_human.js')).href);
+      return await verifyHuman(req, res, await readBody(req));
+    }
     if (pathname.startsWith('/api/')) {
       const handler = await getHandler(pathname.slice(5).replace(/\/$/, ''));
       wrapRes(res);
@@ -120,10 +125,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     // real Cloudflare Turnstile check before the website pages (only when the keys are set on Render)
-    if (pathname === '/api/human' && req.method === 'POST') {
-      const { verifyHuman } = await import(pathToFileURL(path.join(ROOT, 'api', '_human.js')).href);
-      return await verifyHuman(req, res, await readBody(req));
-    }
     if (req.method === 'GET' && ['/', '/index.html', '/dashboard', '/dashboard.html'].includes(pathname)) {
       const H = await import(pathToFileURL(path.join(ROOT, 'api', '_human.js')).href);
       if (H.humanOn() && !H.isHuman(req)) return H.sendChallenge(req, res);
