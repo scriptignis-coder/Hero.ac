@@ -274,7 +274,9 @@ export async function requireAccess(req, perm) {
   // without requiring a paid_entitlements row. Normal paid clients still need
   // their own entitlement for paid-only routes; purchases never grant staff roles.
   if (perm === 'herocheck' || access.admin) return user;
-  // Legacy HeRoShield-only permission keeps its original billing/staff check.
+  // Staff role (HeRo Shield) is only ever given by an Admin (Permission Manager / Staff team / Render env),
+  // never by a purchase — so a granted Staff role does not need a paid plan either.
+  if (perm === 'heroshield' && access.heroshield) return user;
   if (perm !== 'admin') {
     const { paidStatus } = await import('./_billing.js');
     const paid = await paidStatus(String(user.id));

@@ -71,7 +71,7 @@ export default wrap(async (req, res) => {
     clearAccessCache(id);
 
     // activity log: what changed
-    const names = { admin: 'Admin', viewer: 'Admin (test, view only)', heroshield: 'HeRo Shield', herocheck: 'HeRo Check' };
+    const names = { admin: 'Admin', viewer: 'Admin (test, view only)', heroshield: 'Staff (anticheat tabs)', herocheck: 'Scanner' };
     const given = [], removed = [];
     for (const k of ['admin', 'viewer', 'heroshield', 'herocheck']) {
       if (row[k] === undefined) continue;
@@ -96,7 +96,7 @@ export default wrap(async (req, res) => {
     if (target?.[0]?.admin && !isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can remove Admin');
     await sb(`user_access?discord_id=eq.${enc(id)}`, { method: 'DELETE' });
     clearAccessCache(id);
-    await audit(me, 'permission.remove', { target: id, targetName: target?.[0]?.name, detail: { had: ['admin', 'heroshield', 'herocheck'].filter((k) => target?.[0]?.[k]).map((k) => ({ admin: 'Admin', heroshield: 'HeRo Shield', herocheck: 'HeRo Check' }[k])) } });
+    await audit(me, 'permission.remove', { target: id, targetName: target?.[0]?.name, detail: { had: ['admin', 'heroshield', 'herocheck'].filter((k) => target?.[0]?.[k]).map((k) => ({ admin: 'Admin', heroshield: 'Staff (anticheat tabs)', herocheck: 'Scanner' }[k])) } });
     return send(res, 200, { ok: true });
   }
 

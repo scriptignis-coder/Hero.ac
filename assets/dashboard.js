@@ -327,7 +327,7 @@
   function wsAvatar(user) { return user.avatar ? `<img class="workspace-avatar" src="${esc(user.avatar)}" alt="Discord avatar" referrerpolicy="no-referrer">` : `<div class="workspace-avatar-fallback">${esc((user.name || '?')[0])}</div>`; }
   function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.name || 'Discord user')}</h2><p>Discord account · ${esc(user.id)}</p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
   function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
-  function wsAccess() { const a=state.user.access || {}; if (a.viewer) return 'Admin (test) — view only'; return [a.admin&&'Admin',a.heroshield&&'Legacy HeRoShield role',a.herocheck&&'HeRoCheck'].filter(Boolean).join(' · ') || 'No staff permissions'; }
+  function wsAccess() { const a=state.user.access || {}; if (a.viewer) return 'Admin (test) — view only'; return [a.admin&&'Admin',a.heroshield&&'Staff',a.herocheck&&!a.heroshield&&'Scanner'].filter(Boolean).join(' · ') || 'No staff permissions'; }
   async function renderProfile(view) {
     view.innerHTML=loading();
     try {
@@ -1442,6 +1442,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v29', 'Roles: Permission Manager now has Scanner and Staff. One role per person — giving a new role replaces the old one. One-click → Scanner / → Staff buttons in the list (the time left stays the same). Staff opens the anticheat tabs without a paid plan. Scanner v4.8: new black + blue design.'],
       ['v27', 'Scanner v4.7: new tabs Timeline 24h (everything that happened before the check, newest first), USB drives (sticks plugged in / pulled out, programs that ran from a USB stick) and Opened files (Jump Lists — programs and scripts opened, even deleted). Injection: a DLL running inside FiveM whose file was deleted, or a random-named unsigned DLL from Downloads / Temp, is now a detection.'],
       ['v26', 'New permission 👁️ Admin (test): sees every tab of the dashboard like an Admin, but every change is refused (view only). Admins also get the scanner with unlimited PINs. Run supabase-v26-viewer.sql once in Supabase.'],
       ['v25', 'Discord check without login: the player no longer has to log in with Discord. Type his Discord ID (or keep the one read from his PC) in the Discord tab — the site gets his profile and checks every server your bot is in, and the scanner reads the servers he is in and left from the PC. The login page stays available as an option.'],
@@ -1582,7 +1583,29 @@
     }));
   }
 
-  // Role Manager: server-enforced Admin vs HeRoCheck separation.
+  // One role per person. Saving a role sends every flag, so the old role is removed.
+  const ROLE_NAMES = { herocheck: 'Scanner', staff: 'Staff', viewer: 'Admin (test)', admin: 'Admin' };
+  function roleOfUser(u) {
+    if (u.admin) return 'admin';
+    if (u.viewer) return 'viewer';
+    if (u.heroshield || u.envHeroshield) return 'staff';
+    if (u.herocheck || u.envHerocheck) return 'herocheck';
+    return '';
+  }
+  function roleBadge(u) {
+    const r = roleOfUser(u);
+    if (!r) return '<span style="color:var(--dim)">No access</span>';
+    if (r === 'admin') return 'Admin';
+    if (r === 'viewer') return '👁️ Admin (test)';
+    return r === 'staff' ? '<span class="badge log">🛡️ Staff</span>' : '<span class="badge on">🔍 Scanner</span>';
+  }
+  function rolePayload(discordId, role, owner) {
+    const p = { discordId, herocheck: role === 'herocheck' || role === 'staff', heroshield: role === 'staff', viewer: role === 'viewer' };
+    if (owner) p.admin = role === 'admin';
+    return p;
+  }
+
+  // Role Manager: server-enforced roles (Scanner / Staff / Admin test / Admin).
   async function renderRoleManager(view) {
     view.innerHTML = loading();
     const { users } = await api('/api/access');
@@ -1592,19 +1615,37 @@
         <h3>Give a permission</h3>
         <label class="perm-field"><span>Discord User ID</span><input class="input" id="role-id" placeholder="Enter Discord user ID" inputmode="numeric"></label>
         <div class="perm-field"><span>Dashboard Permission</span>
-          <label class="perm-radio"><input type="radio" name="role-type" value="herocheck" checked> HeRoCheck — Scanner Dashboard</label>
+          <label class="perm-radio"><input type="radio" name="role-type" value="herocheck" checked> 🔍 Scanner — scanner, scan PINs, Discord check, Scanner GUI</label>
+          <label class="perm-radio"><input type="radio" name="role-type" value="staff"> 🛡️ Staff — anticheat tabs (detections, bans, players, logs, live) + scanner</label>
           <label class="perm-radio"><input type="radio" name="role-type" value="viewer"> 👁️ Admin (test) — sees every tab, cannot change anything</label>
           ${owner ? '<label class="perm-radio"><input type="radio" name="role-type" value="admin"> Admin — Management Dashboard + scanner (unlimited PINs)</label>' : ''}
         </div>
         ${durationPicker('roledur', [1, 'day'])}
         <button class="btn btn-primary perm-save" id="role-save">Save permission</button>
-        <p class="workspace-note" style="margin-top:10px">Only the environment owner can grant Admin. Admin (test) can open every tab but every change is refused by the server. Every change is written to Activity logs.</p>
+        <p class="workspace-note" style="margin-top:10px">A person has one role: saving a new role replaces the old one (Staff → Scanner removes the Staff tabs, Scanner → Staff adds them). Only the environment owner can grant Admin. Admin (test) can open every tab but every change is refused by the server. Every change is written to Activity logs.</p>
       </div>
-      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Time left</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${u.admin ? 'Admin' : u.viewer ? '👁️ Admin (test)' : u.herocheck || u.envHerocheck ? 'HeRoCheck' : 'No access'}</td><td>${u.owner || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.viewer || u.herocheck || u.heroshield) ? timeLeft(u.expires_at) : '-'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<div class="actions-cell"><button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>${(u.admin || u.viewer || u.herocheck) && !u.envHerocheck ? `<button class="btn btn-danger btn-sm" data-role-revoke="${esc(u.discord_id)}">Revoke</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+      <div class="card panel"><h3>Accounts (${users.length})</h3><div class="table-wrap"><table><thead><tr><th>Discord user</th><th>ID</th><th>Dashboard</th><th>Time left</th><th>Action</th></tr></thead><tbody>${users.map(u=>`<tr><td>${esc(u.name||'Not logged in')}</td><td class="mono">${esc(u.discord_id)}</td><td>${roleBadge(u)}</td><td>${u.owner || u.envHerocheck ? '<span class="badge on">Permanent (env)</span>' : (u.admin || u.viewer || u.herocheck || u.heroshield) ? timeLeft(u.expires_at) : '-'}</td><td>${u.owner ? 'Environment owner' : u.admin && !owner ? 'Owner-managed' : `<div class="actions-cell">${roleOfUser(u) === 'staff' && !u.envHeroshield ? `<button class="btn btn-ghost btn-sm" data-role-switch="herocheck" data-uid="${esc(u.discord_id)}" title="Remove the Staff tabs, keep the scanner">→ Scanner</button>` : ''}${roleOfUser(u) === 'herocheck' && !u.envHerocheck ? `<button class="btn btn-ghost btn-sm" data-role-switch="staff" data-uid="${esc(u.discord_id)}" title="Add the Staff (anticheat) tabs">→ Staff</button>` : ''}<button class="btn btn-ghost btn-sm" data-role-id="${esc(u.discord_id)}">Edit</button>${(u.admin || u.viewer || u.herocheck || u.heroshield) && !u.envHerocheck ? `<button class="btn btn-danger btn-sm" data-role-revoke="${esc(u.discord_id)}">Revoke</button>` : ''}</div>`}</td></tr>`).join('')}</tbody></table></div></div>`;
     const roleOf = () => view.querySelector('input[name="role-type"]:checked')?.value || 'herocheck';
-    const roleShow = wireDuration(view, 'roledur', () => (roleOf() === 'admin' ? 'Admin' : roleOf() === 'viewer' ? 'Admin (test)' : 'HeRoCheck'));
+    const roleShow = wireDuration(view, 'roledur', () => ROLE_NAMES[roleOf()] || 'Scanner');
     view.querySelectorAll('input[name="role-type"]').forEach((r) => r.addEventListener('change', roleShow));
-    view.querySelectorAll('[data-role-id]').forEach(b => b.addEventListener('click', () => { view.querySelector('#role-id').value = b.dataset.roleId; view.querySelector('#role-id').focus(); }));
+    view.querySelectorAll('[data-role-id]').forEach(b => b.addEventListener('click', () => {
+      view.querySelector('#role-id').value = b.dataset.roleId;
+      const u = users.find(x => String(x.discord_id) === b.dataset.roleId);
+      const r = u && view.querySelector(`input[name="role-type"][value="${roleOfUser(u)}"]`);
+      if (r) { r.checked = true; roleShow(); }
+      view.querySelector('#role-id').scrollIntoView({ behavior: 'smooth', block: 'center' }); view.querySelector('#role-id').focus();
+    }));
+    // one click: Staff → Scanner or Scanner → Staff (keeps the time that is left)
+    view.querySelectorAll('[data-role-switch]').forEach(b => b.addEventListener('click', async () => {
+      const to = b.dataset.roleSwitch, uid = b.dataset.uid;
+      const u = users.find(x => String(x.discord_id) === uid) || {};
+      const ok = await modal({ title: to === 'staff' ? 'Make Staff' : 'Make Scanner',
+        text: to === 'staff' ? `${u.name || uid} gets the Staff (anticheat) tabs on top of the scanner.` : `${u.name || uid} loses the Staff tabs and keeps only the scanner.`,
+        ok: to === 'staff' ? 'Make Staff' : 'Make Scanner' });
+      if (!ok) return;
+      try { await api('/api/access', { method: 'POST', body: rolePayload(uid, to, owner) }); toast(to === 'staff' ? 'Now Staff' : 'Now Scanner'); await renderRoleManager(view); }
+      catch (e) { toast(e.message, true); }
+    }));
     view.querySelectorAll('[data-role-revoke]').forEach(b => b.addEventListener('click', async () => {
       if (!(await modal({ title: 'Revoke access', text: `Remove dashboard access for ${b.dataset.roleRevoke}?`, ok: 'Revoke', danger: true }))) return;
       const payload = { discordId: b.dataset.roleRevoke, herocheck: false, heroshield: false, viewer: false };
@@ -1615,9 +1656,8 @@
       const discordId = view.querySelector('#role-id').value.trim();
       const role = roleOf();
       if (!/^\d{15,22}$/.test(discordId)) return toast('Enter a valid Discord user ID', true);
-      const payload = {discordId, herocheck:role==='herocheck', heroshield:false, viewer:role==='viewer'};
+      const payload = rolePayload(discordId, role, owner);
       payload.duration = readDuration(view, 'roledur');
-      if (owner) payload.admin = role==='admin';
       try { await api('/api/access', {method:'POST',body:payload}); toast('Permissions updated'); await renderRoleManager(view); }
       catch(e) { toast(e.message,true); }
     });
