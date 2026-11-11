@@ -297,7 +297,7 @@
             <div style="flex:1;min-width:0"><b>${esc(p.name)}</b>${p.members ? ` <span class="workspace-note">· ${Number(p.members).toLocaleString()} members</span>` : ''}
               <div class="workspace-note" style="margin-top:2px">${esc(p.description)}</div>
               <a class="workspace-note" href="${esc(p.invite)}" target="_blank" rel="noopener" style="color:var(--cyan)">${esc(p.invite)}</a></div>
-            <button class="btn btn-danger btn-sm" data-pt-del="${Number(p.id)}">Remove</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${p.icon ? `<a class="btn btn-ghost btn-sm" href="${esc(p.icon)}" target="_blank" rel="noopener">Logo</a>` : ''}<button class="btn btn-ghost btn-sm" data-pt-ref="${esc(p.invite)}" data-pt-desc="${esc(p.description)}">Refresh</button><button class="btn btn-danger btn-sm" data-pt-del="${Number(p.id)}">Remove</button></div>
           </div>`).join('')}</div>` : '<p class="workspace-note" style="margin-top:10px">No partner yet.</p>'}
       </div>`;
     const desc = $('#pt-desc', view);
@@ -309,6 +309,12 @@
         toast('Partner added — it is on the website now'); await renderPartners(view);
       } catch (err) { toast(err.message, true); b.disabled = false; }
     });
+    // reads the name / logo / member count from Discord again (after the partner changed its server picture)
+    view.querySelectorAll('[data-pt-ref]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await api('/api/partners', { method: 'POST', body: { invite: b.dataset.ptRef, description: b.dataset.ptDesc } }); toast('Updated from Discord'); await renderPartners(view); }
+      catch (err) { toast(err.message, true); b.disabled = false; }
+    }));
     view.querySelectorAll('[data-pt-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!(await modal({ title: 'Remove this partner?', text: 'It disappears from the website right away.', ok: 'Remove', danger: true }))) return;
       try { await api('/api/partners?id=' + b.dataset.ptDel, { method: 'DELETE' }); toast('Partner removed'); await renderPartners(view); }

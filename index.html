@@ -175,7 +175,7 @@ section{padding:110px 0}
 .partners{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;text-align:left}
 .ptcard{display:flex;flex-direction:column;gap:14px}
 .ptcard .top{display:flex;align-items:center;gap:14px}
-.ptcard img{width:54px;height:54px;border-radius:14px;object-fit:cover;border:1px solid var(--line2);background:#000}
+.ptcard img{width:54px;height:54px;border-radius:14px;object-fit:cover;border:1px solid var(--line2);background:#15171c}
 .ptcard h3{margin:0;font-size:17px}
 .ptcard .mem{color:var(--dim);font-size:13px}
 .ptcard p{margin:0;flex:1}
@@ -540,7 +540,7 @@ footer a:hover{color:var(--text)}
       if (!ps.length) { box.append(el('p', '', 'Our first partners are coming soon.')); box.style.display = 'block'; box.style.textAlign = 'center'; box.firstChild.style.color = 'var(--dim)'; return; }
       ps.forEach((p, i) => {
         const c = el('div', 'card ptcard rv'), top = el('div', 'top'), img = el('img'), info = el('div');
-        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.src = p.icon || '/assets/logo-neon-sm.jpg'; img.onerror = () => { img.onerror = null; img.src = '/assets/logo-neon-sm.jpg'; };
+        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; const tries = [p.icon, '/assets/logo-neon-sm.jpg', '/assets/logo.png'].filter(Boolean); let k = 0; img.onerror = () => { k++; if (k < tries.length) img.src = tries[k]; else img.onerror = null; }; img.src = tries[0];
         info.append(el('h3', '', p.name), el('div', 'mem', p.members ? Number(p.members).toLocaleString() + ' members' : 'Discord server'));
         top.append(img, info);
         const a = el('a', 'btn btn-g btn-sm', 'Join Discord ↗'); a.href = p.invite; a.target = '_blank'; a.rel = 'noopener';
