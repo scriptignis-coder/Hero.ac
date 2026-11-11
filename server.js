@@ -76,6 +76,11 @@ const server = http.createServer(async (req, res) => {
     let pathname = decodeURIComponent(url.pathname);
 
     // live stream upload from players (raw image, handled before JSON parsing)
+    // tiny keep-alive endpoint (UptimeRobot / cron-job.org ping it so Render free never sleeps)
+    if (pathname === '/healthz') {
+      res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+      return res.end('ok');
+    }
     if (pathname === '/api/stream/upload' && req.method === 'POST') {
       const { pushFrame, parseMultipart } = await import(pathToFileURL(path.join(ROOT, 'api', '_stream.js')).href);
       const chunks = [];
