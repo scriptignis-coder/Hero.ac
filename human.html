@@ -40,12 +40,11 @@
     msg.className = 'msg'; msg.textContent = 'Verifying…';
     try {
       const r = await fetch('/api/human', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 'cf-turnstile-response': token }), credentials: 'same-origin' });
-      if (!r.ok) throw new Error();
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.code || ''); }
       msg.className = 'msg ok'; msg.textContent = '✓ Verified — opening the site…';
       setTimeout(() => location.reload(), 350);
-    } catch {
-      msg.className = 'msg err'; msg.textContent = 'Verification failed. Please try again.';
-      if (window.turnstile) turnstile.reset();
+    } catch (e) {
+      msg.className = 'msg err'; msg.textContent = 'Verification failed. Please try again.' + (e && e.message ? ' (' + e.message + ')' : '');
     }
   }
   function hsErr() { msg.className = 'msg err'; msg.textContent = 'The check could not finish. Reload the page to try again.'; }
