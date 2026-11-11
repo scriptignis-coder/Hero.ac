@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Just a moment… · HeRo Shield</title>
+<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%;background:#000;color:#f2f4f7;font:400 15px/1.6 system-ui,-apple-system,"Segoe UI",Inter,sans-serif}
+  main{width:min(620px,100% - 32px);margin:0 auto;padding:18vh 0 40px}
+  .host{display:flex;align-items:center;gap:12px;font-size:clamp(26px,5vw,36px);font-weight:700;letter-spacing:-.02em}
+  .host img{width:40px;height:40px;border-radius:9px}
+  h1{margin-top:10px;font-size:clamp(18px,3.4vw,22px);font-weight:600}
+  p{margin-top:10px;color:#a6abb4}
+  .box{margin-top:28px;min-height:70px}
+  .msg{margin-top:14px;font-size:14px;color:#a6abb4;min-height:22px}
+  .msg.ok{color:#3ee08a}.msg.err{color:#ff7a8a}
+  footer{margin-top:56px;padding-top:14px;border-top:1px solid #1d1f24;color:#5e636d;font-size:12px;display:flex;gap:10px;flex-wrap:wrap}
+  noscript{display:block;margin-top:20px;color:#ffb54a}
+</style>
+</head>
+<body>
+<main>
+  <div class="host"><img src="/assets/logo-neon-sm.jpg" alt="">__HOST__</div>
+  <h1>Security check in progress</h1>
+  <p>This site uses a security service to protect itself from malicious bots. This page is shown while we check that you are not a bot.</p>
+  <div class="box">
+    <div class="cf-turnstile" data-sitekey="__SITEKEY__" data-action="site_gate" data-theme="dark" data-callback="hsDone" data-error-callback="hsErr" data-expired-callback="hsErr"></div>
+  </div>
+  <div class="msg" id="msg" role="status"></div>
+  <noscript>Please enable JavaScript to continue.</noscript>
+  <footer><span>Protected by Cloudflare Turnstile</span><span>·</span><span>HeRo Shield</span></footer>
+</main>
+<script>
+  const msg = document.getElementById('msg');
+  async function hsDone(token) {
+    msg.className = 'msg'; msg.textContent = 'Verifying…';
+    try {
+      const r = await fetch('/api/human', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 'cf-turnstile-response': token }), credentials: 'same-origin' });
+      if (!r.ok) throw new Error();
+      msg.className = 'msg ok'; msg.textContent = '✓ Verified — opening the site…';
+      setTimeout(() => location.reload(), 350);
+    } catch {
+      msg.className = 'msg err'; msg.textContent = 'Verification failed. Please try again.';
+      if (window.turnstile) turnstile.reset();
+    }
+  }
+  function hsErr() { msg.className = 'msg err'; msg.textContent = 'The check could not finish. Reload the page to try again.'; }
+</script>
+</body>
+</html>

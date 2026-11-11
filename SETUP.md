@@ -42,3 +42,9 @@ Give staff access: dashboard → **Access** (or the env IDs above).
   Nothing is saved on the player's PC: the report is sent only to the website.
 - "PIN NOT FOUND" in the scanner: the PIN was deleted or typed wrong — make a new link.
 - Render log "Could not find the table …": run **supabase-all.sql** again.
+
+## Cloudflare Turnstile (free bot check, no domain needed)
+1. dash.cloudflare.com → Turnstile → Add widget → hostname `hero-ac.onrender.com` → mode Managed.
+2. Render → Environment: `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`.
+3. The home page and /dashboard show "Security check in progress" once; the visitor stays verified 12 h.
+   /api and /dl are never checked, so the scanner keeps working. Remove the two variables to turn it off.

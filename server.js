@@ -13,7 +13,7 @@ const TYPES = {
   '.json': 'application/json', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8',
   '.webp': 'image/webp', '.gif': 'image/gif', '.jpeg': 'image/jpeg', '.woff2': 'font/woff2', '.mp4': 'video/mp4', '.webm': 'video/webm',
 };
-const BLOCKED = ['api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json', 'tests', 'backup-before-v19', 'UPLOAD-TO-GITHUB', 'database'];
+const BLOCKED = ['human.html', 'api', 'node_modules', '.env', 'server.js', 'package.json', 'package-lock.json', '.git', '.github', 'scanner', 'vercel.json', 'tests', 'backup-before-v19', 'UPLOAD-TO-GITHUB', 'database'];
 // never serve database scripts, notes or env files
 const BLOCKED_EXT = /\.(sql|md|env|example|cs|csproj|bat|yml|yaml|log)$/i;
 
@@ -117,6 +117,16 @@ const server = http.createServer(async (req, res) => {
       req.body = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) ? await readBody(req) : {};
       if (req.body && req.body.__tooLarge) return res.status(413).json({ error: 'Request too large' });
       return await handler(req, res);
+    }
+
+    // real Cloudflare Turnstile check before the website pages (only when the keys are set on Render)
+    if (pathname === '/api/human' && req.method === 'POST') {
+      const { verifyHuman } = await import(pathToFileURL(path.join(ROOT, 'api', '_human.js')).href);
+      return await verifyHuman(req, res, await readBody(req));
+    }
+    if (req.method === 'GET' && ['/', '/index.html', '/dashboard', '/dashboard.html'].includes(pathname)) {
+      const H = await import(pathToFileURL(path.join(ROOT, 'api', '_human.js')).href);
+      if (H.humanOn() && !H.isHuman(req)) return H.sendChallenge(req, res);
     }
 
     if (pathname === '/') pathname = '/index.html';
