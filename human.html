@@ -40,7 +40,7 @@
     msg.className = 'msg'; msg.textContent = 'Verifying…';
     try {
       const r = await fetch('/api/human', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 'cf-turnstile-response': token }), credentials: 'same-origin' });
-      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.code || ''); }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.code || d.error || ('HTTP ' + r.status)); }
       msg.className = 'msg ok'; msg.textContent = '✓ Verified — opening the site…';
       setTimeout(() => location.reload(), 350);
     } catch (e) {
