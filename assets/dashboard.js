@@ -239,6 +239,8 @@
     if (state.tab === 'scanactivity') return renderScanActivity(view);
     // Server analytics are intentionally not exposed in scanner-only mode.
     // FiveM server management is not part of this scanner-only workspace.
+    // v32: Discord check and Signatures pages were removed — the scan reads the Discord servers by itself and the scanner has its own signatures
+    if (state.tab === 'discord' || state.tab === 'signatures') state.tab = 'pins';
     if (state.tab === 'scanner') return renderScanner(view);
     if (state.tab === 'pins') { view.innerHTML = loading(); try { await renderPins(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
@@ -546,6 +548,26 @@
       </div>`;
   }
 
+  // v30: one PIN = one game. The scanner runs the common checks + only the checks of that game.
+  const GAMES = [
+    { k: 'fivem', name: 'FiveM', sub: 'GTA V roleplay', c: '#ff8a3d',
+      ic: '<path d="M5 15.5l1.6-5a2 2 0 0 1 1.9-1.4h7a2 2 0 0 1 1.9 1.4l1.6 5" /><rect x="3.5" y="15" width="17" height="4.5" rx="1.6"/><circle cx="7.5" cy="17.3" r="1"/><circle cx="16.5" cy="17.3" r="1"/>' },
+    { k: 'redm', name: 'RedM', sub: 'Red Dead roleplay', c: '#ff5a5f',
+      ic: '<path d="M4 15c2.5 1.6 13.5 1.6 16 0"/><path d="M7.2 14.6c.3-4 1.3-8.1 4.8-8.1s4.5 4.1 4.8 8.1"/><path d="M8 11.5c2.5.8 5.5.8 8 0"/>' },
+    { k: 'minecraft', name: 'Minecraft', sub: 'Java & clients', c: '#4ade80',
+      ic: '<path d="M14.5 4.5c2.8.3 4.7 2.2 5 5"/><path d="M5 19l9.5-9.5"/><path d="M11 6.5l6.5 6.5"/><path d="M12.8 4.4c-2.4.6-4.6 2-6.2 4"/><path d="M19.6 11.2c-.6 2.4-2 4.6-4 6.2"/>' },
+    { k: 'roblox', name: 'Roblox', sub: 'executors & scripts', c: '#8cc8ff',
+      ic: '<path d="M12 3.5l7.5 4.2v8.6L12 20.5l-7.5-4.2V7.7z"/><path d="M12 12l7.5-4.3M12 12L4.5 7.7M12 12v8.5"/>' },
+  ];
+  const gameOf = (k) => GAMES.find((g) => g.k === (k || 'fivem')) || GAMES[0];
+  // Real game logos: put /assets/games/<game>.png (fivem.png, redm.png, minecraft.png, roblox.png).
+  // If a file is missing, the drawn icon is shown instead.
+  const gameIcon = (k, size = 22) => {
+    const g = gameOf(k);
+    const svg = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${g.ic}</svg>`;
+    return `<span class="gm-ic" style="--gc:${g.c};width:${size + 12}px;height:${size + 12}px"><img class="gm-logo" src="/assets/games/${g.k}.png" alt="${esc(g.name)}" width="${size + 12}" height="${size + 12}" loading="lazy" onerror="this.remove()">${svg}</span>`;
+  };
+
   async function renderPins(view) {
     const { pins, licenses, quota } = await api('/api/pins');
     state.pins = pins;
@@ -557,12 +579,16 @@
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Generate a scan PIN</h3>
-        <p class="workspace-note">Select a scanner license (no FiveM server required).</p>
+        <p class="workspace-note">Choose the game: the scanner checks the PC (macros, HWID history, USB, deleted files…) plus only the files and cheats of that game.</p>
+        <div class="gm-grid" role="radiogroup" aria-label="Game">
+          ${GAMES.map((g) => `<button type="button" class="gm-opt ${(state.pinGame || 'fivem') === g.k ? 'on' : ''}" data-pingame="${g.k}" role="radio" aria-checked="${(state.pinGame || 'fivem') === g.k}">
+            ${gameIcon(g.k, 26)}<span><b>${g.name}</b></span><i class="gm-check">✓</i></button>`).join('')}
+        </div>
         ${quotaHtml}
         ${activeLicenses.length?`<select id="pin-license" class="input" style="width:100%;margin-bottom:12px">${activeLicenses.map(l=>`<option value="${esc(l.id)}" ${state.selectedLicense===l.id?'selected':''}>${esc(l.label)} · ${esc(l.license_key)}</option>`).join('')}</select>`:'<p class="workspace-note">No active license. Open My License to create one.</p>'}
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <input id="pin-player" class="input" style="flex:1;min-width:180px" placeholder="Player name (optional)">
-          <button class="btn btn-primary" data-newpin ${activeLicenses.length && (q.unlimited || q.left > 0)?'':'disabled'}>Generate PIN</button>
+          <button class="btn btn-primary" data-newpin ${activeLicenses.length && (q.unlimited || q.left > 0)?'':'disabled'}>Generate ${esc(gameOf(state.pinGame).name)} PIN</button>
         </div>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
@@ -576,8 +602,9 @@
         </div>
       </div>
       <div class="card panel"><h3>Recent PINs</h3>
-        ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
+        ${pins.length ? `<div class="table-wrap"><table><thead><tr><th>Game</th><th>PIN</th><th>Player</th><th>Used</th><th>Result</th><th>Date</th><th></th></tr></thead>
           <tbody>${pins.map((p) => `<tr>
+            <td><div style="display:flex;align-items:center;gap:8px" title="${esc(gameOf(p.game).name)}">${gameIcon(p.game, 16)}<span style="font-size:13px">${esc(gameOf(p.game).name)}</span></div></td>
             <td class="mono" style="color:var(--cyan);font-size:14px">${esc(p.pin)}</td>
             <td>${esc(p.player) || '-'}${p.discord_check && p.discord_check.user ? ` <span class="badge log" title="${esc(p.discord_check.user.name)}">Discord ✓</span>` : ''}</td>
             <td><span class="badge ${p.used ? 'on' : 'off'}">${p.used ? 'Yes' : 'Pending'}</span></td>
@@ -778,7 +805,11 @@
     const leftCheat = leftList.filter((x) => x.listed || x.nameHit);
     const discRed = cheatGuilds.length + pastCheat.filter((x) => x.listed).length + leftCheat.filter((x) => x.listed && !pastCheat.some((p) => p.id === x.id)).length;
     const discOrange = nameGuilds.length + pastCheat.filter((x) => !x.listed).length + leftCheat.filter((x) => !x.listed && !pastCheat.some((p) => p.id === x.id)).length;
-    const fivem = L('FiveM').slice().sort((a, b) => (F(b, 'Level') || 0) - (F(a, 'Level') || 0));
+    // v30: the game of the PIN. FiveM / RedM keep the FiveM section; Minecraft / Roblox use GameFiles.
+    const rGame = String(R('Game') || (row && row.game) || 'fivem').toLowerCase();
+    const isCfx = rGame === 'fivem' || rGame === 'redm';
+    const gName = gameOf(rGame).name;
+    const fivem = L(isCfx ? 'FiveM' : 'GameFiles').slice().sort((a, b) => (F(b, 'Level') || 0) - (F(a, 'Level') || 0));
     const fivemBad = fivem.filter((x) => F(x, 'Level') === 2).length, fivemLook = fivem.filter((x) => F(x, 'Level') === 1).length;
 
     const flaggedRuns = executed.filter((e) => F(e, 'Flagged'));
@@ -823,7 +854,7 @@
       ['warnings', 'Warnings', warns.length, 'orange'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
       ['entropy', 'Entropy', entropy.length, 'purple'],
-      ['fivem', 'FiveM', fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
+      ['fivem', gName, fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
       ['discord', 'Discord', discRed ? discRed + ' cheat' : discOrange ? discOrange + ' check' : dc ? guilds.length : '–', discRed ? 'red' : discOrange || !dc ? 'orange' : 'blue'],
       'sep',
       ['exec', 'Execution', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
@@ -907,7 +938,7 @@
             <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name || 'Unknown server')}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id || (g.inv ? 'invite discord.gg/' + g.inv : ''))}${g.owner ? ' · owner' : ''}</div>
             ${sub ? `<div style="color:var(--muted);font-size:12px;margin-top:4px">${sub}</div>` : ''}</div>
             ${tag ? `<span class="rp-tag">${tag}</span>` : ''}</div></div>`;
-        const legend = state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Orange = the server name looks like a cheat shop — add its invite on the Discord check page to make it red.` : 'Add cheat-server invite links on the Discord check page — they turn red here. Orange = the server name looks like a cheat shop.';
+        const legend = state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Orange = the server name looks like a cheat shop.` : 'Read automatically from the player\'s PC. Orange = the server name looks like a cheat shop.';
 
         // 1) servers he LEFT — from the PC (Discord / browser cache) and from his earlier checks
         const leftCards = [
@@ -967,13 +998,20 @@
         const lvT = (x) => (F(x, 'Level') === 2 ? 'CHEAT' : F(x, 'Level') === 1 ? 'Check' : 'OK');
         const folders = fivem.filter((x) => F(x, 'Kind') === 'Folder');
         const items = fl(fivem.filter((x) => F(x, 'Kind') !== 'Folder'), 'Kind', 'Name', 'Path', 'Detail', 'Files');
-        return head('FiveM files & mods', items.length, 'Every mod in the FiveM folders is opened and read — .rpf archives (weapons.meta, visualsettings, timecycle, nested archives), plugins, scripts and proxy DLLs. Red = cheat mod (also listed in Detects). Orange = changes game settings, check it. Green = normal.')
+        const GH = {
+          fivem: ['FiveM files & mods', 'Every mod in the FiveM folders is opened and read — .rpf archives (weapons.meta, visualsettings, timecycle, nested archives), plugins, scripts and proxy DLLs. Red = cheat mod (also listed in Detects). Orange = changes game settings, check it. Green = normal.'],
+          redm: ['RedM files & mods', 'Every mod in the RedM folders is opened and read — archives, plugins, scripts and proxy DLLs. Red = cheat mod (also listed in Detects). Orange = changes game settings, check it. Green = normal.'],
+          minecraft: ['Minecraft — launchers, mods & clients', 'Every launcher folder (.minecraft, Lunar, Badlion, Feather, Prism, CurseForge, Modrinth, TLauncher…) is read. Each mod .jar is opened: a hacked client is found by the code inside, even when the jar was renamed. Game logs show clients loaded before (chat lines are ignored). Red = cheat client / mod. Orange = allowed only on some servers (x-ray, freecam…). Green = normal mod.'],
+          roblox: ['Roblox — executors, scripts & FFlags', 'Roblox, Bloxstrap / Fishstrap, executor folders (the workspace + autoexec layout every executor uses, also when renamed), saved scripts, executors that ran, and FFlags that change physics / network (desync, hitbox tricks). Red = executor. Orange = check it.'],
+        }[rGame] || ['Game files', ''];
+        return head(GH[0], items.length, GH[1])
           + (folders.length ? `<div class="rp-meta" style="margin-bottom:14px">${folders.map((f) => `<span class="rp-chip">${esc(F(f, 'Path') || F(f, 'Name'))}${F(f, 'Detail') ? ' · ' + esc(F(f, 'Detail')) : ''}</span>`).join('')}</div>` : '')
           + grid(items.map((x) => card(lvC(x), lvC(x) === 'green' ? IC.check : IC.alert, esc(F(x, 'Name')), lvT(x),
             `<div class="rp-meta"><span class="rp-chip">${esc(F(x, 'Kind'))}</span>${F(x, 'SizeMb') ? `<span class="rp-chip">${esc(F(x, 'SizeMb'))} MB</span>` : ''}${F(x, 'When') ? `<span class="rp-chip">${esc(F(x, 'When'))}</span>` : ''}</div>
              ${F(x, 'Detail') ? `<div class="rp-txt">${esc(F(x, 'Detail'))}</div>` : ''}
              <div class="rp-code">${esc(F(x, 'Path'))}${(F(x, 'Files') || []).length ? '<br>' + (F(x, 'Files') || []).slice(0, 8).map(esc).join('<br>') + ((F(x, 'Files') || []).length > 8 ? `<br>… +${(F(x, 'Files') || []).length - 8} more` : '') : ''}</div>`)),
-            R('FiveM') ? 'No mods found in the FiveM folders.' : 'This report has no FiveM section — the player used an older scanner (needs v4.1+).');
+            isCfx ? (R('FiveM') ? `No mods found in the ${gName} folders.` : 'This report has no FiveM section — the player used an older scanner (needs v4.1+).')
+              : (R('GameFiles') ? `Nothing found for ${gName}.` : `This report has no ${gName} section — the player used an older scanner (needs v4.10+).`));
       },
 
       exec: () => head('Execution history', executed.length, 'Programs Windows recorded running (Prefetch, BAM, PCA, UserAssist, ShimCache) — even if deleted since.')
@@ -1141,7 +1179,7 @@
     view.innerHTML = `
       <button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:14px">← Back to PINs</button>
       <div class="rp-verdict ${esc(verdict)}"><div class="rp-ic" style="width:46px;height:46px">${IC.shield}</div>
-        <div><div class="big">${esc(verdict)}</div><div class="who">${row && row.player ? esc(row.player) + ' · ' : ''}${esc(S('Os') || '')}</div></div>
+        <div><div class="big">${esc(verdict)}</div><div class="who" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${gameIcon(rGame, 14)}<b style="color:var(--text)">${esc(gName)}</b>${[row && row.player, S('Os')].filter(Boolean).map((x) => ' · ' + esc(x)).join('')}</div></div>
         <div class="pin">PIN ${esc(pin)}<br>${fmtDate(row && row.created_at)}</div></div>
       <div class="rp">
         <aside class="rp-side">
@@ -1461,10 +1499,9 @@
         <ol style="display:flex;flex-direction:column;gap:16px;padding-left:22px;margin:0">
           ${step('Set your scanner background (once)', 'Scanner GUI → choose an image → Save. Every PIN you generate after that shows this image in the scanner automatically.')}
           ${step('Generate a PIN', 'Scan PINs → type the player name → Generate PIN → <b>Copy link</b>. It appears in Recent PINs right away.')}
-          ${step('Send the link to the player', 'The player opens the link — the scanner downloads with his PIN already inside (HeRoShield-PIN.exe). He runs it and clicks Accept, no PIN to type. Your background and the Discord check load by themselves.')}
+          ${step('Send the link to the player', 'The player opens the link — the scanner downloads with his PIN already inside (HeRoShield-PIN.exe). He runs it and clicks Accept, no PIN to type. Your background loads by itself.')}
           ${step('Player accepts the check', 'The scan takes 1–3 minutes and reads the whole PC: execution history (even deleted cheats), drivers, startup, tasks, network, event logs, files.')}
-          ${step('Open the result', 'Scan PINs → View (or paste the PIN in "View a result by PIN"). Check the tabs: Detections, Warnings, Execution, Startup &amp; tasks, Drivers, Network, Files…')}
-          ${step('Add your own strings', 'Signatures → add cheat file names, C2 domains, SHA-256 hashes. The next scan uses them live.')}
+          ${step('Open the result', 'Scan PINs → View (or paste the PIN in "View a result by PIN"). Check the tabs: Detections, Timeline, PC history, Macros, Discord (the servers he is in are read from his PC automatically), Execution, Files…')}
           ${step('Review the verdict', 'The scanner says <b style="color:var(--red)">cheating</b>, <b style="color:var(--orange)">suspicious</b> or <b style="color:var(--green)">clean</b>. Always review the evidence yourself before a ban.')}
         </ol>
       </div>
@@ -1474,7 +1511,7 @@
           ${step('The staff member logs in once', 'They open this dashboard and log in with Discord. They see "no access" and their Discord ID — that is normal.')}
           ${step('Option A — Render (fixed list)', 'Render → Environment: <span class="mono">HEROCHECK_IDS</span> = Discord IDs for screenshare, <span class="mono">HEROSHIELD_IDS</span> = Discord IDs for anticheat, <span class="mono">ADMIN_DISCORD_IDS</span> = you. Separate IDs with a comma. Save → Render restarts.')}
           ${step('Option B — Access page (no restart)', 'Open Access (owner only). It lists everyone who logged in; you can also add someone by Discord ID before they log in.')}
-          ${step('Tick what they can open', '<b>HeRo Check</b> = screenshare (scanner, PINs, Discord check, Scanner GUI, signatures). <b>HeRo Shield</b> = in-game anticheat (overview, detections, bans, players, logs, live, configuration). Tick both for full access.')}
+          ${step('Tick what they can open', '<b>HeRo Check</b> = screenshare (scanner, PINs, Scanner GUI). <b>HeRo Shield</b> = in-game anticheat (overview, detections, bans, players, logs, live, configuration). Tick both for full access.')}
           ${step('Done', 'They refresh the page and see only their tabs. Untick to remove access at any time — it applies immediately.')}
         </ol>
       </div>`;
@@ -1482,6 +1519,8 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v32', 'Simpler menu: the Discord check and Signatures pages are gone. The scan reads the Discord servers from the player\'s PC by itself (Discord tab of the report), and the scanner already has its own cheat signatures for every game.'],
+      ['v31', 'Games: a scan PIN is now made for one game — FiveM, RedM, Minecraft or Roblox. The scanner runs the common checks (macros, PC history, USB, timeline, deleted files…) plus only the checks of that game. Minecraft: launchers (.minecraft, Lunar, Badlion, Feather, Prism, CurseForge, Modrinth, TLauncher), every mod jar opened (hacked clients found by their code, even renamed), game logs (chat ignored), autoclickers. Roblox: executors (by name and by their workspace + autoexec folders), saved scripts, executors that ran, physics / network FFlags. RedM: the RedM folder and DLLs inside RedM. Signatures can be set per game. Run supabase-v30-games.sql once.'],
       ['v30', 'Scanner v4.9: new Macros & recoil tab — Logitech G HUB / LGS Lua scripts, Razer Synapse and Bloody macros, AutoHotkey scripts (also a compiled AutoHotkey .exe running now). A script that moves the mouse by itself while the left button is held is a no-recoil detection, with the line of the script shown. New PC history tab: the same PC is recognised on every HeRo Shield server by its hardware IDs (HWID, Machine ID, UUID, BIOS and disk serials) — you see how many times it was checked before and how it went, and a red flag when the HWID changed (spoofer). Run supabase-v29-pc-history.sql once.'],
       ['v29', 'Permissions: the Permission Manager now uses tick boxes — give one or more permissions to the same person (Scanner + Staff, Admin + Staff…). Edit loads what the person has; an unticked box is removed. Staff opens the anticheat tabs without a paid plan. Scanner v4.8: new black + blue design.'],
       ['v27', 'Scanner v4.7: new tabs Timeline 24h (everything that happened before the check, newest first), USB drives (sticks plugged in / pulled out, programs that ran from a USB stick) and Opened files (Jump Lists — programs and scripts opened, even deleted). Injection: a DLL running inside FiveM whose file was deleted, or a random-named unsigned DLL from Downloads / Temp, is now a detection.'],
@@ -1513,20 +1552,22 @@
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Add a cheat signature</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live — add a cheat and every check catches it.</p>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live — add a cheat and every check catches it. Pick the game: a FiveM cheat is not looked for in a Minecraft scan (spoofers / loaders → All games).</p>
         <div class="set-grid" style="display:grid;gap:10px">
           <input id="sig-name" class="input" placeholder="Cheat name (e.g. Eulen)">
           <input id="sig-files" class="input" placeholder="File names: eulen.exe, eulen.dll">
           <input id="sig-feats" class="input" placeholder="Features: Aimbot, No recoil, ESP">
           <div style="display:flex;gap:10px">
+            <select id="sig-game" class="input" style="flex:1" title="Which game this cheat is for"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
             <select id="sig-sev" class="input" style="flex:1"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
             <button class="btn btn-primary" data-addsig>Add</button>
           </div>
         </div>
       </div>
       <div class="card panel"><h3>Signatures (${signatures.length})</h3>
-        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Files</th><th>Features</th><th>Severity</th><th></th></tr></thead>
+        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Game</th><th>Files</th><th>Features</th><th>Severity</th><th></th></tr></thead>
           <tbody>${signatures.map((s) => `<tr><td><b>${esc(s.name)}</b></td>
+            <td>${(s.games || []).length ? (s.games || []).map((g) => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:6px">${gameIcon(g, 12)}${esc(gameOf(g).name)}</span>`).join('') : '<span style="color:var(--dim)">All games</span>'}</td>
             <td class="mono">${esc((s.file_names || []).join(', '))}</td>
             <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
             <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
@@ -1627,7 +1668,7 @@
   // Several permissions per person: tick any mix (Scanner + Staff, Admin + Staff…).
   // Saving sends every box, so an unticked box is removed.
   const PERM_LIST = [
-    { k: 'herocheck', name: 'Scanner', icon: '🔍', badge: 'on',  text: 'scanner, scan PINs, Discord check, Scanner GUI' },
+    { k: 'herocheck', name: 'Scanner', icon: '🔍', badge: 'on',  text: 'scanner, scan PINs, Scanner GUI' },
     { k: 'heroshield', name: 'Staff', icon: '🛡️', badge: 'log', text: 'anticheat tabs (detections, bans, players, logs, live)' },
     { k: 'viewer', name: 'Admin (test)', icon: '👁️', badge: 'off', text: 'sees every tab, cannot change anything' },
     { k: 'admin', name: 'Admin', icon: '👑', badge: 'ban', text: 'management dashboard + everything (unlimited PINs)', ownerOnly: true },
@@ -1714,7 +1755,7 @@
       <div class="card panel" style="margin-bottom:18px">
         <h3>Give access</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:12px"><b>HeRo Shield</b> = anticheat tabs (overview, detections, bans, players, logs, live, configuration).
-          <b>HeRo Check</b> = screenshare tabs (scanner, scan PINs, Discord check, Scanner GUI, signatures). People appear below after their first login — or add them now by Discord ID.
+          <b>HeRo Check</b> = screenshare tabs (scanner, scan PINs, Scanner GUI). People appear below after their first login — or add them now by Discord ID.
           IDs you put in Render (<span class="mono">HEROSHIELD_IDS</span> / <span class="mono">HEROCHECK_IDS</span>) show an <span class="badge log" style="font-size:10px">env</span> tag and can only be changed in Render.</p>
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
           <input id="acc-id" class="input" style="flex:1;min-width:200px" placeholder="Discord user ID (e.g. 123456789012345678)">
@@ -2134,11 +2175,16 @@
       } else if (t.dataset.saveprofile !== undefined) {
         await api('/api/leaderboard-optin',{method:'POST',body:{opted_in:!!$('#profile-optin')?.checked}});
         toast('Profile settings saved');
+      } else if (t.dataset.pingame !== undefined) {
+        state.pinGame = t.dataset.pingame;
+        const keep = $('#pin-player')?.value || '';
+        await renderPins($('#view'));
+        if ($('#pin-player')) $('#pin-player').value = keep;
       } else if (t.dataset.newpin !== undefined) {
         t.disabled = true;
         const player = $('#pin-player').value.trim();
         let pin;
-        try { ({ pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player } })); }
+        try { ({ pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player, game: state.pinGame || 'fivem' } })); }
         catch (err) { t.disabled = false; throw err; }
         t.disabled = false;
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
@@ -2146,10 +2192,11 @@
         out.hidden = false;
         const dl = `${location.origin}/dl/${pin.pin}`;
         out.innerHTML = `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">${gameIcon(pin.game, 16)}<b>${esc(gameOf(pin.game).name)} PIN</b></div>
           <div style="color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.06em;margin-bottom:6px">DOWNLOAD LINK — SEND THIS TO THE PLAYER</div>
           <div class="license-box"><code class="show" style="font-size:15px;color:var(--cyan)">${esc(dl)}</code>
             <button class="btn btn-primary btn-sm" data-copypin="${esc(dl)}">Copy link</button></div>
-          <p style="color:var(--muted);font-size:13px;margin-top:8px">The player opens the link, the scanner downloads with the PIN already inside — he just runs it and clicks Accept. Discord check opens by itself.</p>
+          <p style="color:var(--muted);font-size:13px;margin-top:8px">The player opens the link, the scanner downloads with the PIN already inside — he just runs it and clicks Accept.</p>
           <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--dim);font-size:12.5px;align-items:center">
             <span>PIN <b class="mono" style="color:var(--text);letter-spacing:2px">${esc(pin.pin)}</b></span>
             <button class="btn btn-ghost btn-sm" data-copypin="${esc(pin.pin)}">Copy PIN</button>
@@ -2159,7 +2206,8 @@
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();
         if (!name || !fileNames) { toast('Name and file names required', true); return; }
-        await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value } });
+        const sg = $('#sig-game')?.value || '';
+        await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
         toast('Signature added');
         render();
       } else if (t.dataset.delsig) {

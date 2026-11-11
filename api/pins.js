@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { wrap, send, requireAccess, getAccess, readBody, sb, enc, str, httpError, audit } from './_lib.js';
+import { GAMES, gameOf } from './_games.js';
 const ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newPin=()=>Array.from({length:8},()=>ALPHA[crypto.randomInt(ALPHA.length)]).join('');
 
@@ -46,9 +47,18 @@ export default wrap(async(req,res)=>{
    const at=new Date(quota.resetAt).toLocaleTimeString('en-GB',{timeZone:TZ(),hour:'2-digit',minute:'2-digit'});
    throw httpError(429,`Daily limit reached: ${quota.limit} PIN per day. You can create a new PIN after ${at} (${TZ()} time).`);
   }
-  const row={license_id:license.id,pin:newPin(),player:str(b.player,80)||null};
-  const created=await sb('scan_pins',{method:'POST',body:row,prefer:'return=representation'});
-  await audit(user,'pin.create',{target:owner,targetName:user.name,detail:{pin:created[0]?.pin,player:row.player,license:license.label}});
+  if(b.game!==undefined && !Object.prototype.hasOwnProperty.call(GAMES,String(b.game).toLowerCase())) throw httpError(400,'Unknown game');
+  const game=gameOf(b.game);
+  const row={license_id:license.id,pin:newPin(),player:str(b.player,80)||null,game};
+  let created;
+  try { created=await sb('scan_pins',{method:'POST',body:row,prefer:'return=representation'}); }
+  catch(e){
+   if(!/game/i.test(e.message)) throw e;
+   // before supabase-v30-games.sql: FiveM PINs still work, other games need the column
+   if(game!=='fivem') throw httpError(500,'Run supabase-v30-games.sql in Supabase first (adds games to scan PINs)');
+   delete row.game; created=await sb('scan_pins',{method:'POST',body:row,prefer:'return=representation'});
+  }
+  await audit(user,'pin.create',{target:owner,targetName:user.name,detail:{pin:created[0]?.pin,player:row.player,license:license.label,game:GAMES[game]}});
   return send(res,201,{pin:created[0],quota:quota.unlimited?quota:{...quota,used:quota.used+1,left:Math.max(0,quota.left-1)}});
  }
  if(req.method==='DELETE'){

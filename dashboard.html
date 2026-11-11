@@ -648,6 +648,20 @@ button,a{transition:background .2s,color .2s,border-color .2s}
 </style>
 
 <style id="v28-black">
+/* v30 game picker */
+.gm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin:4px 0 14px}
+.gm-opt{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:#0c0d0f;color:var(--text);cursor:pointer;text-align:left;font:inherit;transition:border-color .2s,background .2s,transform .2s}
+.gm-opt:hover{border-color:rgba(255,255,255,.18);transform:translateY(-1px)}
+.gm-opt.on{border-color:rgba(47,155,255,.55);background:rgba(47,155,255,.08)}
+.gm-opt b{display:block;font-size:14px}.gm-opt small{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.gm-check{position:absolute;top:10px;right:12px;font-style:normal;color:#2f9bff;font-weight:700;opacity:0;transition:opacity .2s}
+.gm-opt.on .gm-check{opacity:1}
+.gm-ic{display:inline-grid;place-items:center;flex:none;border-radius:10px;color:var(--gc);background:color-mix(in srgb,var(--gc) 14%,transparent);border:1px solid color-mix(in srgb,var(--gc) 30%,transparent)}
+.gm-ic{position:relative;overflow:hidden}
+.gm-ic .gm-logo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;background:#0c0d0f}
+.gm-ic:has(.gm-logo){border-color:rgba(255,255,255,.1);background:#0c0d0f}
+.gm-opt b{font-size:15px}
+
 /* v28 — same look as the website (black + a little blue) and lighter to render:
    no backdrop blur, no heavy shadows, no transforms on big panels, long report lists rendered lazily */
 :root{--bg:#050505;--bg-2:#0a0a0b;--card:#0c0d0f;--card-solid:#0c0d0f;--line:rgba(255,255,255,.07);--line-strong:rgba(255,255,255,.12);
@@ -765,9 +779,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <div class="side-label" data-perm="herocheck">Scanner & Screenshare</div>
     <button class="side-link" data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Download scanner</button>
     <button class="side-link" data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Scan PINs</button>
-    <button class="side-link" data-tab="discord" data-perm="herocheck"><svg><use href="#i-discord"/></svg>Discord check</button>
     <button class="side-link" data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-image"/></svg>Scanner GUI</button>
-    <button class="side-link" data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Signatures</button>
     <div class="side-label">Help</div>
     <button class="side-link" data-tab="tutorial"><svg><use href="#i-book"/></svg>Tutorial</button>
     <button class="side-link" data-tab="changelogs"><svg><use href="#i-logs"/></svg>Changelogs</button>
@@ -806,9 +818,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
   <nav class="mobile-tabs">
     <button data-tab="scanner" data-perm="herocheck"><svg><use href="#i-download"/></svg>Scanner</button>
     <button data-tab="pins" data-perm="herocheck"><svg><use href="#i-pin"/></svg>PINs</button>
-    <button data-tab="discord" data-perm="herocheck"><svg><use href="#i-discord"/></svg>Discord</button>
     <button data-tab="scannergui" data-perm="herocheck"><svg><use href="#i-image"/></svg>GUI</button>
-    <button data-tab="signatures" data-perm="herocheck"><svg><use href="#i-sig"/></svg>Sigs</button>
     <button data-tab="profile"><svg><use href="#i-users"/></svg>Profile</button>
     <button data-tab="subscription"><svg><use href="#i-key"/></svg>License</button>
     <button data-tab="scanactivity" data-perm="herocheck"><svg><use href="#i-pin"/></svg>Activity</button>

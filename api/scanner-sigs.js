@@ -17,7 +17,8 @@ export default wrap(async (req, res) => {
     owner = srv?.[0]?.owner_discord || null;
   }
   if (!owner) return send(res, 200, []);
-  const sigs = await sb(`signatures?owner_discord=eq.${enc(owner)}&select=name,file_names,features,domains,hashes,severity`);
+  const sigs = await sb(`signatures?owner_discord=eq.${enc(owner)}&select=name,file_names,features,domains,hashes,severity,games`)
+    .catch(() => sb(`signatures?owner_discord=eq.${enc(owner)}&select=name,file_names,features,domains,hashes,severity`));   // before v30 SQL
   const out = (sigs || []).map((s) => ({
     name: s.name,
     fileNames: s.file_names || [],
@@ -25,6 +26,7 @@ export default wrap(async (req, res) => {
     domains: s.domains || [],
     hashes: s.hashes || [],
     severity: s.severity || 'high',
+    games: s.games || [],      // empty = every game; the scanner keeps only the PIN's game
   }));
   send(res, 200, out);
 });

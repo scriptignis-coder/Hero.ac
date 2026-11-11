@@ -1,5 +1,6 @@
 import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
 import { pcHistory } from './_pchistory.js';
+import { gameOf } from './_games.js';
 
 // Receives the finished scan report from the HeRo Scanner (no session — the
 // player's PC posts it). Matches the PIN and stores the result on the row.
@@ -31,14 +32,15 @@ export default wrap(async (req, res) => {
   // the scanner checks the PIN BEFORE scanning:  GET /api/scan-report?pin=ABCD2345
   if (req.method === 'GET') {
     const pin = String(req.query.pin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id`) : [];
+    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id,game`)
+      .catch(() => sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id`)) : [];   // before supabase-v30-games.sql
     if (!rows || !rows.length) return send(res, 404, { error: 'unknown pin' });
     if (rows[0].used) return send(res, 410, { error: 'pin already used' });
     if (rows[0].license_id) {
       const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
       if(!licenses?.length) return send(res,403,{error:'license revoked'});
     }
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true, game: gameOf(rows[0].game) });
   }
   if (req.method !== 'POST') throw httpError(405, 'POST only');
   const raw = readBody(req);
@@ -48,7 +50,8 @@ export default wrap(async (req, res) => {
   if (!pin) throw httpError(400, 'missing pin');
 
   // used + license_id are needed for the two checks below (they were never read before, so used PINs could be re-sent)
-  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id,used,license_id`);
+  const rows = await sb(`scan_pins?pin=eq.${enc(pin)}&select=id,used,license_id,game`)
+    .catch(() => sb(`scan_pins?pin=eq.${enc(pin)}&select=id,used,license_id`));
   if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
   if(rows[0].used) throw httpError(410,'pin already used');
@@ -56,6 +59,7 @@ export default wrap(async (req, res) => {
     const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
     if(!licenses?.length) throw httpError(403,'license revoked');
   }
+  report.Game = gameOf(rows[0].game);   // the game comes from the PIN, not from the player's PC
   const dets = report.Detections || report.detections || [];
   const verdict = report.Verdict || report.verdict
     || (dets.some((d) => d.Severity === 2 || d.Severity === 'High') ? 'cheating' : dets.length ? 'suspicious' : 'clean');
