@@ -1,16 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aggregateLeaderboard } from '../api/leaderboard.js';
-const users=[{discord_id:'123456789012345678',opted_in:true},{discord_id:'223456789012345678',opted_in:false}];
-const pin=(id,findings,used=true)=>({used,discord_check:{user:{id,name:'Member '+id.slice(0,3),avatar:null}},report:{Detections:Array(findings).fill({})}});
-test('only consenting users are displayed',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2),pin('223456789012345678',8)]);assert.equal(rows.length,1);assert.equal(rows[0].value,1)});
-test('top checks counts completed scans, not incomplete scans',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2),pin('123456789012345678',5,false)]);assert.equal(rows[0].value,1)});
-test('top findings counts reported findings, not cheating convictions',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2),pin('123456789012345678',3)],'findings');assert.equal(rows[0].value,5)});
-test('no public IDs or report contents',()=>{const rows=aggregateLeaderboard(users,[pin('123456789012345678',2)]);assert.deepEqual(Object.keys(rows[0]).sort(),['avatar','name','value'])});
-
-test('scanner license owner is credited even without legacy discord_check',()=>{
- const pins=[{used:true,license_id:'license-1',report:{Detections:[{},{}]}}];
- const licenses=[{id:'license-1',owner_discord:'123456789012345678'}];
- const profiles=[{discord_id:'123456789012345678',name:'Scanner Owner',avatar:null}];
- assert.deepEqual(aggregateLeaderboard(users,pins,'findings',licenses,profiles),[{name:'Scanner Owner',avatar:null,value:2}]);
-});
+const A='123456789012345678', B='223456789012345678', P='999999999999999999';
+const licenses=[{id:'l1',owner_discord:A},{id:'l2',owner_discord:B}];
+const profiles=[{discord_id:A,name:'Staff A',avatar:null},{discord_id:B,name:'Staff B',avatar:null}];
+const pin=(lic,findings,used=true,player=P)=>({used,license_id:lic,discord_check:{user:{id:player,name:'Player'}},report:{Detections:Array(findings).fill({})}});
+test('every staff member with scans is shown automatically',()=>{const r=aggregateLeaderboard([],[pin('l1',2),pin('l2',1)],'checks',licenses,profiles);assert.deepEqual(r.map(x=>x.name).sort(),['Staff A','Staff B'])});
+test('someone who left before stays hidden',()=>{const r=aggregateLeaderboard([{discord_id:B,opted_in:false}],[pin('l1',2),pin('l2',1)],'checks',licenses,profiles);assert.deepEqual(r.map(x=>x.name),['Staff A'])});
+test('scanned players are never on the leaderboard',()=>{const r=aggregateLeaderboard([],[pin('nolicense',3)],'checks',licenses,profiles);assert.equal(r.length,0)});
+test('checks count completed scans only',()=>{const r=aggregateLeaderboard([],[pin('l1',2),pin('l1',5,false)],'checks',licenses,profiles);assert.equal(r[0].value,1)});
+test('findings add up',()=>{const r=aggregateLeaderboard([],[pin('l1',2),pin('l1',3)],'findings',licenses,profiles);assert.equal(r[0].value,5)});
+test('no IDs or report contents in the output',()=>{const r=aggregateLeaderboard([],[pin('l1',2)],'checks',licenses,profiles);assert.deepEqual(Object.keys(r[0]).sort(),['avatar','name','value'])});

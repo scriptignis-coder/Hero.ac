@@ -9,7 +9,7 @@
   const TITLES = {
     overview: 'Overview', detections: 'Detections', bans: 'Bans', players: 'Players', logs: 'Logs',
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
-    rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access',
+    rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
     auditlogs: 'Activity logs', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
@@ -205,7 +205,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'admin'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'admin'
   };
   function canAccess(tab) {
     if (!TITLES[tab] || tab === 'quicktools' || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
@@ -249,6 +249,7 @@
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
     if (state.tab === 'changelogs') return renderChangelogs(view);
     if (state.tab === 'rolemanager') return renderRoleManager(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
+    if (state.tab === 'partners') return renderPartners(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (state.tab === 'access') return renderAccess(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (state.tab === 'auditlogs') return renderAuditLogs(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
     if (!state.server) {
@@ -272,6 +273,48 @@
     }
   }
 
+
+  // 🤝 Partners on the website — only the Owner and Admins see this page (the server refuses everyone else)
+  async function renderPartners(view) {
+    view.innerHTML = loading();
+    const d = await api('/api/partners');
+    const list = d.partners || [];
+    view.innerHTML = `
+      <div class="workspace-section">
+        <h3>Add a partner</h3>
+        <p class="workspace-note">Paste the partner's Discord invite (make it <b>never expire</b>) and a short description. The server name, logo and member count are read from Discord automatically. It appears on the website in the Partners section.</p>
+        <div style="display:grid;gap:10px;margin-top:14px">
+          <input class="input" id="pt-invite" placeholder="https://discord.gg/xxxxxxx" maxlength="120">
+          <textarea class="input" id="pt-desc" rows="3" maxlength="300" placeholder="Short description — e.g. FiveM RP server using HeRo Shield for every screenshare."></textarea>
+          <div style="display:flex;gap:10px;align-items:center"><button class="btn btn-primary" id="pt-add">Add partner</button><span class="workspace-note" id="pt-count">0 / 300</span></div>
+        </div>
+      </div>
+      <div class="workspace-section" style="margin-top:14px">
+        <h3>Partners on the website (${list.length})</h3>
+        ${list.length ? `<div style="display:grid;gap:10px;margin-top:12px">${list.map((p) => `
+          <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#0a0b0d">
+            <img src="${esc(p.icon || '/assets/logo-neon-sm.jpg')}" alt="" style="width:46px;height:46px;border-radius:12px;object-fit:cover" referrerpolicy="no-referrer">
+            <div style="flex:1;min-width:0"><b>${esc(p.name)}</b>${p.members ? ` <span class="workspace-note">· ${Number(p.members).toLocaleString()} members</span>` : ''}
+              <div class="workspace-note" style="margin-top:2px">${esc(p.description)}</div>
+              <a class="workspace-note" href="${esc(p.invite)}" target="_blank" rel="noopener" style="color:var(--cyan)">${esc(p.invite)}</a></div>
+            <button class="btn btn-danger btn-sm" data-pt-del="${Number(p.id)}">Remove</button>
+          </div>`).join('')}</div>` : '<p class="workspace-note" style="margin-top:10px">No partner yet.</p>'}
+      </div>`;
+    const desc = $('#pt-desc', view);
+    desc.addEventListener('input', () => { $('#pt-count', view).textContent = desc.value.length + ' / 300'; });
+    $('#pt-add', view).addEventListener('click', async (e) => {
+      const b = e.currentTarget; b.disabled = true;
+      try {
+        await api('/api/partners', { method: 'POST', body: { invite: $('#pt-invite', view).value, description: desc.value } });
+        toast('Partner added — it is on the website now'); await renderPartners(view);
+      } catch (err) { toast(err.message, true); b.disabled = false; }
+    });
+    view.querySelectorAll('[data-pt-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (!(await modal({ title: 'Remove this partner?', text: 'It disappears from the website right away.', ok: 'Remove', danger: true }))) return;
+      try { await api('/api/partners?id=' + b.dataset.ptDel, { method: 'DELETE' }); toast('Partner removed'); await renderPartners(view); }
+      catch (err) { toast(err.message, true); }
+    }));
+  }
 
   // Workspace pages use existing authenticated endpoints, never client-side fake counters.
   function wsError(view, e) { view.innerHTML = `<div class="workspace-section">${esc(e.message || 'Could not load data')}</div>`; }

@@ -172,8 +172,16 @@ section{padding:110px 0}
 .lbava{width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--line2)}
 .lbname{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lbval{font:600 17px "JetBrains Mono";color:#fff}
-.lbopt{text-align:center;margin-top:18px;color:var(--dim);font-size:13px}
-.lbopt span{display:block;margin-top:6px}
+.partners{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px;text-align:left}
+.ptcard{display:flex;flex-direction:column;gap:14px}
+.ptcard .top{display:flex;align-items:center;gap:14px}
+.ptcard img{width:54px;height:54px;border-radius:14px;object-fit:cover;border:1px solid var(--line2);background:#000}
+.ptcard h3{margin:0;font-size:17px}
+.ptcard .mem{color:var(--dim);font-size:13px}
+.ptcard p{margin:0;flex:1}
+.ptcard .btn{align-self:flex-start}
+@media (max-width:900px){.partners{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.partners{grid-template-columns:1fr}}
 
 /* faq */
 .faq{max-width:800px;margin:44px auto 0;border-top:1px solid var(--line)}
@@ -234,7 +242,7 @@ footer a:hover{color:var(--text)}
   <div class="wrap">
     <a href="/" class="brand"><img src="/assets/logo.png" alt="">HeRo <b>Shield</b></a>
     <div class="mnav" id="mnav"><nav class="links" aria-label="Main">
-      <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a>
+      <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#partners">Partners</a><a href="#faq">FAQ</a>
     </nav>
     <div class="nav-cta"><a class="btn btn-g btn-sm" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener">Discord</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
     <button class="burger" id="burger" aria-label="Menu">☰</button>
@@ -370,10 +378,18 @@ footer a:hover{color:var(--text)}
     <div class="wrap center">
       <div class="kicker rv">Community</div>
       <h2 class="h2 rv">Leaderboard.</h2>
-      <p class="lead rv">Staff who choose to appear publicly. Findings are scanner signals, not proof of cheating.</p>
+      <p class="lead rv">The staff teams running the most checks. Findings are scanner signals, not proof of cheating.</p>
       <div class="lbtabs" role="tablist"><button class="lbtab active" data-lb="checks" aria-selected="true">Top checks</button><button class="lbtab" data-lb="findings" aria-selected="false">Top findings</button></div>
       <div class="lb" id="lb" aria-live="polite"><p style="color:var(--dim)">Loading…</p></div>
-      <div class="lbopt"><button class="btn btn-g btn-sm" id="lbbtn" type="button">Manage my visibility</button><span id="lbmsg" role="status"></span></div>
+    </div>
+  </section>
+
+  <section id="partners">
+    <div class="wrap center">
+      <div class="kicker rv">Partners</div>
+      <h2 class="h2 rv">Servers that trust HeRo Shield.</h2>
+      <p class="lead rv">FiveM communities using HeRo Shield for their screenshares. Want to be here? Open a Partnership ticket.</p>
+      <div class="partners" id="ptlist"><p style="color:var(--dim)">Loading…</p></div>
     </div>
   </section>
 
@@ -408,7 +424,7 @@ footer a:hover{color:var(--text)}
   <div class="wrap">
     <a href="/" class="brand"><img src="/assets/logo.png" alt="">HeRo <b>Shield</b></a>
     <span>© <span id="year">2026</span> HeRo Shield · by HaMa · Not affiliated with Rockstar Games or Cfx.re</span>
-    <div class="fl"><a href="#pricing">Pricing</a><a href="#faq">FAQ</a><a href="/dashboard">Dashboard</a></div>
+    <div class="fl"><a href="#pricing">Pricing</a><a href="#partners">Partners</a><a href="#faq">FAQ</a><a href="/dashboard">Dashboard</a></div>
   </div>
 </footer>
 
@@ -488,8 +504,8 @@ footer a:hover{color:var(--text)}
   });
 
   // ---- leaderboard
-  const list = $('#lb'), msg = $('#lbmsg'), btn = $('#lbbtn');
-  let metric = 'checks', opted = false, logged = false;
+  const list = $('#lb');
+  let metric = 'checks';
   const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x !== undefined) n.textContent = x; return n; };
   async function load() {
     list.replaceChildren(el('p', '', 'Loading…'));
@@ -510,26 +526,30 @@ footer a:hover{color:var(--text)}
     metric = b.dataset.lb;
     $$('[data-lb]').forEach((t) => { t.classList.toggle('active', t === b); t.setAttribute('aria-selected', String(t === b)); });
     load();
+
   }));
-  async function status() {
+  load();
+
+  // ---- partners (added by the Owner / Admins in the dashboard)
+  (async () => {
+    const box = $('#ptlist');
     try {
-      const r = await fetch('/api/leaderboard-optin');
-      if (r.status === 401) { btn.textContent = 'Sign in to join the leaderboard'; return; }
-      if (!r.ok) throw Error(); const d = await r.json(); logged = true; opted = !!d.opted_in;
-      btn.textContent = opted ? 'Leave the public leaderboard' : 'Join the public leaderboard';
-    } catch { btn.textContent = 'Manage my visibility'; }
-  }
-  btn.addEventListener('click', async () => {
-    if (!logged) { location.href = '/api/auth/login'; return; }
-    btn.disabled = true; msg.textContent = 'Saving…';
-    try {
-      const r = await fetch('/api/leaderboard-optin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ opted_in: !opted }) });
-      const d = await r.json(); if (!r.ok) throw Error(d.error || 'Failed');
-      opted = !!d.opted_in; btn.textContent = opted ? 'Leave the public leaderboard' : 'Join the public leaderboard';
-      msg.textContent = opted ? 'You are now visible on the leaderboard.' : 'You are no longer publicly listed.'; await load();
-    } catch (e) { msg.textContent = e.message; } finally { btn.disabled = false; }
-  });
-  load(); status();
+      const r = await fetch('/api/partners'), d = await r.json();
+      const ps = (d.partners || []).filter((p) => /^https:\/\/discord\.gg\/[A-Za-z0-9-]+$/.test(p.invite));
+      box.replaceChildren();
+      if (!ps.length) { box.append(el('p', '', 'Our first partners are coming soon.')); box.style.display = 'block'; box.style.textAlign = 'center'; box.firstChild.style.color = 'var(--dim)'; return; }
+      ps.forEach((p, i) => {
+        const c = el('div', 'card ptcard rv'), top = el('div', 'top'), img = el('img'), info = el('div');
+        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.src = p.icon || '/assets/logo-neon-sm.jpg'; img.onerror = () => { img.onerror = null; img.src = '/assets/logo-neon-sm.jpg'; };
+        info.append(el('h3', '', p.name), el('div', 'mem', p.members ? Number(p.members).toLocaleString() + ' members' : 'Discord server'));
+        top.append(img, info);
+        const a = el('a', 'btn btn-g btn-sm', 'Join Discord ↗'); a.href = p.invite; a.target = '_blank'; a.rel = 'noopener';
+        c.append(top, el('p', '', p.description), a); c.style.setProperty('--d', (i % 3) * 0.06 + 's');
+        box.append(c); requestAnimationFrame(() => c.classList.add('in'));
+      });
+    } catch { box.replaceChildren(el('p', '', 'Partners are not available right now.')); }
+  })();
+
 })();
 </script>
 </body>
