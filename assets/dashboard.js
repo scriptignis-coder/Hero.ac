@@ -169,7 +169,7 @@
       const bar = document.createElement('div');
       bar.id = 'viewonly-bar';
       bar.textContent = '👁️ Admin (test) — view only: you can open every tab, but you cannot change anything.';
-      bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#1b2440;color:#cfe3ff;border:1px solid #2f9bff;border-radius:12px;padding:10px 16px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px);text-align:center';
+      bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#0b0c0f;color:#cfe3ff;border:1px solid rgba(47,155,255,.45);border-radius:12px;padding:10px 16px;font:600 13px Inter,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px);text-align:center';
       document.body.appendChild(bar);
       const st = document.createElement('style');
       st.textContent = 'body.view-only main .btn-primary,body.view-only main .btn-danger,body.view-only main button[type=submit]{opacity:.45;cursor:not-allowed}';
