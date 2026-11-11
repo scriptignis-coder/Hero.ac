@@ -242,7 +242,13 @@
     // v32: Discord check and Signatures pages were removed — the scan reads the Discord servers by itself and the scanner has its own signatures
     if (state.tab === 'discord' || state.tab === 'signatures') state.tab = 'pins';
     if (state.tab === 'scanner') return renderScanner(view);
-    if (state.tab === 'pins') { view.innerHTML = loading(); try { await renderPins(view); } catch(e) { wsError(view,e); } return; }
+    if (state.tab === 'pins') {
+      // show the last list at once, then refresh it in the background
+      if (state.pinsResp) { try { await renderPins(view, state.pinsResp); } catch { } }
+      else view.innerHTML = loading();
+      try { await renderPins(view); } catch(e) { if (!state.pinsResp) wsError(view,e); }
+      return;
+    }
     if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
@@ -562,14 +568,31 @@
   const gameOf = (k) => GAMES.find((g) => g.k === (k || 'fivem')) || GAMES[0];
   // Real game logos: put /assets/games/<game>.png (fivem.png, redm.png, minecraft.png, roblox.png).
   // If a file is missing, the drawn icon is shown instead.
+  // each logo file is checked once per visit; icons get the logo only when the file exists
+  const LOGO_OK = {};
+  const logoImg = (k, px) => `<img class="gm-logo" src="/assets/games/${k}.png" alt="" width="${px}" height="${px}">`;
+  GAMES.forEach((g) => {
+    const im = new Image();
+    im.onload = () => { LOGO_OK[g.k] = true; document.querySelectorAll(`.gm-ic[data-g="${g.k}"]`).forEach((el) => { if (!el.querySelector('.gm-logo')) el.insertAdjacentHTML('afterbegin', logoImg(g.k, el.offsetWidth || 34)); }); };
+    im.src = `/assets/games/${g.k}.png`;
+  });
   const gameIcon = (k, size = 22) => {
     const g = gameOf(k);
     const svg = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${g.ic}</svg>`;
-    return `<span class="gm-ic" style="--gc:${g.c};width:${size + 12}px;height:${size + 12}px"><img class="gm-logo" src="/assets/games/${g.k}.png" alt="${esc(g.name)}" width="${size + 12}" height="${size + 12}" loading="lazy" onerror="this.remove()">${svg}</span>`;
+    return `<span class="gm-ic" data-g="${g.k}" style="--gc:${g.c};width:${size + 12}px;height:${size + 12}px">${LOGO_OK[g.k] ? logoImg(g.k, size + 12) : ''}${svg}</span>`;
   };
 
-  async function renderPins(view) {
-    const { pins, licenses, quota } = await api('/api/pins');
+  async function renderPins(view, cached) {
+    const resp = cached || await api('/api/pins');
+    if (!cached) {
+      const same = state.pinsResp && JSON.stringify(state.pinsResp) === JSON.stringify(resp);
+      state.pinsResp = resp;
+      if (state.tab !== 'pins') return;                       // the user already went to another tab
+      if (same && view.querySelector('[data-newpin]')) return; // nothing changed: keep what is on screen
+    }
+    const keepPlayer = view.querySelector('#pin-player')?.value || '';
+    const keepLicense = view.querySelector('#pin-license')?.value || '';
+    const { pins, licenses, quota } = resp;
     state.pins = pins;
     const q = quota || { unlimited: true };
     const quotaHtml = q.unlimited ? '' : `<div class="license-box" style="margin-bottom:12px;justify-content:space-between">
@@ -611,11 +634,13 @@
             <td>${p.result ? `<span class="badge ${p.result === 'cheating' ? 'ban' : p.result === 'clean' ? 'on' : 'kick'}">${esc(p.result)}</span>` : '-'}</td>
             <td class="mono">${fmtDate(p.created_at)}</td>
             <td><div class="actions-cell">
-              ${p.used && p.report ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}
+              ${p.used ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}
               ${!p.used ? `<button class="btn btn-ghost btn-sm" data-copypin="${esc(location.origin)}/dl/${esc(p.pin)}">Link</button>` : ''}
               <button class="btn btn-ghost btn-sm" data-copypin="${esc(p.pin)}">Copy</button></div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">No PINs yet.</div>'}
       </div>`;
+    const pp = view.querySelector('#pin-player'); if (pp && keepPlayer) pp.value = keepPlayer;
+    const pl = view.querySelector('#pin-license'); if (pl && keepLicense && [...pl.options].some((o) => o.value === keepLicense)) pl.value = keepLicense;
   }
 
   // ---------- scan report (HeRo Scanner v4) — napse-style ----------
@@ -699,7 +724,14 @@
 
   async function renderPinReport(view, pin, tab, q) {
     ensureReportCss();
-    const row = (state.pins || []).find((p) => p.pin === pin);
+    // the report is loaded only when it is opened, then kept for the session
+    state.reports = state.reports || {};
+    if (!state.reports[pin]) {
+      view.innerHTML = loading();
+      try { state.reports[pin] = (await api(`/api/pins?pin=${encodeURIComponent(pin)}`)).pin; }
+      catch (e) { view.innerHTML = `<button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:14px">← Back to PINs</button><div class="card empty">${esc(e.message)}</div>`; return; }
+    }
+    const row = state.reports[pin];
     const r = row && row.report ? row.report : {};
     const R = (k) => r[k] ?? r[k[0].toLowerCase() + k.slice(1)];
     const F = (o, k) => (o ? (o[k] ?? o[k[0].toLowerCase() + k.slice(1)]) : undefined);
@@ -1200,7 +1232,7 @@
       ev.target.disabled = true; ev.target.textContent = 'Checking…';
       try {
         await api('/api/discord-lookup', { method: 'POST', body: { pin, id } });
-        state.pins = (await api('/api/pins')).pins || state.pins;
+        if (state.reports) delete state.reports[pin];   // reload the updated report
         if (state.discHist) delete state.discHist[id];
         renderPinReport(view, pin, 'discord');
       } catch (e) { toast(e.message, true); ev.target.disabled = false; ev.target.textContent = 'Check this Discord'; }
@@ -1519,6 +1551,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v33', 'Faster Scan PINs tab: the list no longer downloads every report (a report can be several MB) — a report loads only when you click View, then stays open instantly. Choosing a game no longer reloads the page, and the last list shows at once while it refreshes. Real game logos: drop fivem.png / redm.png / minecraft.png / roblox.png in assets/games.'],
       ['v32', 'Simpler menu: the Discord check and Signatures pages are gone. The scan reads the Discord servers from the player\'s PC by itself (Discord tab of the report), and the scanner already has its own cheat signatures for every game.'],
       ['v31', 'Games: a scan PIN is now made for one game — FiveM, RedM, Minecraft or Roblox. The scanner runs the common checks (macros, PC history, USB, timeline, deleted files…) plus only the checks of that game. Minecraft: launchers (.minecraft, Lunar, Badlion, Feather, Prism, CurseForge, Modrinth, TLauncher), every mod jar opened (hacked clients found by their code, even renamed), game logs (chat ignored), autoclickers. Roblox: executors (by name and by their workspace + autoexec folders), saved scripts, executors that ran, physics / network FFlags. RedM: the RedM folder and DLLs inside RedM. Signatures can be set per game. Run supabase-v30-games.sql once.'],
       ['v30', 'Scanner v4.9: new Macros & recoil tab — Logitech G HUB / LGS Lua scripts, Razer Synapse and Bloody macros, AutoHotkey scripts (also a compiled AutoHotkey .exe running now). A script that moves the mouse by itself while the left button is held is a no-recoil detection, with the line of the script shown. New PC history tab: the same PC is recognised on every HeRo Shield server by its hardware IDs (HWID, Machine ID, UUID, BIOS and disk serials) — you see how many times it was checked before and how it went, and a red flag when the HWID changed (spoofer). Run supabase-v29-pc-history.sql once.'],
@@ -2176,10 +2209,10 @@
         await api('/api/leaderboard-optin',{method:'POST',body:{opted_in:!!$('#profile-optin')?.checked}});
         toast('Profile settings saved');
       } else if (t.dataset.pingame !== undefined) {
+        // instant: just move the selection, no reload
         state.pinGame = t.dataset.pingame;
-        const keep = $('#pin-player')?.value || '';
-        await renderPins($('#view'));
-        if ($('#pin-player')) $('#pin-player').value = keep;
+        $$('[data-pingame]').forEach((b) => { const on = b.dataset.pingame === state.pinGame; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+        const gb = $('[data-newpin]'); if (gb) gb.textContent = `Generate ${gameOf(state.pinGame).name} PIN`;
       } else if (t.dataset.newpin !== undefined) {
         t.disabled = true;
         const player = $('#pin-player').value.trim();
@@ -2187,6 +2220,7 @@
         try { ({ pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player, game: state.pinGame || 'fivem' } })); }
         catch (err) { t.disabled = false; throw err; }
         t.disabled = false;
+        if ($('#pin-player')) $('#pin-player').value = '';
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');
         out.hidden = false;

@@ -34,9 +34,20 @@ export default wrap(async(req,res)=>{
  const owned=new Map((licenses||[]).map(l=>[l.id,l]));
  if(req.method==='GET'){
   const ids=[...owned.keys()];
+  // one PIN with its full report (opened when staff click View) — the list below never sends reports
+  if(req.query.pin){
+   const one=String(req.query.pin).trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
+   if(!one||!ids.length) throw httpError(404,'PIN not found');
+   const rows=await sb(`scan_pins?pin=eq.${enc(one)}&license_id=in.(${ids.map(enc).join(',')})&select=*&limit=1`);
+   if(!rows?.length) throw httpError(404,'PIN not found');
+   return send(res,200,{pin:{...rows[0],scanner_licenses:{label:owned.get(rows[0].license_id)?.label||'Scanner'}}});
+  }
   const quota=await quotaFor(user,access,ids);
   if(!ids.length) return send(res,200,{pins:[],licenses:[],quota});
-  const pins=await sb(`scan_pins?license_id=in.(${ids.map(enc).join(',')})&select=*&order=created_at.desc&limit=200`);
+  // light list: no report (a report can be several MB — sending 200 of them made the PIN tab slow)
+  const base=`scan_pins?license_id=in.(${ids.map(enc).join(',')})&order=created_at.desc&limit=200&select=`;
+  const pins=await sb(base+'id,pin,player,used,result,game,created_at,license_id')
+   .catch(()=>sb(base+'id,pin,player,used,result,created_at,license_id'));   // before supabase-v30-games.sql
   return send(res,200,{pins:(pins||[]).map(p=>({...p,scanner_licenses:{label:owned.get(p.license_id)?.label||'Scanner'}})),licenses:licenses||[],quota});
  }
  if(req.method==='POST'){
