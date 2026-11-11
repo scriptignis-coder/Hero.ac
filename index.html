@@ -208,22 +208,6 @@ footer a:hover{color:var(--text)}
 .rv{opacity:0;transform:translateY(22px);transition:opacity .9s var(--ease),transform .9s var(--ease);transition-delay:var(--d,0s)}
 .rv.in{opacity:1;transform:none}
 
-/* security check (first visit of the session) */
-#gate{position:fixed;inset:0;z-index:200;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;transition:opacity .6s var(--ease),visibility .6s}
-#gate.done{opacity:0;visibility:hidden}
-#gate .gbox{width:min(560px,100%)}
-#gate .host{font-size:clamp(26px,5vw,34px);font-weight:700;letter-spacing:-.02em}
-#gate h2{font-size:clamp(18px,3.4vw,22px);margin-top:8px;font-weight:600}
-#gate p{color:#a6abb4;font-size:14.5px;margin-top:10px}
-#gate .chk{display:flex;align-items:center;gap:14px;margin-top:26px;padding:14px 16px;border:1px solid #2b2e35;border-radius:10px;background:#0c0d10;max-width:340px}
-#gate .chk img{width:42px;height:42px}
-#gate .chk .t{font-size:14px}
-#gate .chk .ok{display:none;color:var(--green);font-weight:600}
-#gate.ok .chk .t{display:none}#gate.ok .chk .ok{display:block}
-#gate .chk .by{margin-left:auto;text-align:right;font-size:10px;color:#7d828c;line-height:1.3}
-#gate .chk .by b{display:block;color:#d6dae0;font-size:12px;letter-spacing:.04em}
-#gate .gfoot{margin-top:40px;padding-top:14px;border-top:1px solid #1d1f24;color:#5e636d;font-size:12px}
-
 @media (max-width:1060px){.plans{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:900px){
   .mnav{display:none}.burger{display:block}
@@ -246,29 +230,13 @@ footer a:hover{color:var(--text)}
 <body>
 <div class="bg" aria-hidden="true"></div>
 
-<!-- security check: shown once per browser session -->
-<div id="gate" role="status" aria-live="polite">
-  <div class="gbox">
-    <div class="host" id="ghost">hero-ac.onrender.com</div>
-    <h2>Securing your connection</h2>
-    <p>Opening an encrypted session with HeRo Shield. This only takes a moment.</p>
-    <div class="chk">
-      <img src="/assets/logo-neon-sm.jpg" alt="" style="border-radius:8px">
-      <div class="t">Connecting…</div>
-      <div class="ok">✓ Secure connection</div>
-      <div class="by"><b>HERO SHIELD</b>secure access</div>
-    </div>
-    <div class="gfoot">HTTPS · TLS encrypted · HeRo Shield</div>
-  </div>
-</div>
-
 <header class="nav" id="nav">
   <div class="wrap">
     <a href="/" class="brand"><img src="/assets/logo.png" alt="">HeRo <b>Shield</b></a>
     <div class="mnav" id="mnav"><nav class="links" aria-label="Main">
       <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#faq">FAQ</a>
     </nav>
-    <div class="nav-cta"><a class="btn btn-g btn-sm" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener">Discord</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
+    <div class="nav-cta"><a class="btn btn-g btn-sm" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener">Discord</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
     <button class="burger" id="burger" aria-label="Menu">☰</button>
   </div>
 </header>
@@ -430,7 +398,7 @@ footer a:hover{color:var(--text)}
         <img src="/assets/logo-neon-sm.jpg" alt="" style="width:86px;margin:0 auto 18px;border-radius:20px">
         <h2 class="h2" style="margin:0 auto">Open the dashboard, get your first report.</h2>
         <p class="lead" style="margin:14px auto 0">Sign in with Discord, create a PIN, send the link.</p>
-        <div class="cta" style="display:flex;gap:12px;justify-content:center;margin-top:28px;flex-wrap:wrap"><a class="btn btn-w" href="/dashboard">Open dashboard →</a><a class="btn btn-g" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener">Join Discord</a></div>
+        <div class="cta" style="display:flex;gap:12px;justify-content:center;margin-top:28px;flex-wrap:wrap"><a class="btn btn-w" href="/dashboard">Open dashboard →</a><a class="btn btn-g" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener">Join Discord</a></div>
       </div>
     </div>
   </section>
@@ -451,7 +419,7 @@ footer a:hover{color:var(--text)}
     <h3 id="buyt">Open a Purchase ticket</h3>
     <p class="sel" id="buysel">—</p>
     <p>Join our Discord and open a <b style="color:#fff">Purchase</b> ticket. Our team gives you the payment details and activates your access.</p>
-    <a class="btn btn-w" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener">Join Discord &amp; open a ticket ↗</a>
+    <a class="btn btn-w" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener">Join Discord &amp; open a ticket ↗</a>
     <p style="font-size:13px;color:var(--dim)">Only pay inside an official ticket — never in DMs.</p>
   </div>
 </div>
@@ -459,19 +427,9 @@ footer a:hover{color:var(--text)}
 <script>
 (() => {
   const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch {} } };
   $('#year').textContent = new Date().getFullYear();
 
-  // ---- security check (once per session)
-  const gate = $('#gate');
-  $('#ghost').textContent = location.host || 'hero-ac.onrender.com';
-  const startPage = () => { document.body.style.overflow = ''; reveal(); };
-  if (store.get('hs_gate') || matchMedia('(prefers-reduced-motion: reduce)').matches) { gate.remove(); startPage(); }
-  else {
-    document.body.style.overflow = 'hidden';
-    setTimeout(() => gate.classList.add('ok'), 1500);
-    setTimeout(() => { gate.classList.add('done'); store.set('hs_gate', '1'); startPage(); setTimeout(() => gate.remove(), 700); }, 2200);
-  }
+  reveal();
 
   // ---- nav
   const nav = $('#nav');

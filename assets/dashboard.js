@@ -1360,7 +1360,7 @@
       </section>`).join('')}</div>
       <div class="card panel" style="margin-top:18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center">
         <div><b>Still stuck?</b><p class="workspace-note" style="margin:4px 0 0">Open a support ticket with your PIN and a screenshot of the error.</p></div>
-        <a class="btn btn-primary" href="https://discord.gg/EEF2tNYhk" target="_blank" rel="noopener noreferrer">Open Discord support</a>
+        <a class="btn btn-primary" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener noreferrer">Open Discord support</a>
       </div>`;
   }
 
