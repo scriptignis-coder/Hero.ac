@@ -1,4 +1,5 @@
 import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
+import { pcHistory } from './_pchistory.js';
 
 // Receives the finished scan report from the HeRo Scanner (no session — the
 // player's PC posts it). Matches the PIN and stores the result on the row.
@@ -58,6 +59,10 @@ export default wrap(async (req, res) => {
   const dets = report.Detections || report.detections || [];
   const verdict = report.Verdict || report.verdict
     || (dets.some((d) => d.Severity === 2 || d.Severity === 'High') ? 'cheating' : dets.length ? 'suspicious' : 'clean');
+
+  // v29: was this PC already checked (here or on another HeRo Shield server)?
+  const hist = await pcHistory({ report, pinId: rows[0].id, licenseId: rows[0].license_id, verdict }).catch(() => null);
+  if (hist) report.PcHistory = hist;
 
   await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
     method: 'PATCH',

@@ -594,7 +594,7 @@
   // ---------- scan report (HeRo Scanner v4) — napse-style ----------
   const METHODS = ['Running now', 'Prefetch', 'BAM', 'Game file', 'Service', 'On disk', 'Recycle bin', 'FiveM plugin',
     'Startup', 'Scheduled task', 'Event log', 'Recent file', 'Network', 'Kernel driver', 'AmCache', 'ShimCache', 'Hidden stream',
-    'File journal', 'Inside FiveM', 'Service memory', 'Hardware', 'USB drive', 'Jump list'];
+    'File journal', 'Inside FiveM', 'Service memory', 'Hardware', 'USB drive', 'Jump list', 'Macro'];
   const SEV = ['low', 'medium', 'high'];
   const discordIcon = (g) => g.icon ? `https://cdn.discordapp.com/icons/${g.id || g.guild_id}/${g.icon}.png?size=64` : '';
 
@@ -709,6 +709,10 @@
     const memory = L('MemoryTraces'), memoryInfo = R('MemoryInfo') || '';
     const hw = L('Hardware'), hwInfo = R('HardwareInfo') || '';
     const timeline = L('Timeline'), usbs = L('UsbStorage'), jumps = L('JumpLists');
+    const macros = L('Macros');
+    const hist = R('PcHistory') || null;
+    const histBad = hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0;
+    const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
     const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
     const uOrange = usbs.filter((x) => F(x, 'Level') >= 1).length + dets.filter((d) => F(d, 'Method') === 21).length;
     const jRed2 = jumps.filter((x) => F(x, 'Level') === 2).length, jOrange2 = jumps.filter((x) => F(x, 'Level') === 1).length;
@@ -814,6 +818,7 @@
       ['overview', 'Overview', '', 'blue'],
       ['detects', 'Detects', dets.length, 'red'],
       ['timeline', 'Timeline 24h', tRed ? tRed + ' cheat' : tOrange ? tOrange + ' check' : timeline.length || '–', tRed ? 'red' : tOrange ? 'orange' : 'blue'],
+      ['pchistory', 'PC history', hist ? (hist.seen ? hist.seen + ' scan' + (hist.seen > 1 ? 's' : '') : 'new PC') : '–', histBad ? 'red' : hist && hist.suspicious ? 'orange' : hist && hist.seen ? 'blue' : 'green'],
       ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
       ['warnings', 'Warnings', warns.length, 'orange'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
@@ -827,6 +832,7 @@
       ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
       ['usb', 'USB drives', uOrange ? uOrange + ' check' : usbs.length || '–', uOrange ? 'orange' : 'blue'],
       ['opened', 'Opened files', jRed2 ? jRed2 + ' cheat' : jOrange2 ? jOrange2 + ' check' : jumps.length || '–', jRed2 ? 'red' : jOrange2 ? 'orange' : 'blue'],
+      ['macros', 'Macros & recoil', maRed ? maRed + ' cheat' : maOrange ? maOrange + ' check' : (R('Macros') ? macros.length || '0' : '–'), maRed ? 'red' : maOrange ? 'orange' : 'blue'],
       ['hardware', 'Cheat hardware', hRed ? hRed + ' cheat' : hOrange ? hOrange + ' check' : (R('Hardware') ? '0' : '–'), hRed ? 'red' : hOrange ? 'orange' : 'blue'],
       ['memory', 'Service memory', mRed ? mRed + ' cheat' : mOrange ? mOrange + ' check' : memory.length || '–', mRed ? 'red' : mOrange ? 'orange' : 'blue'],
       ['journal', 'File journal', jRed ? jRed + ' cheat' : jOrange ? jOrange + ' check' : journal.length || '–', jRed ? 'red' : jOrange ? 'orange' : 'blue'],
@@ -861,6 +867,9 @@
              ['Scan time', (R('DurationSeconds') || 0) + 's', ''], ['Scanner', 'v' + (R('ScannerVersion') || '?'), '']]
             .map(([k, v, c]) => `<div class="rp-stat" style="${c ? `--c:${c}` : ''}"><b>${esc(v)}</b><span>${k}</span></div>`).join('')}
         </div>
+        ${hist && (hist.seen || hist.hwidChanged) ? `<div class="rp-card ${histBad ? 'red' : hist.suspicious ? 'orange' : 'blue'}" style="margin:14px 0;cursor:pointer" data-goto-tab="pchistory"><div class="rp-top"><div class="rp-ic">${IC.alert}</div>
+          <div><b>${hist.cheating ? `This PC was already caught cheating ${hist.cheating}× before` : hist.hwidChanged ? 'Same PC, but the HWID changed since the last scan (spoofer?)' : `This PC was already checked ${hist.seen}× before`}</b>
+          <div style="color:var(--dim);font-size:12.5px;margin-top:3px">${hist.seen} earlier scan${hist.seen === 1 ? '' : 's'} · ${hist.otherServers} on another server · ${hist.cheating} cheating · ${hist.suspicious} suspicious · ${hist.clean} clean — open PC history</div></div></div></div>` : ''}
         <div class="rp-head">Most important</div>
         ${grid([
           ...dets.slice(0, 6).map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')), F(d, 'Deleted') ? 'File deleted' : esc(METHODS[F(d, 'Method')] || ''))),
@@ -1001,7 +1010,7 @@
 
       timeline: () => {
         const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
-        const icon = { Ran: '▶️', Deleted: '🗑️', Renamed: '✏️', USB: '🔌', Opened: '📂', Injected: '💉', Log: '📋', Scan: '🛡️' };
+        const icon = { Ran: '▶️', Deleted: '🗑️', Renamed: '✏️', USB: '🔌', Opened: '📂', Injected: '💉', Log: '📋', Scan: '🛡️', Macro: '🖱️' };
         const items = fl(timeline, 'Text', 'Path', 'Kind', 'At');
         return head('Timeline — the 24 hours before the check', items.length,
             'Everything Windows recorded with a time, newest first: programs that ran, files deleted / renamed, USB drives, files opened, cleared logs. '
@@ -1037,6 +1046,36 @@
               + `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(x, 'Path'))}</div>${F(x, 'Why') ? `<div style="color:var(--dim);font-size:12px;margin-top:2px">${esc(F(x, 'Why'))} · ${esc(F(x, 'Source'))}</div>` : ''}`,
               esc(F(x, 'When') || ''))),
             R('JumpLists') ? 'No program or script in the Jump Lists.' : 'This report has no Jump Lists — the player used an older scanner (needs v4.7+).');
+      },
+
+      pchistory: () => {
+        if (!hist) return head('PC history', 0, 'Earlier scans of this same PC on every HeRo Shield server.') + '<div class="empty">No PC history for this report (the report was sent before the PC history existed, or supabase-v29-pc-history.sql is not run yet).</div>';
+        const vc = (v) => (v === 'cheating' ? 'red' : v === 'suspicious' ? 'orange' : v === 'clean' ? 'green' : '');
+        const scans = hist.scans || [];
+        return head('PC history — every HeRo Shield server', scans.length,
+            'The same PC is recognised by its hardware IDs (HWID, Windows Machine ID, motherboard UUID, BIOS and disk serials), so changing only the HWID does not hide it. '
+            + 'Other servers are never named: you see only the date and the result.')
+          + (hist.hwidChanged ? `<div class="rp-card red" style="margin-bottom:12px"><div class="rp-top"><div class="rp-ic">${IC.alert}</div><div><b>HWID changed</b><div style="color:var(--dim);font-size:12.5px;margin-top:3px">Other IDs of this PC match an earlier scan, but the HWID is different — usually a HWID spoofer was used between the two scans.</div></div></div></div>` : '')
+          + (scans.length ? rows(scans.map((x) => rowL(vc(x.verdict),
+              `<b style="color:var(--text);text-transform:capitalize">${esc(x.verdict)}</b>${x.detections ? ` <span style="color:var(--dim)">· ${x.detections} detection${x.detections === 1 ? '' : 's'}</span>` : ''} <span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--muted);font-size:11px">${x.sameServer ? 'this server' : 'another server'}</span>`
+              + `<div style="color:var(--dim);font-size:12px;margin-top:3px">recognised by ${esc((x.matchedBy || []).join(', '))}${x.hwidSame ? '' : ' · <span style="color:#ff8597">different HWID</span>'}</div>`,
+              esc(fmtDate(x.at)))), '') : '<div class="empty">First time this PC is checked with HeRo Shield.</div>');
+      },
+
+      macros: () => {
+        const lv = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : '');
+        const items = fl(macros, 'Name', 'Tool', 'Why', 'Path', 'Snippet', 'Kind');
+        const pill = (t, c) => `<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:${c}22;color:${c};font-size:11px;font-weight:700">${t}</span>`;
+        return head('Macros & no-recoil', items.length,
+            'Mouse / macro software (Logitech G HUB, LGS, Razer Synapse, Bloody, AutoHotkey, X-Mouse) and the scripts it runs. '
+            + 'A gaming mouse app alone is normal (grey). Red = a script that moves the mouse by itself while the left button is held (no-recoil). Orange = a script that moves the mouse or is named for recoil — read the line shown.')
+          + rows(items.slice(0, 200).map((x) => rowL(lv(x),
+              `<b style="color:var(--text)">${esc(F(x, 'Name') || F(x, 'Tool'))}</b>${F(x, 'Running') ? pill('running now', '#ff8597') : ''}${pill(esc(F(x, 'Tool')), '#8cc8ff')}`
+              + `<div style="color:${F(x, 'Level') >= 1 ? '#ffb35c' : 'var(--dim)'};font-size:12px;margin-top:3px">${esc(F(x, 'Kind'))} · ${esc(F(x, 'Why') || '')}</div>`
+              + (F(x, 'Snippet') ? `<div class="mono" style="margin-top:5px;padding:6px 9px;border-radius:8px;background:rgba(255,255,255,.04);color:var(--text);font-size:11.5px;white-space:pre-wrap;word-break:break-all">${esc(F(x, 'Snippet'))}</div>` : '')
+              + (F(x, 'Path') ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:3px">${esc(F(x, 'Path'))}</div>` : ''),
+              esc(F(x, 'When') || ''))),
+            R('Macros') ? 'No macro software or script on this PC.' : 'This report has no macro check — the player used an older scanner (needs v4.9+).');
       },
 
       hardware: () => {
@@ -1116,6 +1155,7 @@
       </div>`;
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
+    view.querySelectorAll('[data-goto-tab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.gotoTab)));
     view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
       const id = (view.querySelector('#disc-id').value || '').replace(/\D/g, '');
       if (!/^\d{17,20}$/.test(id)) return toast('Enter a Discord ID (17–20 digits)', true);
@@ -1442,6 +1482,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v30', 'Scanner v4.9: new Macros & recoil tab — Logitech G HUB / LGS Lua scripts, Razer Synapse and Bloody macros, AutoHotkey scripts (also a compiled AutoHotkey .exe running now). A script that moves the mouse by itself while the left button is held is a no-recoil detection, with the line of the script shown. New PC history tab: the same PC is recognised on every HeRo Shield server by its hardware IDs (HWID, Machine ID, UUID, BIOS and disk serials) — you see how many times it was checked before and how it went, and a red flag when the HWID changed (spoofer). Run supabase-v29-pc-history.sql once.'],
       ['v29', 'Permissions: the Permission Manager now uses tick boxes — give one or more permissions to the same person (Scanner + Staff, Admin + Staff…). Edit loads what the person has; an unticked box is removed. Staff opens the anticheat tabs without a paid plan. Scanner v4.8: new black + blue design.'],
       ['v27', 'Scanner v4.7: new tabs Timeline 24h (everything that happened before the check, newest first), USB drives (sticks plugged in / pulled out, programs that ran from a USB stick) and Opened files (Jump Lists — programs and scripts opened, even deleted). Injection: a DLL running inside FiveM whose file was deleted, or a random-named unsigned DLL from Downloads / Temp, is now a detection.'],
       ['v26', 'New permission 👁️ Admin (test): sees every tab of the dashboard like an Admin, but every change is refused (view only). Admins also get the scanner with unlimited PINs. Run supabase-v26-viewer.sql once in Supabase.'],
