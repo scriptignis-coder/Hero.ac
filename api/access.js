@@ -35,6 +35,7 @@ export default wrap(async (req, res) => {
       .catch(() => sb(`user_access?discord_id=eq.${enc(id)}&select=name,admin,heroshield,herocheck,expires_at`)))?.[0] || {};
     // an expired grant counts as nothing (so giving it again is logged as a new grant)
     if (before.expires_at && Date.parse(before.expires_at) <= Date.now()) { before.admin = before.viewer = before.heroshield = before.herocheck = false; }
+    if (b.admin === true && b.viewer === true) throw httpError(400, 'Admin and Admin (test) cannot be given together');
     const row = { discord_id: id };
     if (b.admin !== undefined) {
       if (!isAdmin(requireUser(req))) throw httpError(403, 'Only the environment owner can grant or revoke Admin');
