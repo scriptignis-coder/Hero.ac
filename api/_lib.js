@@ -213,6 +213,11 @@ export async function getAccess(user) {
       console.error('user_access lookup failed (run supabase-access.sql):', e.message);
     }
   }
+  // A paid license unlocks the scanner workspace, never staff/admin permissions.
+  try {
+    const { accountLicense } = await import('./_license.js');
+    if (await accountLicense(user)) access.herocheck = true;
+  } catch (e) { console.error('License lookup:', e.message); }
   accessCache.set(id, { at: Date.now(), access });
   return access;
 }

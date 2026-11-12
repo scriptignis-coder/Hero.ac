@@ -767,6 +767,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
     <p>Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
     <p id="login-error" style="color:var(--red);margin-top:-12px" hidden></p>
     <button type="button" id="retry-access" class="btn btn-ghost" hidden style="margin-bottom:12px;width:100%">Check access again</button>
+    <form id="hs-email-form" style="display:grid;gap:10px;margin:16px 0">
+      <input id="hs-email" type="email" autocomplete="email" placeholder="Email address" required style="padding:12px;background:#0a0e16;color:#fff;border:1px solid #273346;border-radius:8px">
+      <input id="hs-password" type="password" autocomplete="current-password" placeholder="Password (8+ characters)" minlength="8" required style="padding:12px;background:#0a0e16;color:#fff;border:1px solid #273346;border-radius:8px">
+      <button class="btn" id="hs-signin" type="submit" style="background:#376cf0;color:white">Sign in</button>
+      <button class="btn" id="hs-register" type="button">Create account</button>
+      <small id="hs-email-message" aria-live="polite"></small>
+    </form>
+    <p style="text-align:center;opacity:.65">or continue with</p>
     <a href="/api/auth/login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Log in with Discord</a>
     <a href="/" class="btn btn-ghost btn-sm" style="margin-top:14px">← Back to website</a>
   </div>
@@ -862,5 +870,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
 <script src="/assets/config.js"></script>
 <script src="/assets/dashboard.js"></script>
+<script src="/assets/licenses-ui.js" defer></script>
 </body>
 </html>

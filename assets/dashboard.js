@@ -143,10 +143,11 @@
     } catch {
       return showLogin();
     }
+    window.hsLicensePanel?.();
     const acc = state.user.access || { heroshield: false, herocheck: false, admin: false };
     if (!acc.herocheck && !acc.admin) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = `Discord login OK (ID: ${state.user.id}), but no Admin / HeRoCheck role was found. Ask the owner to grant your Discord ID in Permission Manager, or check ADMIN_DISCORD_IDS / HEROCHECK_IDS on the deployed backend. After the update, click Check access again.`;
+      $('#login-error').textContent = `No active scanner license or staff permission for account ${state.user.id}. Activate your license below or contact support.`;
       $('#login-error').hidden = false;
       const retry = document.getElementById('retry-access');
       if (retry) retry.hidden = false;
@@ -350,10 +351,9 @@
     try {
       const [b, data] = await Promise.all([api('/api/billing-status'), api('/api/scanner-licenses')]);
       const licenses=data.licenses||[];
-      view.innerHTML=`<div class="workspace-hero"><div><h2>My Scanner Licenses</h2><p>Generate a scanner license and use it to create scan PINs.</p></div></div>
+      view.innerHTML=`<div class="workspace-hero"><div><h2>My Scanner Licenses</h2><p>Manage scanner licenses issued by HeRoShield staff and use them for scan PINs.</p></div></div>
       <div class="workspace-grid">${wsStat('Access',b.staffAccess?'Staff role':b.active?'Paid plan active':'Inactive')}${wsStat('Licenses',licenses.length)}${wsStat('Scanner access',(state.access?.admin||state.access?.herocheck)?'Granted':'Check your subscription')}</div>
-      <div class="workspace-section"><h3>Create scanner license</h3><p class="workspace-note">Each license belongs to your Discord account. Only you can manage its PINs.</p><div class="workspace-actions"><input class="input" id="license-label" placeholder="License name (e.g. Screenshare Team)" maxlength="80"><button class="btn btn-primary" data-createlicense>Create license</button></div></div>
-      <div class="workspace-section"><h3>Your licenses</h3>${licenses.length?licenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${esc(l.license_key)}</code><button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">Use for Scan PINs</button><button class="btn btn-ghost btn-sm" data-revokelicense="${esc(l.id)}">Revoke</button>`:''}</div></div>`).join(''):'<p class="workspace-note">No licenses yet. Create your first license above.</p>'}</div>`;
+      <div class="workspace-section"><h3>Your licenses</h3>${licenses.length?licenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${esc(l.license_key)}</code><button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">Use for Scan PINs</button><button class="btn btn-ghost btn-sm" data-revokelicense="${esc(l.id)}">Revoke</button>`:''}</div></div>`).join(''):'<p class="workspace-note">No scanner licenses assigned to this account. Contact HeRoShield staff.</p>'}</div>`;
     } catch(e){wsError(view,e);}
   }
   async function renderAnalytics(view) {
@@ -2237,10 +2237,6 @@
         if (!reason) return;
         await api('/api/command', { method: 'POST', body: { server: state.server, type: action, identifier: t.dataset.id, reason } });
         toast(`${action === 'ban' ? 'Ban' : 'Kick'} sent - done in a few seconds`);
-      } else if (t.dataset.createlicense !== undefined) {
-        const label=$('#license-label')?.value.trim()||'My Scanner License';
-        await api('/api/scanner-licenses',{method:'POST',body:{label}});
-        toast('Scanner license created'); await renderSubscription($('#view'));
       } else if (t.dataset.revokelicense !== undefined) {
         if(!confirm('Revoke this license? Its unused scan PINs will stop working.')) return;
         await api('/api/scanner-licenses',{method:'DELETE',body:{id:t.dataset.revokelicense}});
