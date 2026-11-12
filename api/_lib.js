@@ -95,7 +95,7 @@ export async function storageList(prefix) {
 
 
 const COOKIE = 'hs_session';
-const MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+const MAX_AGE = 60 * 60 * 24 * 30; // 30-day persistent sign-in; logout revokes browser cookie
 
 const b64 = (s) => Buffer.from(s).toString('base64url');
 const sign = (data) => crypto.createHmac('sha256', env('SESSION_SECRET')).update(data).digest('base64url');

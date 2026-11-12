@@ -7,7 +7,7 @@ create table if not exists public.hs_licenses (
  plan text not null check(plan in ('personal','pro','enterprise')),
  seats integer not null default 1 check(seats between 1 and 500),
  status text not null default 'active' check(status in ('active','revoked')),
- expires_at timestamptz not null,
+ expires_at timestamptz,
  created_at timestamptz not null default now()
 );
 create table if not exists public.hs_license_members (
@@ -25,7 +25,7 @@ returns boolean language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
 begin
  if length(p_identity)<5 then raise exception 'Invalid identity'; end if;
- select id into v_id from hs_licenses where code_hash=p_hash and owner_identity is null and status='active' and expires_at>now() for update;
+ select id into v_id from hs_licenses where code_hash=p_hash and owner_identity is null and status='active' and (expires_at is null or expires_at>now()) for update;
  if v_id is null then raise exception 'Unavailable license'; end if;
  if exists(select 1 from hs_licenses where owner_identity=p_identity) or exists(select 1 from hs_license_members where identity=p_identity) then raise exception 'Identity already licensed'; end if;
  update hs_licenses set owner_identity=p_identity where id=v_id;
@@ -36,7 +36,7 @@ returns boolean language plpgsql security definer set search_path = public as $$
 declare v hs_licenses%rowtype; n integer;
 begin
  select * into v from hs_licenses where id=p_license for update;
- if not found or v.owner_identity<>p_owner or v.plan<>'enterprise' or v.status<>'active' or v.expires_at<=now() then raise exception 'Not authorized'; end if;
+ if not found or v.owner_identity<>p_owner or v.plan<>'enterprise' or v.status<>'active' or (v.expires_at is not null and v.expires_at<=now()) then raise exception 'Not authorized'; end if;
  if p_identity=v.owner_identity or exists(select 1 from hs_licenses where owner_identity=p_identity) then raise exception 'Already licensed'; end if;
  select count(*) into n from hs_license_members where license_id=p_license;
  if n>=v.seats-1 then raise exception 'Seats exhausted'; end if;

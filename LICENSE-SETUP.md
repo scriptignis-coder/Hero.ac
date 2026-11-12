@@ -1,14 +1,12 @@
-# HeRoShield Accounts & Licenses — setup
+# HeRoShield License Setup (V4)
 
-1. Run `supabase-license-system.sql` in the existing Supabase project. It creates new tables/functions; does not remove existing ones.
-2. Enable Supabase Auth email/password and email confirmation. Configure `SUPABASE_ANON_KEY` in the website environment, keeping `SUPABASE_SERVICE_KEY` secret server-side. Existing Discord OAuth remains.
-3. Generate a random long secret and set the SAME `HS_BOT_LICENSE_SECRET` in website and bot. Set `HS_SITE_URL` in bot to the deployed HTTPS website URL.
-4. Restart/redeploy both projects. Bot `/createlicense user plan duration seats` issues a one-time activation code; buyer activates after logging in. Do not post codes publicly.
-5. For Enterprise, owner uses account IDs shown in dashboard, adds members up to seats. The owner counts as one seat. Revocation/expiration is checked server-side.
+1. Website: set `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (server-only), and a strong random `HS_BOT_LICENSE_SECRET` in deployment environment.
+2. Bot: set `HS_SITE_URL` to the deployed HTTPS website origin (no trailing /api), and `HS_BOT_LICENSE_SECRET` to the **exact same** secret. Never put either service-role key or secret in frontend code.
+3. In Supabase SQL editor, execute `supabase-license-system.sql` if not already installed. If installed from an older release, **also execute** `ALTER TABLE public.hs_licenses ALTER COLUMN expires_at DROP NOT NULL;` for lifetime support.
+4. Deploy website and restart bot, and re-register slash commands if your bot does not auto-sync them.
+5. `/createlicense user unit duration`: unit = hours/days/weeks/months/lifetime; duration omitted for lifetime. Each code is cryptographically random and hashed at rest. A database transaction locks a code during redemption; it can only be claimed once.
+6. The recipient Discord ID is metadata, not an automatic proof of ownership for email accounts. Anyone possessing an unused code can claim it first. Deliver privately; to strictly bind redemption to the intended Discord user, add verified Discord account linking and check issued_to_discord server-side.
+7. Existing Enterprise seat support remains in the database, but this simplified command issues **personal one-seat** licenses only.
+8. Test in staging: duplicate redemption, expiration, lifetime, revoke, login persistence, role bypass, and all protected APIs. Existing scanner and forensic files were not modified.
 
-## Important integration limitations
-- Existing legacy staff access remains intentionally available; it is NOT replaced by license gating. Existing API endpoints protected by `requireAccess` use license-based `herocheck` permission. Some custom endpoints may use other checks and should be audited before production.
-- Discord login and email login are separate identities. A code can be claimed by either; no automatic account merging. This prevents unsafe identity linking.
-- The bot stores the buyer Discord ID as issuance metadata, but does not silently attach the license to their account: buyer claims it once with the code.
-- Use a separate staging database first. No Windows EXE scanner files were modified.
-- A real production rollout still needs end-to-end tests, abuse/rate limiting, email deliverability and operational monitoring. No production deployment or Windows testing has been performed.
+IMPORTANT: This package does not configure your live hosting or Supabase automatically. If the bot reports missing configuration, set the environment variables and redeploy.

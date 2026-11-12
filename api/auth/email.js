@@ -5,11 +5,11 @@ export default wrap(async (req,res)=>{
   const {action,email,password}=readBody(req);
   if(!['register','login'].includes(action)||typeof email!=='string'||!/^\S+@\S+\.\S+$/.test(email)||typeof password!=='string'||password.length<8||password.length>128) throw httpError(400,'Valid email and password (8-128 characters) required');
   const key=process.env.SUPABASE_ANON_KEY;
-  if(!key) throw httpError(503,'Email authentication is not configured');
+  if(!base() || !key) throw httpError(503,'Email sign-in is temporarily unavailable. The site administrator must configure SUPABASE_URL and SUPABASE_ANON_KEY and enable the Email provider in Supabase Auth.');
   const endpoint=action==='register'?'signup':'token?grant_type=password';
   const r=await fetch(`${base()}/auth/v1/${endpoint}`,{method:'POST',headers:{apikey:key,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
   const data=await r.json().catch(()=>({}));
-  if(!r.ok) return send(res,400,{error:action==='login'?'Invalid credentials or unconfirmed email':(data.msg||data.error_description||'Registration failed')});
+  if(!r.ok) return send(res,400,{error:action==='login'?'Invalid credentials or unconfirmed email':(data.msg||data.error_description||data.error||'Registration failed')});
   if(!data.access_token) return send(res,200,{confirmation_required:true});
   // Verify token with Supabase Auth before issuing our own signed session.
   const check=await fetch(`${base()}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${data.access_token}`}});
