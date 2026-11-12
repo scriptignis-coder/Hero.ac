@@ -1,3 +1,4 @@
+import { lookupScans, lookupBans } from './_pchistory.js';
 import crypto from 'node:crypto';
 import { wrap, send, requireAccess, getAccess, readBody, sb, enc, str, httpError, audit } from './_lib.js';
 import { GAMES, gameOf } from './_games.js';
@@ -40,7 +41,13 @@ export default wrap(async(req,res)=>{
    if(!one||!ids.length) throw httpError(404,'PIN not found');
    const rows=await sb(`scan_pins?pin=eq.${enc(one)}&license_id=in.(${ids.map(enc).join(',')})&select=*&limit=1`);
    if(!rows?.length) throw httpError(404,'PIN not found');
-   return send(res,200,{pin:{...rows[0],scanner_licenses:{label:owned.get(rows[0].license_id)?.label||'Scanner'}}});
+   // player history is read again when the report is opened, so a ban or a scan made AFTER this scan shows too
+   const row=rows[0];
+   if(row.report&&typeof row.report==='object'){
+    const [h,b]=await Promise.all([lookupScans(row.report,row.license_id,row.id).catch(()=>null),lookupBans(row.report).catch(()=>null)]);
+    row.report={...row.report,...(h?{PcHistory:h}:{}),...(b?{BanHistory:b}:{})};
+   }
+   return send(res,200,{pin:{...row,scanner_licenses:{label:owned.get(row.license_id)?.label||'Scanner'}}});
   }
   const quota=await quotaFor(user,access,ids);
   if(!ids.length) return send(res,200,{pins:[],licenses:[],quota});

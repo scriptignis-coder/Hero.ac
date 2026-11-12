@@ -1,5 +1,5 @@
 import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
-import { pcHistory } from './_pchistory.js';
+import { pcHistory, lookupBans } from './_pchistory.js';
 import { gameOf } from './_games.js';
 
 // Receives the finished scan report from the HeRo Scanner (no session — the
@@ -67,6 +67,9 @@ export default wrap(async (req, res) => {
   // v29: was this PC already checked (here or on another HeRo Shield server)?
   const hist = await pcHistory({ report, pinId: rows[0].id, licenseId: rows[0].license_id, verdict }).catch(() => null);
   if (hist) report.PcHistory = hist;
+  // v35: FiveM bans of this player on HeRo Shield servers (Discord / Steam ID found on the PC)
+  const bans = await lookupBans(report).catch(() => null);
+  if (bans) report.BanHistory = bans;
 
   await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
     method: 'PATCH',

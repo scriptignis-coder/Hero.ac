@@ -771,7 +771,8 @@
     const timeline = L('Timeline'), usbs = L('UsbStorage'), jumps = L('JumpLists');
     const macros = L('Macros');
     const hist = R('PcHistory') || null;
-    const histBad = hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0;
+    const bh = R('BanHistory') || null;
+    const histBad = (hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0) + (bh ? bh.count || 0 : 0);
     const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
     const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
     const uOrange = usbs.filter((x) => F(x, 'Level') >= 1).length + dets.filter((d) => F(d, 'Method') === 21).length;
@@ -882,7 +883,7 @@
       ['overview', 'Overview', '', 'blue'],
       ['detects', 'Detects', dets.length, 'red'],
       ['timeline', 'Timeline 24h', tRed ? tRed + ' cheat' : tOrange ? tOrange + ' check' : timeline.length || '–', tRed ? 'red' : tOrange ? 'orange' : 'blue'],
-      ['pchistory', 'PC history', hist ? (hist.seen ? hist.seen + ' scan' + (hist.seen > 1 ? 's' : '') : 'new PC') : '–', histBad ? 'red' : hist && hist.suspicious ? 'orange' : hist && hist.seen ? 'blue' : 'green'],
+      ['pchistory', 'Player history', bh && bh.count ? bh.count + ' ban' + (bh.count > 1 ? 's' : '') : hist ? (hist.seen ? hist.seen + ' scan' + (hist.seen > 1 ? 's' : '') : 'new PC') : '–', histBad ? 'red' : hist && hist.suspicious ? 'orange' : hist && hist.seen ? 'blue' : 'green'],
       ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
       ['warnings', 'Warnings', warns.length, 'orange'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
@@ -931,9 +932,16 @@
              ['Scan time', (R('DurationSeconds') || 0) + 's', ''], ['Scanner', 'v' + (R('ScannerVersion') || '?'), '']]
             .map(([k, v, c]) => `<div class="rp-stat" style="${c ? `--c:${c}` : ''}"><b>${esc(v)}</b><span>${k}</span></div>`).join('')}
         </div>
-        ${hist && (hist.seen || hist.hwidChanged) ? `<div class="rp-card ${histBad ? 'red' : hist.suspicious ? 'orange' : 'blue'}" style="margin:14px 0;cursor:pointer" data-goto-tab="pchistory"><div class="rp-top"><div class="rp-ic">${IC.alert}</div>
-          <div><b>${hist.cheating ? `This PC was already caught cheating ${hist.cheating}× before` : hist.hwidChanged ? 'Same PC, but the HWID changed since the last scan (spoofer?)' : `This PC was already checked ${hist.seen}× before`}</b>
-          <div style="color:var(--dim);font-size:12.5px;margin-top:3px">${hist.seen} earlier scan${hist.seen === 1 ? '' : 's'} · ${hist.otherServers} on another server · ${hist.cheating} cheating · ${hist.suspicious} suspicious · ${hist.clean} clean — open PC history</div></div></div></div>` : ''}
+        ${(hist && (hist.seen || hist.hwidChanged)) || (bh && bh.count) ? (() => {
+          const last = hist && hist.scans && hist.scans[0];
+          const title = bh && bh.count ? `Banned on ${bh.servers} HeRo Shield server${bh.servers === 1 ? '' : 's'} — ${esc(bh.bans[0].server)}: “${esc(bh.bans[0].reason)}”`
+            : hist.cheating ? `Already caught cheating ${hist.cheating}× — last scan ${esc(fmtDate(last.at))} on ${esc(last.server)}`
+            : hist.hwidChanged ? 'Same PC, but the HWID changed since the last scan (spoofer?)'
+            : `Already scanned ${hist.seen}× — last on ${esc(last.server)}, ${esc(fmtDate(last.at))}: ${last.verdict === 'clean' ? 'safe' : esc(last.verdict)}`;
+          const sub = [hist ? `${hist.seen} earlier scan${hist.seen === 1 ? '' : 's'} · ${hist.cheating} cheater · ${hist.clean} safe` : '', bh && bh.count ? `${bh.count} FiveM ban${bh.count === 1 ? '' : 's'} (${bh.active} active)` : ''].filter(Boolean).join(' · ');
+          return `<div class="rp-card ${histBad ? 'red' : hist && hist.suspicious ? 'orange' : 'blue'}" style="margin:14px 0;cursor:pointer" data-goto-tab="pchistory"><div class="rp-top"><div class="rp-ic">${IC.alert}</div>
+          <div><b>${title}</b><div style="color:var(--dim);font-size:12.5px;margin-top:3px">${sub} — open Player history</div></div></div></div>`;
+        })() : ''}
         <div class="rp-head">Most important</div>
         ${grid([
           ...dets.slice(0, 6).map((d) => card(sevC(d), IC.alert, esc(F(d, 'Signature')), F(d, 'Deleted') ? 'File deleted' : esc(METHODS[F(d, 'Method')] || ''))),
@@ -1120,17 +1128,37 @@
       },
 
       pchistory: () => {
-        if (!hist) return head('PC history', 0, 'Earlier scans of this same PC on every HeRo Shield server.') + '<div class="empty">No PC history for this report (the report was sent before the PC history existed, or supabase-v29-pc-history.sql is not run yet).</div>';
         const vc = (v) => (v === 'cheating' ? 'red' : v === 'suspicious' ? 'orange' : v === 'clean' ? 'green' : '');
-        const scans = hist.scans || [];
-        return head('PC history — every HeRo Shield server', scans.length,
-            'The same PC is recognised by its hardware IDs (HWID, Windows Machine ID, motherboard UUID, BIOS and disk serials), so changing only the HWID does not hide it. '
-            + 'Other servers are never named: you see only the date and the result.')
-          + (hist.hwidChanged ? `<div class="rp-card red" style="margin-bottom:12px"><div class="rp-top"><div class="rp-ic">${IC.alert}</div><div><b>HWID changed</b><div style="color:var(--dim);font-size:12.5px;margin-top:3px">Other IDs of this PC match an earlier scan, but the HWID is different — usually a HWID spoofer was used between the two scans.</div></div></div></div>` : '')
-          + (scans.length ? rows(scans.map((x) => rowL(vc(x.verdict),
-              `<b style="color:var(--text);text-transform:capitalize">${esc(x.verdict)}</b>${x.detections ? ` <span style="color:var(--dim)">· ${x.detections} detection${x.detections === 1 ? '' : 's'}</span>` : ''} <span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--muted);font-size:11px">${x.sameServer ? 'this server' : 'another server'}</span>`
-              + `<div style="color:var(--dim);font-size:12px;margin-top:3px">recognised by ${esc((x.matchedBy || []).join(', '))}${x.hwidSame ? '' : ' · <span style="color:#ff8597">different HWID</span>'}</div>`,
-              esc(fmtDate(x.at)))), '') : '<div class="empty">First time this PC is checked with HeRo Shield.</div>');
+        const vt = (v) => (v === 'cheating' ? 'Cheater' : v === 'suspicious' ? 'Suspicious' : v === 'clean' ? 'Safe' : 'Unknown');
+        const pill = (t, bg, fg) => `<span style="margin-left:6px;padding:2px 9px;border-radius:999px;background:${bg};color:${fg};font-size:11px;font-weight:700">${t}</span>`;
+        const scans = (hist && hist.scans) || [];
+        const bans = (bh && bh.bans) || [];
+        const stat = (n, label, c) => `<div style="flex:1;min-width:120px;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--line)"><div style="font-size:22px;font-weight:800;color:${c || 'var(--text)'}">${n}</div><div style="color:var(--dim);font-size:12px;margin-top:2px">${label}</div></div>`;
+        let html = head('Player history — every HeRo Shield server', scans.length + bans.length,
+          'Earlier scans of this same PC (recognised by its hardware IDs, so a new HWID does not hide it) and the FiveM bans of this player on HeRo Shield servers (matched by the Discord ID and Steam accounts found on the PC).');
+        html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">${stat(hist ? hist.seen : 0, 'earlier scans')}${stat(hist ? hist.cheating : 0, 'times cheater', hist && hist.cheating ? '#ff8597' : '')}${stat(hist ? hist.clean : 0, 'times safe', hist && hist.clean ? '#6ff0a8' : '')}${stat(bh ? bh.count : 0, 'FiveM bans', bh && bh.count ? '#ff8597' : '')}</div>`;
+        if (hist && hist.hwidChanged) html += `<div class="rp-card red" style="margin-bottom:12px"><div class="rp-top"><div class="rp-ic">${IC.alert}</div><div><b>HWID changed</b><div style="color:var(--dim);font-size:12.5px;margin-top:3px">Other IDs of this PC match an earlier scan, but the HWID is different — usually a HWID spoofer was used between the two scans.</div></div></div></div>`;
+        // bans
+        html += `<div class="rp-head" style="margin-top:6px">FiveM bans on HeRo Shield servers</div>`;
+        html += !bh ? '<div class="empty">No Discord ID or Steam account was found on this PC, so bans could not be looked up.</div>'
+          : bans.length ? rows(bans.map((x) => rowL(x.active ? 'red' : 'orange',
+              `<b style="color:var(--text)">${esc(x.server)}</b>${pill(x.active ? 'banned' : 'unbanned', x.active ? 'rgba(255,90,110,.16)' : 'rgba(255,255,255,.06)', x.active ? '#ff8597' : 'var(--muted)')}`
+              + `<div style="color:var(--text);font-size:13px;margin-top:4px">Reason: ${esc(x.reason)}</div>`
+              + `<div style="color:var(--dim);font-size:12px;margin-top:3px">${x.player ? 'as “' + esc(x.player) + '” · ' : ''}matched by ${esc((x.matchedBy || []).join(', ') || 'identifier')}${x.banId ? ' · ban ' + esc(x.banId) : ''}</div>`,
+              esc(fmtDate(x.at)))), '')
+          : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
+        // scans
+        html += `<div class="rp-head" style="margin-top:16px">Earlier scans of this PC</div>`;
+        html += !hist ? '<div class="empty">No scan history for this report yet (run supabase-v29-pc-history.sql).</div>'
+          : scans.length ? rows(scans.map((x) => rowL(vc(x.verdict),
+              `<b style="color:var(--text)">${esc(x.server)}</b>${pill(vt(x.verdict), x.verdict === 'cheating' ? 'rgba(255,90,110,.16)' : x.verdict === 'clean' ? 'rgba(62,224,138,.14)' : 'rgba(255,179,92,.14)', x.verdict === 'cheating' ? '#ff8597' : x.verdict === 'clean' ? '#6ff0a8' : '#ffb35c')}`
+              + ` <span style="display:inline-flex;align-items:center;gap:6px;margin-left:6px;vertical-align:middle">${gameIcon(x.game || 'fivem', 12)}<span style="color:var(--muted);font-size:12px">${esc(gameOf(x.game || 'fivem').name)}</span></span>`
+              + ((x.top || []).length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${x.top.map((d) => `<span style="padding:2px 8px;border-radius:7px;background:rgba(255,90,110,.10);color:#ffb3bd;font-size:11.5px">${esc(d)}</span>`).join('')}</div>`
+                 : x.detections ? `<div style="color:var(--dim);font-size:12px;margin-top:4px">${x.detections} detection${x.detections === 1 ? '' : 's'}</div>` : '')
+              + `<div style="color:var(--dim);font-size:12px;margin-top:4px">recognised by ${esc((x.matchedBy || []).join(', '))}${x.hwidSame ? '' : ' · <span style="color:#ff8597">different HWID</span>'}</div>`,
+              esc(fmtDate(x.at)))), '')
+          : '<div class="empty">First time this PC is checked with HeRo Shield.</div>';
+        return html;
       },
 
       macros: () => {
@@ -1552,6 +1580,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v35', 'Player history (was PC history): every earlier scan of the PC on any HeRo Shield server — server name, date, game, cheater / safe and its main detections — plus the FiveM bans of the player on HeRo Shield servers (server name, reason, banned / unbanned), matched by the Discord ID and Steam accounts found on the PC. It is read again each time the report is opened. Run supabase-v35-player-history.sql once.'],
       ['v34', 'Scan PINs: a pending PIN (not used yet) can be deleted with the Delete button. A used PIN cannot be deleted — its report is kept as proof.'],
       ['v33', 'Faster Scan PINs tab: the list no longer downloads every report (a report can be several MB) — a report loads only when you click View, then stays open instantly. Choosing a game no longer reloads the page, and the last list shows at once while it refreshes. Real game logos: drop fivem.png / redm.png / minecraft.png / roblox.png in assets/games.'],
       ['v32', 'Simpler menu: the Discord check and Signatures pages are gone. The scan reads the Discord servers from the player\'s PC by itself (Discord tab of the report), and the scanner already has its own cheat signatures for every game.'],

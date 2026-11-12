@@ -38,3 +38,24 @@ test('pcHistory never throws when the table is missing', async () => {
   try { assert.equal(await pcHistory({ report: rep(), verdict: 'clean' }), null); }
   finally { globalThis.fetch = realFetch; console.error = orig; }
 });
+
+import { playerIdsFromReport, lookupBans } from '../api/_pchistory.js';
+test('player IDs: Discord ID + Steam ID 64 → FiveM steam hex', () => {
+  const ids = playerIdsFromReport({ DiscordId: '123456789012345678', SteamAccounts: ['Nova — 76561198012345678', 'bad'] });
+  assert.deepEqual(ids, ['discord:123456789012345678', 'steam:' + BigInt('76561198012345678').toString(16)]);
+  assert.ok(ids[1].startsWith('steam:11000'));
+});
+test('bans across servers: server name, reason, matched by', async () => {
+  const realFetch = globalThis.fetch; let url = '';
+  Object.assign(process.env, { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_SERVICE_KEY: 'k' });
+  globalThis.fetch = async (u) => { url = decodeURIComponent(String(u)); return new Response(JSON.stringify([
+    { ban_id: 'HS-1', player: 'Nova', reason: 'Cheating: aimbot (Eulen)', active: true, identifier: 'license:abc', identifiers: ['discord:123456789012345678'], created_at: '2026-11-01T10:00:00Z', servers: { name: 'SouthSide RP' } },
+    { ban_id: 'HS-2', player: 'Nova', reason: 'Toxic', active: false, identifier: 'steam:' + BigInt('76561198012345678').toString(16), identifiers: [], created_at: '2026-10-01T10:00:00Z', servers: { name: 'Ba3be3i PVP' } } ]), { status: 200, headers: { 'content-type': 'application/json' } }); };
+  try {
+    const r = await lookupBans({ DiscordId: '123456789012345678', SteamAccounts: ['Nova — 76561198012345678'] });
+    assert.ok(url.includes('identifiers.cs.["discord:123456789012345678"]'));
+    assert.equal(r.count, 2); assert.equal(r.active, 1); assert.equal(r.servers, 2); assert.equal(r.cheating, 1);
+    assert.deepEqual(r.bans.map((b) => [b.server, b.matchedBy[0]]), [['SouthSide RP', 'Discord ID'], ['Ba3be3i PVP', 'Steam account']]);
+    assert.equal(await lookupBans({}), null);
+  } finally { globalThis.fetch = realFetch; }
+});
