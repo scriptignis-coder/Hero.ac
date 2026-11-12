@@ -636,7 +636,8 @@
             <td><div class="actions-cell">
               ${p.used ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}
               ${!p.used ? `<button class="btn btn-ghost btn-sm" data-copypin="${esc(location.origin)}/dl/${esc(p.pin)}">Link</button>` : ''}
-              <button class="btn btn-ghost btn-sm" data-copypin="${esc(p.pin)}">Copy</button></div></td>
+              <button class="btn btn-ghost btn-sm" data-copypin="${esc(p.pin)}">Copy</button>
+              ${!p.used ? `<button class="btn btn-danger btn-sm" data-delpin="${esc(p.id)}" data-delpin-code="${esc(p.pin)}" title="Delete this pending PIN">Delete</button>` : ''}</div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">No PINs yet.</div>'}
       </div>`;
     const pp = view.querySelector('#pin-player'); if (pp && keepPlayer) pp.value = keepPlayer;
@@ -1551,6 +1552,7 @@
 
   function renderChangelogs(view) {
     const log = [
+      ['v34', 'Scan PINs: a pending PIN (not used yet) can be deleted with the Delete button. A used PIN cannot be deleted — its report is kept as proof.'],
       ['v33', 'Faster Scan PINs tab: the list no longer downloads every report (a report can be several MB) — a report loads only when you click View, then stays open instantly. Choosing a game no longer reloads the page, and the last list shows at once while it refreshes. Real game logos: drop fivem.png / redm.png / minecraft.png / roblox.png in assets/games.'],
       ['v32', 'Simpler menu: the Discord check and Signatures pages are gone. The scan reads the Discord servers from the player\'s PC by itself (Discord tab of the report), and the scanner already has its own cheat signatures for every game.'],
       ['v31', 'Games: a scan PIN is now made for one game — FiveM, RedM, Minecraft or Roblox. The scanner runs the common checks (macros, PC history, USB, timeline, deleted files…) plus only the checks of that game. Minecraft: launchers (.minecraft, Lunar, Badlion, Feather, Prism, CurseForge, Modrinth, TLauncher), every mod jar opened (hacked clients found by their code, even renamed), game logs (chat ignored), autoclickers. Roblox: executors (by name and by their workspace + autoexec folders), saved scripts, executors that ran, physics / network FFlags. RedM: the RedM folder and DLLs inside RedM. Signatures can be set per game. Run supabase-v30-games.sql once.'],
@@ -2113,6 +2115,17 @@
       const id = ($('#disc-id2').value || '').replace(/[^0-9]/g, '');
       if (!id) return toast('Enter a Discord ID', true);
       return runDiscordInvestigate(id);
+    }
+    if (t.dataset.delpin) {
+      const code = t.dataset.delpinCode || '';
+      if (!(await modal({ title: 'Delete PIN', text: `Delete the pending PIN ${code}? The player will not be able to use it any more.`, ok: 'Delete', danger: true }))) return;
+      try {
+        await api(`/api/pins?id=${encodeURIComponent(t.dataset.delpin)}`, { method: 'DELETE' });
+        toast('PIN deleted');
+        if (state.pinsResp) state.pinsResp = { ...state.pinsResp, pins: (state.pinsResp.pins || []).filter((p) => String(p.id) !== t.dataset.delpin) };
+        await renderPins($('#view'));
+      } catch (e) { toast(e.message, true); }
+      return;
     }
     if (t.dataset.copypin) {
       try { await navigator.clipboard.writeText(t.dataset.copypin); toast(t.dataset.copypin.includes('/') ? 'Link copied' : 'PIN copied'); } catch { toast('Copy failed', true); }

@@ -75,9 +75,11 @@ export default wrap(async(req,res)=>{
  if(req.method==='DELETE'){
   const id=String(req.query.id||'');
   if(!/^[0-9a-f-]{36}$/i.test(id)) throw httpError(400,'Invalid PIN ID');
-  const rows=await sb(`scan_pins?id=eq.${enc(id)}&select=id,license_id,pin`);
+  const rows=await sb(`scan_pins?id=eq.${enc(id)}&select=id,license_id,pin,used`);
   if(!rows?.length||!owned.has(rows[0].license_id)) throw httpError(404,'PIN not found');
-  await sb(`scan_pins?id=eq.${enc(id)}&license_id=eq.${enc(rows[0].license_id)}`,{method:'DELETE'});
+  // only a pending PIN can be deleted: a used PIN holds a report (proof)
+  if(rows[0].used) throw httpError(409,'This PIN was already used — its report is kept');
+  await sb(`scan_pins?id=eq.${enc(id)}&license_id=eq.${enc(rows[0].license_id)}&used=eq.false`,{method:'DELETE'});
   await audit(user,'pin.delete',{target:owner,targetName:user.name,detail:{pin:rows[0].pin}});
   return send(res,200,{ok:true});
  }

@@ -46,3 +46,23 @@ test('scanner signatures carry their games', async () => {
   const r = await call(scannerSigs, { query: { pin: 'ABCD2345' } });
   assert.deepEqual(r.body.map((s) => [s.name, s.games]), [['Vape', ['minecraft']], ['Spoofer', []]]);
 });
+
+import { setSession } from '../api/_lib.js';
+import pinsApi from '../api/pins.js';
+test('a used PIN cannot be deleted, a pending one can', async () => {
+  Object.assign(process.env, { SESSION_SECRET: 'test-only-secret', ADMIN_DISCORD_IDS: '101' });
+  let cookie = ''; setSession({ setHeader(_k, v) { cookie = v.split(';')[0]; } }, { id: '101', name: 'T' });
+  const deleted = [];
+  const mk = (used) => async (u, o = {}) => {
+    u = String(u);
+    if (o.method === 'DELETE') { deleted.push(u); return json([]); }
+    if (/scanner_licenses/.test(u)) return json([{ id: 'L1', owner_discord: '101', label: 'Main' }]);
+    if (/scan_pins\?id=eq/.test(u)) return json([{ id: '11111111-1111-1111-1111-111111111111', license_id: 'L1', pin: 'ABCD2345', used }]);
+    return json([]);
+  };
+  const req = { method: 'DELETE', headers: { cookie }, query: { id: '11111111-1111-1111-1111-111111111111' } };
+  globalThis.fetch = mk(true);
+  let r = await call(pinsApi, req); assert.equal(r.status, 409); assert.equal(deleted.length, 0);
+  globalThis.fetch = mk(false);
+  r = await call(pinsApi, req); assert.equal(r.status, 200); assert.ok(deleted.some((u) => /used=eq\.false/.test(u)));
+});
