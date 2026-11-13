@@ -244,7 +244,7 @@ footer a:hover{color:var(--text)}
     <div class="mnav" id="mnav"><nav class="links" aria-label="Main">
       <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#partners">Partners</a><a href="#faq">FAQ</a>
     </nav>
-    <div class="nav-cta"><a class="btn btn-g btn-sm" href="/api/auth/login">Login</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
+    <div class="nav-cta" id="auth-nav"><a class="btn btn-g btn-sm" href="/api/auth/login">Login</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
     <button class="burger" id="burger" aria-label="Menu">☰</button>
   </div>
 </header>
@@ -550,6 +550,34 @@ footer a:hover{color:var(--text)}
     } catch { box.replaceChildren(el('p', '', 'Partners are not available right now.')); }
   })();
 
+})();
+</script>
+<script>
+// Reflect the server-side Discord session in the homepage navigation.
+(async function syncDiscordNav() {
+  const nav = document.getElementById('auth-nav');
+  if (!nav) return;
+  try {
+    const response = await fetch('/api/me', {credentials:'same-origin', cache:'no-store'});
+    if (!response.ok) return;
+    const user = await response.json();
+    if (!user || !user.id) return;
+    nav.replaceChildren();
+    const dashboard = document.createElement('a');
+    dashboard.className = 'btn btn-w btn-sm'; dashboard.href = '/dashboard'; dashboard.textContent = 'Dashboard';
+    nav.appendChild(dashboard);
+    if (user.avatar && /^https:\/\/cdn\.discordapp\.com\//.test(user.avatar)) {
+      const avatar = document.createElement('img'); avatar.src = user.avatar;
+      avatar.alt = 'Discord avatar'; avatar.referrerPolicy = 'no-referrer';
+      avatar.style.cssText = 'width:30px;height:30px;border-radius:50%;object-fit:cover';
+      nav.appendChild(avatar);
+    }
+    const username = document.createElement('span'); username.textContent = user.name || 'Discord user';
+    username.style.cssText = 'font-size:13px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    nav.appendChild(username);
+    const logout = document.createElement('a'); logout.className = 'btn btn-g btn-sm';
+    logout.href = '/api/auth/logout'; logout.textContent = 'Logout'; nav.appendChild(logout);
+  } catch (_) { /* Remain logged-out when session cannot be checked. */ }
 })();
 </script>
 </body>
