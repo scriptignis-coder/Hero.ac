@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     const cookies = [].concat(res.getHeader('Set-Cookie') || []);
     cookies.push('hs_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
     res.setHeader('Set-Cookie', cookies);
-    res.writeHead(302, { Location: '/dashboard' });
+    res.writeHead(302, { Location: '/' });
     res.end();
   } catch (e) {
     console.error(e);
