@@ -40,7 +40,7 @@ export async function sb(path, { method = 'GET', body, prefer } = {}) {
     if (r.status === 401 || r.status === 403 || /permission|JWT|Invalid API key/i.test(msg)) {
       hint = ' -> use the service_role key in SUPABASE_SERVICE_KEY';
     } else if (/does not exist|schema cache|relation/i.test(msg)) {
-      hint = ' -> run supabase.sql in the Supabase SQL Editor';
+      hint = ' -> check the deployed API and database migration versions';
     }
     throw httpError(502, `Database error: ${msg}${hint}`);
   }

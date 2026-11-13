@@ -221,7 +221,7 @@ footer a:hover{color:var(--text)}
   .mnav{display:none}.burger{display:block}
   .nav.menu .mnav{display:flex;flex-direction:column;align-items:stretch;position:absolute;left:16px;right:16px;top:68px;padding:10px;border:1px solid var(--line2);border-radius:14px;background:#0a0b0d;box-shadow:0 30px 80px rgba(0,0,0,.6)}
   .nav.menu .links{flex-direction:column}
-  .nav.menu .nav-cta{margin:8px 0 0;padding-top:10px;border-top:1px solid var(--line)}.nav.menu .nav-cta .btn:not([hidden]){flex:1}.nav-cta [hidden]{display:none!important}
+  .nav.menu .nav-cta{margin:8px 0 0;padding-top:10px;border-top:1px solid var(--line)}.nav.menu .nav-cta .btn{flex:1}
   .g3{grid-template-columns:1fr 1fr}.term-body{grid-template-columns:1fr}.log{border-right:0;border-bottom:1px solid var(--line)}
   .dl{grid-template-columns:1fr;padding:28px}.strip{grid-template-columns:1fr 1fr}.strip div:nth-child(3){border-left:0}
   .strip div:nth-child(n+3){border-top:1px solid var(--line)}
@@ -233,7 +233,6 @@ footer a:hover{color:var(--text)}
   footer .fl{margin-left:0}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.rv{opacity:1;transform:none}html{scroll-behavior:auto}}
-.hs-user-pill{display:inline-flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border:1px solid var(--line);border-radius:999px;color:var(--text,#e9efff);font-size:12px;text-decoration:none;max-width:190px}.hs-user-pill[hidden]{display:none!important}.hs-user-pill img{height:27px;width:27px;object-fit:cover;border-radius:50%;background:#17263a}.hs-user-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -245,7 +244,7 @@ footer a:hover{color:var(--text)}
     <div class="mnav" id="mnav"><nav class="links" aria-label="Main">
       <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#partners">Partners</a><a href="#faq">FAQ</a>
     </nav>
-    <div class="nav-cta"><a id="hs-login-link" class="btn btn-g btn-sm" href="/api/auth/login">Login</a><a id="hs-user-link" class="hs-user-pill" href="/dashboard" hidden><img id="hs-user-avatar" alt="" referrerpolicy="no-referrer"><span id="hs-user-name"></span></a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
+    <div class="nav-cta"><a class="btn btn-g btn-sm" href="/api/auth/login">Login</a><a class="btn btn-w btn-sm" href="/dashboard">Dashboard</a></div></div>
     <button class="burger" id="burger" aria-label="Menu">☰</button>
   </div>
 </header>
@@ -551,28 +550,6 @@ footer a:hover{color:var(--text)}
     } catch { box.replaceChildren(el('p', '', 'Partners are not available right now.')); }
   })();
 
-})();
-</script>
-<script>
-// Only show the profile after the server verifies the signed Discord session.
-(async function syncDiscordHeader(){
-  try {
-    const response = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' });
-    if (!response.ok) return;
-    const user = await response.json();
-    if (!user || !user.id) return;
-    const login = document.getElementById('hs-login-link');
-    const profile = document.getElementById('hs-user-link');
-    const avatar = document.getElementById('hs-user-avatar');
-    const name = document.getElementById('hs-user-name');
-    if (login) login.hidden = true;
-    if (name) name.textContent = user.name || 'Discord user';
-    if (avatar) {
-      avatar.src = user.avatar || '/assets/logo.png';
-      avatar.onerror = function(){this.onerror=null;this.src='/assets/logo.png';};
-    }
-    if (profile) profile.hidden = false;
-  } catch (_) { /* Anonymous visitor: keep Login button */ }
 })();
 </script>
 </body>
