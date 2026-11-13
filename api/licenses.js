@@ -31,5 +31,6 @@ export default wrap(async(req,res)=>{
  }else if(action==='remove'){
   await sb(`hs_account_license_members?license_id=eq.${enc(license.id)}&discord_id=eq.${enc(identity)}`,{method:'DELETE'});
  }else throw httpError(400,'Unknown action');
+ clearAccessCache(identity);
  return send(res,200,{ok:true});
 });
