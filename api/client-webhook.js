@@ -1,9 +1,8 @@
 import {wrap,send,requireUser,readBody,httpError,sb,enc,audit} from './_lib.js';
-import {requireLicense} from './_license.js';
 import {encryptUrl,validDiscordUrl} from './_client-webhook.js';
 export default wrap(async(req,res)=>{
- const user=requireUser(req);await requireLicense(user);const owner=String(user.id);
- if(req.method==='GET'){const rows=await sb(`hs_client_webhooks?owner_discord=eq.${enc(owner)}&select=enabled&limit=1`);return send(res,200,{configured:!!rows?.length,enabled:!!rows?.[0]?.enabled});}
+ const user=requireUser(req);const owner=String(user.id);
+ if(req.method==='GET'){const rows=await sb(`hs_client_webhooks?owner_discord=eq.${enc(owner)}&select=enabled,updated_at&limit=1`);return send(res,200,{configured:!!rows?.length,enabled:!!rows?.[0]?.enabled,updatedAt:rows?.[0]?.updated_at||null});}
  if(req.method==='DELETE'){await sb(`hs_client_webhooks?owner_discord=eq.${enc(owner)}`,{method:'DELETE'});await audit(user,'webhook.remove',{target:owner});return send(res,200,{ok:true});}
  if(req.method!=='POST')throw httpError(405,'Method not allowed');
  const {url,enabled}=readBody(req);const old=await sb(`hs_client_webhooks?owner_discord=eq.${enc(owner)}&select=owner_discord&limit=1`);

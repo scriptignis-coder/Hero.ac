@@ -427,9 +427,17 @@
     view.innerHTML=loading();
     try {
       const data=await api('/api/client-webhook');
-      view.innerHTML=`<div class="workspace-hero"><div><h2>Discord Webhooks</h2><p>Send scan summaries to your own Discord channel. Full reports are not transmitted.</p></div></div><div class="workspace-section"><h3>Webhook settings</h3><p class="workspace-note">${data.configured?'Webhook configured (URL hidden)':'No webhook configured'}</p><form id="hs-webhook-form"><input class="input" id="hs-webhook-url" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/..." style="width:100%;max-width:600px"><label style="display:block;margin:15px 0"><input id="hs-webhook-enabled" type="checkbox" ${data.enabled?'checked':''}> Enable notifications</label><button class="btn btn-primary" type="submit">Save webhook</button> <button class="btn btn-ghost" id="hs-webhook-remove" type="button">Remove</button></form><p class="workspace-note">Keep the URL secret. Only scan summaries will be sent after a completed authorized check.</p></div>`;
+      const status = data.configured ? (data.enabled ? 'Enabled' : 'Disabled') : 'Not configured';
+      const updated = data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '—';
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Discord Webhooks</h2><p>Manage your personal Discord scan notifications. Full reports are not transmitted.</p></div></div>
+        <div class="workspace-section"><h3>My saved webhook</h3>${data.configured
+          ? `<div class="workspace-card" style="margin-bottom:18px"><small>Discord webhook · URL hidden for security</small><strong style="font-size:17px">••••••••••••••••••••</strong><p class="workspace-note">Status: <b>${status}</b> · Updated: ${esc(updated)}</p></div>`
+          : '<p class="workspace-note">No webhook saved yet.</p>'}
+        <h3>${data.configured?'Update webhook':'Add webhook'}</h3>
+        <form id="hs-webhook-form"><input class="input" id="hs-webhook-url" type="password" autocomplete="off" placeholder="${data.configured?'Leave empty to keep current webhook':'https://discord.com/api/webhooks/...'}" style="width:100%;max-width:600px"><label style="display:block;margin:15px 0"><input id="hs-webhook-enabled" type="checkbox" ${data.enabled?'checked':''}> Enable notifications</label><button class="btn btn-primary" type="submit">Save webhook</button> ${data.configured?'<button class="btn btn-ghost" id="hs-webhook-remove" type="button">Remove</button>':''}</form>
+        <p class="workspace-note">Only you can manage this webhook. Scan summaries are delivered for completed authorized scans.</p></div>`;
       view.querySelector('#hs-webhook-form').addEventListener('submit',async ev=>{ev.preventDefault();try{await api('/api/client-webhook',{method:'POST',body:{url:view.querySelector('#hs-webhook-url').value.trim(),enabled:view.querySelector('#hs-webhook-enabled').checked}});toast('Webhook saved');renderWebhooks(view);}catch(e){toast(e.message,true);}});
-      view.querySelector('#hs-webhook-remove').addEventListener('click',async()=>{try{await api('/api/client-webhook',{method:'DELETE'});toast('Webhook removed');renderWebhooks(view);}catch(e){toast(e.message,true);}});
+      view.querySelector('#hs-webhook-remove')?.addEventListener('click',async()=>{try{await api('/api/client-webhook',{method:'DELETE'});toast('Webhook removed');renderWebhooks(view);}catch(e){toast(e.message,true);}});
     }catch(e){wsError(view,e);}
   }
   async function renderAnalytics(view) {
