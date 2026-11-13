@@ -6,34 +6,18 @@ import {scannerLicensesFor} from './_scanner-account.js';
 const ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newPin=()=>Array.from({length:8},()=>ALPHA[crypto.randomInt(ALPHA.length)]).join('');
 
-// Clients (everyone who is not Admin) can create PIN_DAILY_LIMIT PINs per calendar day (default 1),
-// counted in PIN_LIMIT_TZ (default Africa/Tunis). Deleting a PIN does not give the PIN back.
-const DAILY = () => Math.max(0, parseInt(process.env.PIN_DAILY_LIMIT || '1', 10) || 0);
-const TZ = () => process.env.PIN_LIMIT_TZ || 'Africa/Tunis';
-export function dayStart(now = new Date(), tz = TZ()) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(now);
-  const g = (t) => +((parts.find((p) => p.type === t) || {}).value || 0);
-  return new Date(now.getTime() - ((g('hour') * 3600 + g('minute') * 60 + g('second')) * 1000 + now.getMilliseconds()));
-}
-
-async function quotaFor(user, access, licenseIds) {
-  if (access.admin) return { unlimited: true };
-  const limit = DAILY();
-  const since = dayStart();
-  const sinceIso = enc(since.toISOString());
-  let byLog = 0, byPins = 0;
-  try { byLog = ((await sb(`audit_logs?actor_discord=eq.${enc(String(user.id))}&action=eq.pin.create&created_at=gte.${sinceIso}&select=id`)) || []).length; } catch { }
-  if (licenseIds.length)
-    byPins = ((await sb(`scan_pins?license_id=in.(${licenseIds.map(enc).join(',')})&created_at=gte.${sinceIso}&select=id`)) || []).length;
-  const used = Math.max(byLog, byPins);
-  return { unlimited: false, limit, used, left: Math.max(0, limit - used), resetAt: new Date(since.getTime() + 86400e3).toISOString() };
-}
+// No daily PIN quota. Authorization is still checked on every request.
+// An active account license is required for non-staff users; expired and
+// revoked licenses cannot generate or retrieve new scan PINs.
+async function quotaFor() { return { unlimited: true }; }
 
 export default wrap(async(req,res)=>{
  const user=await requireAccess(req,'herocheck'); const owner=String(user.id);
  const access=await getAccess(user);
  const {licenses,account}=await scannerLicensesFor(user);
- const owned=new Map((licenses||[]).map(l=>[l.id,l]));
+ const staff=!!(access.admin || access.heroshield);
+ const permitted=(account || staff) ? (licenses||[]).filter(l=>!l.revoked_at) : [];
+ const owned=new Map(permitted.map(l=>[l.id,l]));
  if(req.method==='GET'){
   const ids=[...owned.keys()];
   // one PIN with its full report (opened when staff click View) — the list below never sends reports
@@ -56,16 +40,12 @@ export default wrap(async(req,res)=>{
   const base=`scan_pins?license_id=in.(${ids.map(enc).join(',')})&order=created_at.desc&limit=200&select=`;
   const pins=await sb(base+'id,pin,player,used,result,game,created_at,license_id')
    .catch(()=>sb(base+'id,pin,player,used,result,created_at,license_id'));   // before supabase-v30-games.sql
-  return send(res,200,{pins:(pins||[]).map(p=>({...p,scanner_licenses:{label:owned.get(p.license_id)?.label||'Scanner'}})),licenses:licenses||[],quota});
+  return send(res,200,{pins:(pins||[]).map(p=>({...p,scanner_licenses:{label:owned.get(p.license_id)?.label||'Scanner'}})),licenses:permitted,quota});
  }
  if(req.method==='POST'){
   const b=readBody(req);const license=owned.get(String(b.license_id||''));
   if(!license||license.revoked_at) throw httpError(403,'Active account or scanner license required');
   const quota=await quotaFor(user,access,[...owned.keys()]);
-  if(!quota.unlimited && quota.left<=0){
-   const at=new Date(quota.resetAt).toLocaleTimeString('en-GB',{timeZone:TZ(),hour:'2-digit',minute:'2-digit'});
-   throw httpError(429,`Daily limit reached: ${quota.limit} PIN per day. You can create a new PIN after ${at} (${TZ()} time).`);
-  }
   if(b.game!==undefined && !Object.prototype.hasOwnProperty.call(GAMES,String(b.game).toLowerCase())) throw httpError(400,'Unknown game');
   const game=gameOf(b.game);
   const row={license_id:license.id,pin:newPin(),player:str(b.player,80)||null,game};
@@ -78,7 +58,7 @@ export default wrap(async(req,res)=>{
    delete row.game; created=await sb('scan_pins',{method:'POST',body:row,prefer:'return=representation'});
   }
   await audit(user,'pin.create',{target:owner,targetName:user.name,detail:{pin:created[0]?.pin,player:row.player,license:license.label,game:GAMES[game]}});
-  return send(res,201,{pin:created[0],quota:quota.unlimited?quota:{...quota,used:quota.used+1,left:Math.max(0,quota.left-1)}});
+  return send(res,201,{pin:created[0],quota});
  }
  if(req.method==='DELETE'){
   const id=String(req.query.id||'');
