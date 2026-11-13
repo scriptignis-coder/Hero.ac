@@ -396,7 +396,7 @@
         return;
       }
       const members=data.members||[];
-      view.innerHTML=`<div class="workspace-hero"><div><h2>Enterprise</h2><p>Share licensed dashboard access using Discord IDs. Members do not become Staff or Admin.</p></div></div>
+      view.innerHTML=`<div class="workspace-hero"><div><h2>${esc(lic.enterprise_name||'Enterprise')}</h2><p>Share licensed dashboard access using Discord IDs. Members do not become Staff or Admin.</p></div></div>
         <div class="workspace-grid">${wsStat('Seats',Number(lic.seats)||1)}${wsStat('Used',members.length+1)}${wsStat('Available',Math.max(0,(Number(lic.seats)||1)-members.length-1))}</div>
         <div class="workspace-section"><h3>Add Member</h3><form id="enterprise-add-form" class="workspace-actions"><input id="enterprise-member-id" class="input" inputmode="numeric" maxlength="20" placeholder="Discord User ID" required pattern="[0-9]{17,20}"><button class="btn btn-primary" type="submit">Add Member</button></form></div>
         <div class="workspace-section"><h3>Members</h3>${members.map(m=>`<div class="workspace-card" style="margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><strong>${esc(m.identity)}</strong><p class="workspace-note">Added ${fmtDate(m.created_at)}</p></div><button class="btn btn-ghost btn-sm" data-enterprise-remove="${esc(m.identity)}">Remove</button></div>`).join('')||'<p class="workspace-note">No members yet. Owner occupies one seat.</p>'}</div>`;

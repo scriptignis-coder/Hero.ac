@@ -9,7 +9,7 @@ export default wrap(async(req,res)=>{
   const license=await accountLicense(user);
   if(!license)return send(res,200,{license:null,members:[]});
   const members=license.role==='owner'&&license.enterprise?await sb(`hs_account_license_members?license_id=eq.${enc(license.id)}&select=discord_id,created_at`):[];
-  return send(res,200,{license:{id:license.id,plan:license.plan,seats:license.seats,expires_at:license.expires_at,role:license.role,key_masked:license.role==='owner'?'HS-••••••••••••••••••••••••••••••••':null},members:(members||[]).map(m=>({identity:m.discord_id,created_at:m.created_at}))});
+  return send(res,200,{license:{id:license.id,plan:license.plan,enterprise_name:license.enterprise?license.enterprise_name||null:null,seats:license.seats,expires_at:license.expires_at,role:license.role,key_masked:license.role==='owner'?'HS-••••••••••••••••••••••••••••••••':null},members:(members||[]).map(m=>({identity:m.discord_id,created_at:m.created_at}))});
  }
  if(req.method!=='POST')throw httpError(405,'Method not allowed');
  const {action,identity,code}=readBody(req);
