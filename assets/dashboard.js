@@ -3,7 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
 
-  const state = { user: null, servers: [], server: null, tab: 'pins', q: '', cat: '' };
+  const state = { user: null, servers: [], server: null, tab: 'pins', q: '', cat: '', accountLicense: null };
   try { state.server = localStorage.getItem('hs_server'); } catch {}
 
   const TITLES = {
@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -177,6 +177,16 @@
     }
     // Permission-based tab visibility
     state.access = acc;
+    try {
+      const licenseData = await api('/api/licenses');
+      state.accountLicense = licenseData.license || null;
+    } catch (error) {
+      console.warn('Account license lookup failed:', error.message);
+      state.accountLicense = null;
+    }
+    document.querySelectorAll('[data-enterprise-tab]').forEach(el => {
+      el.hidden = !(state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner');
+    });
     document.querySelectorAll('[data-perm]').forEach(el => {
       const p = el.dataset.perm;
       el.hidden = !acc[p];
@@ -208,6 +218,7 @@
     analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'admin'
   };
   function canAccess(tab) {
+    if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
     if (!TITLES[tab] || tab === 'quicktools' || ['overview','detections','bans','players','logs','stream','settings','servers','analytics'].includes(tab)) return false;
     const p = PERM_MAP[tab];
     if (!p) return true;
@@ -235,6 +246,7 @@
     if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
     if (state.tab === 'profile') return renderProfile(view);
     if (state.tab === 'subscription') return renderSubscription(view);
+    if (state.tab === 'enterprise') return renderEnterprise(view);
     if (state.tab === 'ranking') return renderRanking(view);
     if (state.tab === 'scanactivity') return renderScanActivity(view);
     // Server analytics are intentionally not exposed in scanner-only mode.
@@ -340,7 +352,7 @@
     view.innerHTML=loading();
     try {
       const billing=await api('/api/billing-status');
-      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',billing.staffAccess?'Staff access (no payment)':billing.active?(billing.lifetime?'Lifetime':'Active'):'Inactive')}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
+      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',state.accountLicense?(state.accountLicense.plan==='enterprise'?'Enterprise':'Personal'):(state.access?.admin||state.access?.heroshield?'Staff permission':'Inactive'))}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
       const opt=await api('/api/leaderboard-optin');
       view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
     } catch(e){wsError(view,e);}
@@ -348,11 +360,52 @@
   async function renderSubscription(view) {
     view.innerHTML=loading();
     try {
-      const [b, data] = await Promise.all([api('/api/billing-status'), api('/api/scanner-licenses')]);
-      const licenses=data.licenses||[];
-      view.innerHTML=`<div class="workspace-hero"><div><h2>My Scanner Licenses</h2><p>Manage scanner licenses issued by HeRoShield staff and use them for scan PINs.</p></div></div>
-      <div class="workspace-grid">${wsStat('Access',b.staffAccess?'Staff role':b.active?'Paid plan active':'Inactive')}${wsStat('Licenses',licenses.length)}${wsStat('Scanner access',(state.access?.admin||state.access?.herocheck)?'Granted':'Check your subscription')}</div>
-      <div class="workspace-section"><h3>Your licenses</h3>${licenses.length?licenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${esc(l.license_key)}</code><button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">Use for Scan PINs</button><button class="btn btn-ghost btn-sm" data-revokelicense="${esc(l.id)}">Revoke</button>`:''}</div></div>`).join(''):'<p class="workspace-note">No scanner licenses assigned to this account. Contact HeRoShield staff.</p>'}</div>`;
+      const [data, scanner] = await Promise.all([
+        api('/api/licenses'),
+        api('/api/scanner-licenses').catch(() => ({licenses:[]}))
+      ]);
+      const lic=data.license;
+      state.accountLicense=lic||null;
+      document.querySelectorAll('[data-enterprise-tab]').forEach(el => {
+        el.hidden=!(lic?.plan==='enterprise' && lic?.role==='owner');
+      });
+      const staff=!!(state.access?.admin || state.access?.heroshield);
+      const access=staff ? (state.access?.admin ? 'Admin' : 'Staff') : lic ? 'Licensed user' : 'No active license';
+      const type=lic ? (lic.plan==='enterprise'?'Enterprise':'Personal') : 'None';
+      const scannerLicenses=scanner.licenses||[];
+      view.innerHTML=`<div class="workspace-hero"><div><h2>My License</h2><p>License linked to your Discord account.</p></div></div>
+        <div class="workspace-grid">${wsStat('Access',access)}${wsStat('Account license',type)}${wsStat('Scanner access',state.access?.herocheck?'Granted':'Not granted')}</div>
+        <div class="workspace-section"><h3>My account license</h3>
+          ${lic ? `<div class="workspace-card"><strong>${esc(type)} · ${esc(lic.role==='owner'?'Owner':'Member')}</strong><p class="workspace-note">Active · Expires: ${lic.expires_at?fmtDate(lic.expires_at):'Lifetime'}${lic.plan==='enterprise'?' · Seats: '+Number(lic.seats):''}</p>${lic.plan==='enterprise'&&lic.role==='owner'?'<button class="btn btn-primary" data-go="enterprise">Manage Enterprise</button>':''}</div>` : '<p class="workspace-note">No active account license linked to your Discord account.</p>'}
+        </div><div class="workspace-section"><h3>Scanner PIN licenses</h3><p class="workspace-note">Separate from your account license. ${scannerLicenses.length} PIN license(s).</p>
+        ${scannerLicenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${esc(l.license_key)}</code><button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">Use for Scan PINs</button><button class="btn btn-ghost btn-sm" data-revokelicense="${esc(l.id)}">Revoke</button>`:''}</div></div>`).join('')||'<p class="workspace-note">No separate scanner PIN licenses assigned.</p>'}</div>`;
+    } catch(e){wsError(view,e);}
+  }
+  async function renderEnterprise(view) {
+    view.innerHTML=loading();
+    try {
+      const data=await api('/api/licenses');
+      const lic=data.license;
+      if (!lic || lic.plan!=='enterprise' || lic.role!=='owner') {
+        view.innerHTML='<div class="workspace-section">Enterprise owner access required.</div>';
+        return;
+      }
+      const members=data.members||[];
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Enterprise</h2><p>Share licensed dashboard access using Discord IDs. Members do not become Staff or Admin.</p></div></div>
+        <div class="workspace-grid">${wsStat('Seats',Number(lic.seats)||1)}${wsStat('Used',members.length+1)}${wsStat('Available',Math.max(0,(Number(lic.seats)||1)-members.length-1))}</div>
+        <div class="workspace-section"><h3>Add Member</h3><form id="enterprise-add-form" class="workspace-actions"><input id="enterprise-member-id" class="input" inputmode="numeric" maxlength="20" placeholder="Discord User ID" required pattern="[0-9]{17,20}"><button class="btn btn-primary" type="submit">Add Member</button></form></div>
+        <div class="workspace-section"><h3>Members</h3>${members.map(m=>`<div class="workspace-card" style="margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><strong>${esc(m.identity)}</strong><p class="workspace-note">Added ${fmtDate(m.created_at)}</p></div><button class="btn btn-ghost btn-sm" data-enterprise-remove="${esc(m.identity)}">Remove</button></div>`).join('')||'<p class="workspace-note">No members yet. Owner occupies one seat.</p>'}</div>`;
+      view.querySelector('#enterprise-add-form').addEventListener('submit',async event=>{
+        event.preventDefault();
+        const identity=view.querySelector('#enterprise-member-id').value.trim();
+        if(!/^\d{17,20}$/.test(identity))return toast('Invalid Discord ID',true);
+        try {await api('/api/licenses',{method:'POST',body:{action:'add',identity}});toast('Member added');await renderEnterprise(view);}
+        catch(e){toast(e.message,true);}
+      });
+      view.querySelectorAll('[data-enterprise-remove]').forEach(button=>button.addEventListener('click',async()=>{
+        try {await api('/api/licenses',{method:'POST',body:{action:'remove',identity:button.dataset.enterpriseRemove}});toast('Member removed');await renderEnterprise(view);}
+        catch(e){toast(e.message,true);}
+      }));
     } catch(e){wsError(view,e);}
   }
   async function renderAnalytics(view) {
@@ -594,9 +647,7 @@
     const { pins, licenses, quota } = resp;
     state.pins = pins;
     const q = quota || { unlimited: true };
-    const quotaHtml = q.unlimited ? '' : `<div class="license-box" style="margin-bottom:12px;justify-content:space-between">
-        <span style="font-size:13px">${q.left > 0 ? `<b style="color:var(--green)">${q.left}</b> of ${q.limit} PIN left today` : `<b style="color:var(--red)">Daily limit reached</b> (${q.limit} PIN per day)`}</span>
-        <span style="color:var(--dim);font-size:12px">new PIN ${q.left > 0 ? 'available now' : 'after ' + esc(new Date(q.resetAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }))}</span></div>`;
+    const quotaHtml = ''; // Daily PIN counter intentionally removed from UI; server quotas remain enforced.
     const activeLicenses=(licenses||[]).filter(l=>!l.revoked_at);
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
