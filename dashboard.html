@@ -770,7 +770,20 @@ tr:hover td{background:rgba(255,255,255,.015)}
     </div>
     <p id="login-intro">Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
     <p id="login-error" style="color:var(--red);margin-top:-12px" hidden></p>
-    <div id="hs-activation-slot" hidden></div>
+    <div id="hs-activation-slot" hidden>
+      <section id="hs-license-panel">
+        <form id="hs-license-form" class="hs-lic-panel">
+          <div class="hs-lic-eyebrow">HEROSHIELD / LICENSE ACTIVATION</div>
+          <label class="hs-lic-label" for="hs-code">Put your license key</label>
+          <input id="hs-code" class="hs-lic-input" type="text" autocomplete="off" spellcheck="false"
+            placeholder="HS-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" maxlength="35" required>
+          <button id="hs-claim" class="hs-lic-button" type="submit">Activate License</button>
+          <p id="hs-lic-msg" class="hs-lic-message" role="status"></p>
+          <button type="button" id="hs-retry" class="hs-lic-retry" hidden>Retry connection</button>
+          <p class="hs-lic-note">Your license will be linked to your Discord account.</p>
+        </form>
+      </section>
+    </div>
     <a href="/api/auth/login" id="hs-discord-login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Login with Discord</a>
     <a href="/" class="btn btn-ghost btn-sm" style="margin-top:14px">← Back to website</a>
   </div>
@@ -865,7 +878,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <div id="toast" class="toast"></div>
 
 <script src="/assets/config.js"></script>
-<script src="/assets/dashboard.js"></script>
-<script src="/assets/licenses-ui.js" defer></script>
+<script src="/assets/dashboard.js?v=12"></script>
+<link rel="stylesheet" href="/assets/license-activation-v11.css?v=12">
+<script src="/assets/licenses-ui.js?v=12" defer></script>
 </body>
 </html>

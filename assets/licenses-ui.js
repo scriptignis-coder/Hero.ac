@@ -1,27 +1,70 @@
 (()=>{
- const $=id=>document.getElementById(id);
- async function auth(action){
-   const msg=$('hs-email-message');msg.textContent='Please wait…';
-   try{const r=await fetch('/api/auth/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,email:$('hs-email').value,password:$('hs-password').value})});
-   const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');
-   if(d.confirmation_required){msg.textContent='Check your email to confirm your account, then sign in.';return;}
-   location.href='/dashboard';
-   }catch(e){msg.textContent=e.message;}
- }
- $('hs-email-form')?.addEventListener('submit',e=>{e.preventDefault();auth('login')});
- $('hs-register')?.addEventListener('click',()=>auth('register'));
- window.hsLicensePanel=async function(){
-  const r=await fetch('/api/licenses',{credentials:'same-origin'});if(!r.ok){const slot=$('hs-activation-slot');if(slot)slot.textContent='License service unavailable. Please try again later.';return;}const d=await r.json();
-  let box=$('hs-license-panel');if(!box){box=document.createElement('section');box.id='hs-license-panel';box.style.cssText='margin:12px 0;padding:18px;border:1px solid #26344b;border-radius:12px;background:#0b111b;color:#dbe8fa;text-align:left';(document.getElementById('hs-activation-slot') || document.querySelector('#app'))?.append(box)}
-  if(!d.license){box.innerHTML='<label for="hs-code" style="display:block;margin-bottom:9px;font-weight:600">License Key</label><input id="hs-code" autocomplete="off" placeholder="HS-XXXX-XXXX-XXXX" style="box-sizing:border-box;width:100%;padding:13px;border-radius:9px;border:1px solid #34445d;background:#111b2b;color:white"><button id="hs-claim" class="btn btn-primary" style="width:100%;margin-top:12px">Activate License</button><p id="hs-lic-msg" role="alert" style="color:#ff7184;font-size:13px;margin-top:10px"></p>';
-    $('hs-claim').onclick=async()=>{const r=await fetch('/api/licenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'claim',code:$('hs-code').value.trim()})});const v=await r.json();if(r.ok)location.reload();else $('hs-lic-msg').textContent=v.error||'Could not activate'};
-    return;
+  const el = id => document.getElementById(id);
+  const message = text => { const node=el('hs-lic-msg'); if(node) node.textContent=text; };
+  async function api(method, body) {
+    const response=await fetch('/api/licenses',{
+      method, credentials:'same-origin', cache:'no-store',
+      headers:body?{'Content-Type':'application/json'}:{},
+      body:body?JSON.stringify(body):undefined
+    });
+    const raw=await response.text();
+    let data={};
+    try {data=JSON.parse(raw);}catch{}
+    if(!response.ok) throw new Error(data.error || `License service unavailable (HTTP ${response.status}).`);
+    return data;
   }
-  const l=d.license;box.innerHTML='<h3>Subscription: '+l.plan+'</h3><p>Expires: '+(l.expires_at ? new Date(l.expires_at).toLocaleDateString() : 'Lifetime')+' · '+l.role+'</p>';
-  if(l.role==='owner'&&l.plan==='enterprise'){
-    const p=document.createElement('div');p.innerHTML='<p>Seats: '+(d.members.length+1)+' / '+l.seats+'</p><input id="hs-member-id" placeholder="Discord User ID" style="padding:10px;background:#111b2b;color:white"><button id="hs-add-member">Add member</button><p id="hs-member-message"></p>';
-    box.append(p);$('hs-add-member').onclick=async()=>{const r=await fetch('/api/licenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',identity:$('hs-member-id').value.trim()})});if(r.ok)window.hsLicensePanel();else $('hs-member-message').textContent=(await r.json()).error};
-    for(const m of d.members){const row=document.createElement('p');row.textContent=m.identity+' ';const btn=document.createElement('button');btn.textContent='Remove';btn.onclick=async()=>{await fetch('/api/licenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove',identity:m.identity})});window.hsLicensePanel()};row.append(btn);box.append(row)}
+  let connected=false;
+  function wire() {
+    if(connected || !el('hs-license-form')) return;
+    connected=true;
+    el('hs-license-form').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const code=el('hs-code').value.trim().toUpperCase();
+      if(!/^HS-[A-F0-9]{32}$/.test(code)){
+        message('Invalid license key format. Use HS- followed by 32 hexadecimal characters.');
+        return;
+      }
+      const button=el('hs-claim');
+      button.disabled=true;
+      button.textContent='Activating…';
+      message('');
+      try {
+        await api('POST',{action:'claim',code});
+        message('License activated! Opening dashboard…');
+        location.replace('/dashboard');
+        // Cache-free reload makes the new server-side permissions visible.
+        location.reload();
+      } catch(error) {
+        message(error.message);
+        button.disabled=false;
+        button.textContent='Activate License';
+      }
+    });
+    el('hs-retry').addEventListener('click',()=>window.hsLicensePanel());
   }
- };
+  window.hsLicensePanel=async function() {
+    // Never hide the input/button just because the license API is down.
+    wire();
+    const retry=el('hs-retry');
+    if(retry) retry.hidden=true;
+    message('');
+    try {
+      const data=await api('GET');
+      if(data.license) {
+        message('Active license found. Checking dashboard access…');
+        // /api/me is authoritative; do not grant access in browser.
+        const response=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});
+        if(response.ok) {
+          const me=await response.json();
+          if(me.access?.herocheck || me.access?.admin) location.reload();
+          else message('License found but access has not refreshed. Please retry in a moment.');
+        }
+      }
+    } catch(error) {
+      message('License service unavailable: '+error.message+' You can still enter a key; activation requires the server.');
+      if(retry) retry.hidden=false;
+    }
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
 })();
