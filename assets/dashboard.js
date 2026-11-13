@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -215,7 +215,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'admin'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -247,6 +247,8 @@
     if (state.tab === 'profile') return renderProfile(view);
     if (state.tab === 'subscription') return renderSubscription(view);
     if (state.tab === 'enterprise') return renderEnterprise(view);
+    if (state.tab === 'enterprisemanagement') return renderEnterpriseManagement(view);
+    if (state.tab === 'webhooks') return renderWebhooks(view);
     if (state.tab === 'ranking') return renderRanking(view);
     if (state.tab === 'scanactivity') return renderScanActivity(view);
     // Server analytics are intentionally not exposed in scanner-only mode.
@@ -373,12 +375,15 @@
       const access=staff ? (state.access?.admin ? 'Admin' : 'Staff') : lic ? 'Licensed user' : 'No active license';
       const type=lic ? (lic.plan==='enterprise'?'Enterprise':'Personal') : 'None';
       const scannerLicenses=scanner.licenses||[];
+      const expiry=lic?.expires_at ? Date.parse(lic.expires_at) : null;
       view.innerHTML=`<div class="workspace-hero"><div><h2>My License</h2><p>License linked to your Discord account.</p></div></div>
         <div class="workspace-grid">${wsStat('Access',access)}${wsStat('Account license',type)}${wsStat('Scanner access',state.access?.herocheck?'Granted':'Not granted')}</div>
-        <div class="workspace-section"><h3>My account license</h3>
+        <div class="workspace-section"><h3>License remaining time</h3><div class="workspace-card"><strong id="hs-license-countdown" data-expiry="${expiry||''}">${lic?(expiry?'Calculating…':'Lifetime — Never expires'):'No active license'}</strong></div></div><div class="workspace-section"><h3>My account license</h3>
           ${lic ? `<div class="workspace-card"><strong>${esc(type)} · ${esc(lic.role==='owner'?'Owner':'Member')}</strong><p class="workspace-note">Active · Expires: ${lic.expires_at?fmtDate(lic.expires_at):'Lifetime'}${lic.plan==='enterprise'?' · Seats: '+Number(lic.seats):''}</p>${lic.role==='owner'&&lic.key_masked?`<p class="workspace-note">License key: ${esc(lic.key_masked)} (hidden for security)</p>`:''}${lic.plan==='enterprise'&&lic.role==='owner'?'<button class="btn btn-primary" data-go="enterprise">Manage Enterprise</button>':''}</div>` : '<p class="workspace-note">No active account license linked to your Discord account.</p>'}
         </div><div class="workspace-section"><h3>Scanner PIN licenses</h3><p class="workspace-note">Scan PINs are automatically linked to your active account license. ${scannerLicenses.filter(l=>!l.revoked_at).length} active PIN workspace(s).</p>
         ${scannerLicenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${lic?.role==='owner'?esc(l.license_key):'••••••••'}</code>${lic?.role==='owner'?`<button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>`:''}${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">View Scan PINs</button>`:''}</div></div>`).join('')||'<p class="workspace-note">No separate scanner PIN licenses assigned.</p>'}</div>`;
+      if(window.hsLicenseTimer) clearInterval(window.hsLicenseTimer);
+      const tick=()=>{const el=view.querySelector('#hs-license-countdown');if(!el)return;const t=Number(el.dataset.expiry);if(!t)return;const ms=t-Date.now();if(ms<=0){el.textContent='Expired';return;}const sec=Math.floor(ms/1000);el.textContent=`${Math.floor(sec/86400)}d ${String(Math.floor(sec%86400/3600)).padStart(2,'0')}h ${String(Math.floor(sec%3600/60)).padStart(2,'0')}m ${String(sec%60).padStart(2,'0')}s`;};tick();window.hsLicenseTimer=setInterval(tick,1000);
     } catch(e){wsError(view,e);}
   }
   async function renderEnterprise(view) {
@@ -407,6 +412,25 @@
         catch(e){toast(e.message,true);}
       }));
     } catch(e){wsError(view,e);}
+  }
+  async function renderEnterpriseManagement(view) {
+    view.innerHTML=loading();
+    try {
+      const data=await api('/api/enterprise-management');
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Enterprise Management</h2><p>Owner, seats, duration and status. License keys are never displayed.</p></div></div><div class="workspace-section"><h3>${data.enterprises.length} enterprises</h3>${data.enterprises.map(e=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(e.name||'Unnamed enterprise')}</strong><p class="workspace-note">Owner Discord: ${esc(e.owner||'Unclaimed')} · ${Number(e.seats)} seats · ${e.revoked?'Revoked':e.expires_at&&Date.parse(e.expires_at)<Date.now()?'Expired':'Active'} · ${e.expires_at?fmtDate(e.expires_at):'Lifetime'}</p><div class="workspace-actions"><input class="input" data-rename-input="${esc(e.id)}" maxlength="80" value="${esc(e.name||'')}" placeholder="Enterprise name"><button class="btn btn-primary btn-sm" data-rename-enterprise="${esc(e.id)}">Rename</button></div></div>`).join('')||'<p>No enterprise licenses found.</p>'}</div>`;
+      view.querySelectorAll('[data-rename-enterprise]').forEach(btn=>btn.addEventListener('click',async()=>{
+        try{const id=btn.dataset.renameEnterprise;const name=view.querySelector('[data-rename-input="'+id+'"]').value.trim();await api('/api/enterprise-management',{method:'POST',body:{id,name}});toast('Enterprise renamed');await renderEnterpriseManagement(view);}catch(e){toast(e.message,true);}
+      }));
+    }catch(e){wsError(view,e);}
+  }
+  async function renderWebhooks(view) {
+    view.innerHTML=loading();
+    try {
+      const data=await api('/api/client-webhook');
+      view.innerHTML=`<div class="workspace-hero"><div><h2>Discord Webhooks</h2><p>Send scan summaries to your own Discord channel. Full reports are not transmitted.</p></div></div><div class="workspace-section"><h3>Webhook settings</h3><p class="workspace-note">${data.configured?'Webhook configured (URL hidden)':'No webhook configured'}</p><form id="hs-webhook-form"><input class="input" id="hs-webhook-url" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/..." style="width:100%;max-width:600px"><label style="display:block;margin:15px 0"><input id="hs-webhook-enabled" type="checkbox" ${data.enabled?'checked':''}> Enable notifications</label><button class="btn btn-primary" type="submit">Save webhook</button> <button class="btn btn-ghost" id="hs-webhook-remove" type="button">Remove</button></form><p class="workspace-note">Keep the URL secret. Only scan summaries will be sent after a completed authorized check.</p></div>`;
+      view.querySelector('#hs-webhook-form').addEventListener('submit',async ev=>{ev.preventDefault();try{await api('/api/client-webhook',{method:'POST',body:{url:view.querySelector('#hs-webhook-url').value.trim(),enabled:view.querySelector('#hs-webhook-enabled').checked}});toast('Webhook saved');renderWebhooks(view);}catch(e){toast(e.message,true);}});
+      view.querySelector('#hs-webhook-remove').addEventListener('click',async()=>{try{await api('/api/client-webhook',{method:'DELETE'});toast('Webhook removed');renderWebhooks(view);}catch(e){toast(e.message,true);}});
+    }catch(e){wsError(view,e);}
   }
   async function renderAnalytics(view) {
     view.innerHTML=loading();
@@ -634,6 +658,10 @@
     return `<span class="gm-ic" data-g="${g.k}" style="--gc:${g.c};width:${size + 12}px;height:${size + 12}px">${LOGO_OK[g.k] ? logoImg(g.k, size + 12) : ''}${svg}</span>`;
   };
 
+  function pinSound(){
+    if(localStorage.getItem('hs_pin_sfx')==='off')return;
+    try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ctx=new C();const now=ctx.currentTime;for(const [i,freq] of [660,880].entries()){const o=ctx.createOscillator(),g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0,now+i*.09);g.gain.linearRampToValueAtTime(.045,now+i*.09+.012);g.gain.exponentialRampToValueAtTime(.001,now+i*.09+.15);o.connect(g);g.connect(ctx.destination);o.start(now+i*.09);o.stop(now+i*.09+.16);}setTimeout(()=>ctx.close().catch(()=>{}),500);}catch{}
+  }
   async function renderPins(view, cached) {
     const resp = cached || await api('/api/pins');
     if (!cached) {
@@ -663,6 +691,7 @@
           <input id="pin-player" class="input" style="flex:1;min-width:180px" placeholder="Player name (optional)">
           <button class="btn btn-primary" data-newpin ${activeLicenses.length && (q.unlimited || q.left > 0)?'':'disabled'}>Generate ${esc(gameOf(state.pinGame).name)} PIN</button>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--muted);font-size:12px"><input type="checkbox" id="hs-pin-sfx" ${localStorage.getItem('hs_pin_sfx')==='off'?'':'checked'}> PIN sound FX</label>
         <div id="pin-out" hidden style="margin-top:14px"></div>
       </div>
       <div class="card panel" style="margin-bottom:18px">
@@ -690,6 +719,7 @@
               ${!p.used ? `<button class="btn btn-danger btn-sm" data-delpin="${esc(p.id)}" data-delpin-code="${esc(p.pin)}" title="Delete this pending PIN">Delete</button>` : ''}</div></td>
           </tr>`).join('')}</tbody></table></div>` : '<div class="empty">No PINs yet.</div>'}
       </div>`;
+    view.querySelector('#hs-pin-sfx')?.addEventListener('change',e=>localStorage.setItem('hs_pin_sfx',e.target.checked?'on':'off'));
     const pp = view.querySelector('#pin-player'); if (pp && keepPlayer) pp.value = keepPlayer;
     const pl = view.querySelector('#pin-license'); if (pl && keepLicense && [...pl.options].some((o) => o.value === keepLicense)) pl.value = keepLicense;
   }
@@ -2307,7 +2337,7 @@
         let pin;
         try { ({ pin } = await api('/api/pins', { method: 'POST', body: { license_id: $('#pin-license')?.value, player, game: state.pinGame || 'fivem' } })); }
         catch (err) { t.disabled = false; throw err; }
-        t.disabled = false;
+        t.disabled = false;pinSound();
         if ($('#pin-player')) $('#pin-player').value = '';
         await renderPins($('#view'));   // the new PIN appears in "Recent PINs" right away
         const out = $('#pin-out');

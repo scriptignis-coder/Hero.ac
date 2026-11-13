@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {wrap,send,requireUser,readBody,httpError,sb,enc,clearAccessCache} from './_lib.js';
+import {wrap,send,requireUser,readBody,httpError,sb,enc,clearAccessCache,audit} from './_lib.js';
 import {accountLicense,requireLicense} from './_license.js';
 export default wrap(async(req,res)=>{
  const user=requireUser(req);
@@ -19,6 +19,7 @@ export default wrap(async(req,res)=>{
   try {await sb('rpc/hs_claim_account_license',{method:'POST',body:{p_hash:hash,p_discord:discord}});}
   catch(e){if(/unavailable|claimed|recipient|licensed/i.test(e.message))throw httpError(409,'License already redeemed, unavailable or not issued to this Discord account');throw e;}
   clearAccessCache(discord);
+  await audit(user,'license.claim',{target:discord,detail:{type:'account'}});
   return send(res,200,{ok:true});
  }
  const license=await requireLicense(user);
@@ -32,5 +33,6 @@ export default wrap(async(req,res)=>{
   await sb(`hs_account_license_members?license_id=eq.${enc(license.id)}&discord_id=eq.${enc(identity)}`,{method:'DELETE'});
  }else throw httpError(400,'Unknown action');
  clearAccessCache(identity);
+ await audit(user,action==='add'?'enterprise.member_add':'enterprise.member_remove',{target:identity,detail:{license_id:license.id,owner:discord}});
  return send(res,200,{ok:true});
 });

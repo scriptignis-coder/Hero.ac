@@ -1,9 +1,9 @@
-import { wrap, send, sb, enc, httpError, requireAccess } from './_lib.js';
+import { wrap, send, sb, enc, httpError, requireUser, getAccess } from './_lib.js';
 
 // Admin only: the activity log (permissions given / removed, licenses, PINs, purchases).
 // GET /api/audit-logs?action=permission&q=1234&limit=300
 export default wrap(async (req, res) => {
-  await requireAccess(req, 'admin');
+  await requireUser, getAccess(req, 'admin');
   if (req.method !== 'GET') throw httpError(405, 'Method not allowed');
   const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit || '300', 10) || 300));
   const parts = [`select=*`, `order=created_at.desc`, `limit=${limit}`];

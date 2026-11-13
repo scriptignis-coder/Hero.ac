@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {wrap,send,readBody,httpError,sb} from './_lib.js';
+import {wrap,send,readBody,httpError,sb,audit} from './_lib.js';
 export default wrap(async(req,res)=>{
  if(req.method!=='POST')throw httpError(405,'Method not allowed');
  const provided=String(req.headers.authorization||'');
@@ -23,5 +23,6 @@ export default wrap(async(req,res)=>{
  const code=`HS-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
  const hash=crypto.createHash('sha256').update(code).digest('hex');
  await sb('hs_account_licenses',{method:'POST',body:{license_key:hash,discord_user_id:String(discord_id),duration_unit:unit,duration_value:unit==='lifetime'?null:duration,expires_at,enterprise,seats:enterprise?10:1,revoked:false},prefer:'return=minimal'});
+ await audit(null,'license.create',{target:String(discord_id),detail:{created_by:'HeRoShield Bot',assigned_to:String(discord_id),license_type:enterprise?'Enterprise':'Personal',duration:unit==='lifetime'?'Lifetime':`${duration} ${unit}`,expires_at}});
  return send(res,200,{code,expires_at,seats:enterprise?10:1,enterprise});
 });

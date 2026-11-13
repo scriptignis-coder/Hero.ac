@@ -1,3 +1,4 @@
+import {sendScanWebhook} from './_client-webhook.js';
 import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
 import { pcHistory, lookupBans } from './_pchistory.js';
 import { gameOf } from './_games.js';
@@ -76,5 +77,11 @@ export default wrap(async (req, res) => {
     body: { used: true, result: verdict, report },
   });
 
+  // Best-effort notification only; never block or invalidate the scanner report.
+  if(rows[0].license_id){
+    try {const owners=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&select=owner_discord&limit=1`);
+      if(owners?.[0]?.owner_discord)await sendScanWebhook(owners[0].owner_discord,{game:report.Game,verdict,count:dets.length});
+    }catch(e){console.error('Scan notification failed:',e.message);}
+  }
   return send(res, 200, { ok: true });
 });
