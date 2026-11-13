@@ -2,6 +2,7 @@ import { lookupScans, lookupBans } from './_pchistory.js';
 import crypto from 'node:crypto';
 import { wrap, send, requireAccess, getAccess, readBody, sb, enc, str, httpError, audit } from './_lib.js';
 import { GAMES, gameOf } from './_games.js';
+import {scannerLicensesFor} from './_scanner-account.js';
 const ALPHA='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const newPin=()=>Array.from({length:8},()=>ALPHA[crypto.randomInt(ALPHA.length)]).join('');
 
@@ -31,7 +32,7 @@ async function quotaFor(user, access, licenseIds) {
 export default wrap(async(req,res)=>{
  const user=await requireAccess(req,'herocheck'); const owner=String(user.id);
  const access=await getAccess(user);
- const licenses=await sb(`scanner_licenses?owner_discord=eq.${enc(owner)}&select=id,label,license_key,revoked_at,created_at`);
+ const {licenses,account}=await scannerLicensesFor(user);
  const owned=new Map((licenses||[]).map(l=>[l.id,l]));
  if(req.method==='GET'){
   const ids=[...owned.keys()];
@@ -59,7 +60,7 @@ export default wrap(async(req,res)=>{
  }
  if(req.method==='POST'){
   const b=readBody(req);const license=owned.get(String(b.license_id||''));
-  if(!license||license.revoked_at) throw httpError(403,'Active scanner license required');
+  if(!license||license.revoked_at) throw httpError(403,'Active account or scanner license required');
   const quota=await quotaFor(user,access,[...owned.keys()]);
   if(!quota.unlimited && quota.left<=0){
    const at=new Date(quota.resetAt).toLocaleTimeString('en-GB',{timeZone:TZ(),hour:'2-digit',minute:'2-digit'});
