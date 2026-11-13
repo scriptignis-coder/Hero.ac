@@ -764,10 +764,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <div id="login" class="login-screen" hidden>
   <div class="card login-card">
     <a href="/" class="brand"><img src="/assets/logo.png" alt="HeRoShield magnifying glass logo" class="brand-mark"><span>HeRo <b>Shield</b></span></a>
-    <p>Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
+    <div id="hs-activation-heading" hidden>
+      <h2 style="margin:18px 0 8px;text-align:center;color:#e9f2ff">Activate Your License</h2>
+      <p style="color:#9caec5;text-align:center">Put your license key to unlock your HeRoShield dashboard.</p>
+    </div>
+    <p id="login-intro">Log in with Discord to manage scanner PINs, reports and forensic reviews.</p>
     <p id="login-error" style="color:var(--red);margin-top:-12px" hidden></p>
-    <button type="button" id="retry-access" class="btn btn-ghost" hidden style="margin-bottom:12px;width:100%">Check access again</button>
-    <a href="/api/auth/login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Login</a>
+    <div id="hs-activation-slot" hidden></div>
+    <a href="/api/auth/login" id="hs-discord-login" class="btn btn-discord"><svg><use href="#i-discord"/></svg>Login with Discord</a>
     <a href="/" class="btn btn-ghost btn-sm" style="margin-top:14px">← Back to website</a>
   </div>
 </div>

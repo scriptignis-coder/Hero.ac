@@ -11,9 +11,9 @@
  $('hs-email-form')?.addEventListener('submit',e=>{e.preventDefault();auth('login')});
  $('hs-register')?.addEventListener('click',()=>auth('register'));
  window.hsLicensePanel=async function(){
-  const r=await fetch('/api/licenses');if(!r.ok)return;const d=await r.json();
-  let box=$('hs-license-panel');if(!box){box=document.createElement('section');box.id='hs-license-panel';box.style.cssText='margin:16px;padding:18px;border:1px solid #29354b;border-radius:12px;background:#090e17;color:#dbe8fa';(document.querySelector('#login:not([hidden])')||document.querySelector('#app'))?.prepend(box)}
-  if(!d.license){box.innerHTML='<h3>Activate your HeRoShield license</h3><p>Enter the license code supplied after purchase.</p><input id="hs-code" placeholder="HS-..." style="padding:10px;background:#111b2b;color:white"><button id="hs-claim" style="padding:10px">Activate</button><p id="hs-lic-msg"></p>';
+  const r=await fetch('/api/licenses',{credentials:'same-origin'});if(!r.ok){const slot=$('hs-activation-slot');if(slot)slot.textContent='License service unavailable. Please try again later.';return;}const d=await r.json();
+  let box=$('hs-license-panel');if(!box){box=document.createElement('section');box.id='hs-license-panel';box.style.cssText='margin:12px 0;padding:18px;border:1px solid #26344b;border-radius:12px;background:#0b111b;color:#dbe8fa;text-align:left';(document.getElementById('hs-activation-slot') || document.querySelector('#app'))?.append(box)}
+  if(!d.license){box.innerHTML='<label for="hs-code" style="display:block;margin-bottom:9px;font-weight:600">License Key</label><input id="hs-code" autocomplete="off" placeholder="HS-XXXX-XXXX-XXXX" style="box-sizing:border-box;width:100%;padding:13px;border-radius:9px;border:1px solid #34445d;background:#111b2b;color:white"><button id="hs-claim" class="btn btn-primary" style="width:100%;margin-top:12px">Activate License</button><p id="hs-lic-msg" role="alert" style="color:#ff7184;font-size:13px;margin-top:10px"></p>';
     $('hs-claim').onclick=async()=>{const r=await fetch('/api/licenses',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'claim',code:$('hs-code').value.trim()})});const v=await r.json();if(r.ok)location.reload();else $('hs-lic-msg').textContent=v.error||'Could not activate'};
     return;
   }

@@ -143,18 +143,17 @@
     } catch {
       return showLogin();
     }
-    window.hsLicensePanel?.();
     const acc = state.user.access || { heroshield: false, herocheck: false, admin: false };
     if (!acc.herocheck && !acc.admin) {
       $('#login').hidden = false; $('#app').hidden = true;
-      $('#login-error').textContent = `No active scanner license or staff permission for account ${state.user.id}. Activate your license below or contact support.`;
-      $('#login-error').hidden = false;
-      const retry = document.getElementById('retry-access');
-      if (retry) retry.hidden = false;
+      $('#login-error').hidden = true;
+      document.getElementById('login-intro').hidden = true;
+      document.getElementById('hs-discord-login').hidden = true;
+      document.getElementById('hs-activation-heading').hidden = false;
+      document.getElementById('hs-activation-slot').hidden = false;
+      await window.hsLicensePanel?.();
       return;
     }
-    const retry = document.getElementById('retry-access');
-    if (retry) retry.hidden = true;
     if (location.search) history.replaceState(null, '', '/dashboard');
     $('#login').hidden = true;
     $('#app').hidden = false;

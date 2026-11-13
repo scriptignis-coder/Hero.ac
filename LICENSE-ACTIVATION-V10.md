@@ -1,0 +1,1 @@
+HeRoShield V10: dashboard access screen replaced by inline license activation after Discord login. Original dashboard tabs and API preserved. Deploy website folder. Run MIGRATION-ACCOUNT-LICENSES-V7.sql in Supabase SQL Editor if not applied. No real Supabase/Discord tests performed. Verify /api/me and /api/licenses on deployment. Do not upload .env files.
