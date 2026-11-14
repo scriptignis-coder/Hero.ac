@@ -28,7 +28,12 @@ export default wrap(async(req,res)=>{
  if(identity===discord)throw httpError(400,'Owner is already included');
  if(action==='add'){
   try{await sb('rpc/hs_add_account_member',{method:'POST',body:{p_license:license.id,p_owner:discord,p_member:identity}});}
-  catch(e){if(/seat|assigned|member|licensed|already/i.test(e.message))throw httpError(409,'No free seats or member already assigned');throw e;}
+  catch(e){
+   if(/seats exhausted|seat/i.test(e.message))throw httpError(409,`All seats are used: this license has ${license.seats} seat(s) and one is yours. Remove a member or get more seats.`);
+   if(/already licensed|already|assigned|licensed/i.test(e.message))throw httpError(409,'This Discord account already has its own license or is already in a team. It must be removed from that license first.');
+   if(/invalid discord/i.test(e.message))throw httpError(400,'Enter a valid Discord User ID (17–20 digits).');
+   if(/not authorized/i.test(e.message))throw httpError(403,'Your license is expired, revoked or not an Enterprise license.');
+   throw e;}
  }else if(action==='remove'){
   await sb(`hs_account_license_members?license_id=eq.${enc(license.id)}&discord_id=eq.${enc(identity)}`,{method:'DELETE'});
  }else throw httpError(400,'Unknown action');
