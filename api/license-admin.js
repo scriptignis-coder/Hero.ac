@@ -2,8 +2,8 @@ import crypto from 'node:crypto';
 import {wrap,send,readBody,httpError,sb,audit} from './_lib.js';
 export default wrap(async(req,res)=>{
  if(req.method!=='POST')throw httpError(405,'Method not allowed');
- const provided=String(req.headers.authorization||'');
- const secret=process.env.HS_BOT_LICENSE_SECRET;
+ const provided=String(req.headers.authorization||'').trim();
+ const secret=String(process.env.HS_BOT_LICENSE_SECRET||'').trim().replace(/^["']|["']$/g,'');
  if(!secret)throw httpError(503,'HS_BOT_LICENSE_SECRET is not configured');
  const expected=`Bearer ${secret}`;
  if(provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))throw httpError(401,'Unauthorized');
