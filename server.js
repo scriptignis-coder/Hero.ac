@@ -2,6 +2,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -57,16 +58,46 @@ function wrapRes(res) {
   return res;
 }
 
-function serveFile(res, file) {
+// v36: fast static files — compressed once (brotli / gzip) and kept in memory, ETag + browser cache.
+// HTML is revalidated every time (304 when unchanged), /assets are cached by the browser for a day.
+const COMPRESS = /\.(html|js|css|json|svg|txt|xml|map)$/i;
+const fileCache = new Map();   // file -> { mtime, etag, raw, br, gz }
+function cached(file, st) {
+  let c = fileCache.get(file);
+  if (c && c.mtime === st.mtimeMs && c.size === st.size) return c;
+  const raw = fs.readFileSync(file);
+  c = { mtime: st.mtimeMs, size: st.size, etag: `W/"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, raw };
+  if (COMPRESS.test(file) && raw.length > 1024) {
+    c.br = zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } });
+    c.gz = zlib.gzipSync(raw, { level: 8 });
+  }
+  if (raw.length < 8 * 1024 * 1024) fileCache.set(file, c);
+  return c;
+}
+function serveFile(res, file, req) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) {
       res.statusCode = 404;
       res.setHeader('Content-Type', 'text/plain');
       return res.end('Not found');
     }
-    res.setHeader('Content-Type', TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream');
-    res.setHeader('Content-Length', st.size);
-    fs.createReadStream(file).pipe(res);
+    const ext = path.extname(file).toLowerCase();
+    res.setHeader('Content-Type', TYPES[ext] || 'application/octet-stream');
+    if (st.size > 16 * 1024 * 1024) { res.setHeader('Content-Length', st.size); return fs.createReadStream(file).pipe(res); }
+    let c;
+    try { c = cached(file, st); } catch { res.statusCode = 500; return res.end(); }
+    res.setHeader('ETag', c.etag);
+    res.setHeader('Vary', 'Accept-Encoding');
+    // pictures / fonts: cached a day · html / js / css: re-checked each visit (a cheap 304) so a new deploy shows at once
+    res.setHeader('Cache-Control', /\.(png|jpe?g|webp|gif|svg|ico|woff2?|ttf|mp4|webm)$/.test(ext) ? 'public, max-age=86400, stale-while-revalidate=604800' : 'no-cache');
+    if (req && req.headers['if-none-match'] === c.etag) { res.statusCode = 304; return res.end(); }
+    const ae = String((req && req.headers['accept-encoding']) || '');
+    let body = c.raw;
+    if (c.br && /\bbr\b/.test(ae)) { body = c.br; res.setHeader('Content-Encoding', 'br'); }
+    else if (c.gz && /\bgzip\b/.test(ae)) { body = c.gz; res.setHeader('Content-Encoding', 'gzip'); }
+    res.setHeader('Content-Length', body.length);
+    if (req && req.method === 'HEAD') return res.end();
+    res.end(body);
   });
 }
 
@@ -148,7 +179,7 @@ const server = http.createServer(async (req, res) => {
     let file = path.join(ROOT, pathname);
     if (!file.startsWith(ROOT)) { res.statusCode = 403; return res.end(); }
     if (!path.extname(file)) file += '.html'; // /dashboard -> dashboard.html
-    serveFile(res, file);
+    serveFile(res, file, req);
   } catch (e) {
     console.error(e);
     if (!res.headersSent) { res.statusCode = 500; res.end('Server error'); }

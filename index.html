@@ -259,6 +259,20 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 </style>
+
+<style id="perf-v36">
+/* v36 smooth: blur behind fixed bars is repainted on every scroll frame (very heavy on normal PCs / laptops) →
+   solid glass colour instead; endless background animations stop; less motion when Windows asks for it */
+*,*::before,*::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.nav.solid,header,.topbar{background:rgba(5,8,16,.94)!important}
+.modal,.modal-bg{background:rgba(0,0,0,.78)!important}
+.waves .w1,.waves .w2,.waves .w3{animation:none!important}
+.eyebig{animation:none!important}
+.rv{transition-duration:.45s!important;transition-delay:calc(var(--d,0s) * .5)!important;transform:translateY(12px)}
+.rv.in{transform:none}
+html{scroll-behavior:auto}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
 </head>
 <body>
 <div class="bg" aria-hidden="true"></div>

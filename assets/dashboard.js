@@ -1046,7 +1046,8 @@
           `<div class="rp-meta"><span class="rp-chip">${SEV[F(d, 'Severity')] || ''}</span><span class="rp-chip">${esc(METHODS[F(d, 'Method')] || '')}</span>
             ${(F(d, 'Features') || []).slice(0, 5).map((f) => `<span class="rp-chip">${esc(f)}</span>`).join('')}<span class="rp-chip">${esc(F(d, 'When'))}</span></div>
            <div class="rp-txt">${esc(F(d, 'Explain'))}</div>
-           <div class="rp-code">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? '<br>SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>`)), 'No cheat found.'),
+           <div class="rp-code">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? '<br>SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>
+           ${/^[0-9a-f]{64}$/i.test(F(d, 'Sha256') || '') ? `<button class="btn btn-sm" style="margin-top:10px" data-addsig="${esc(F(d, 'Sha256'))}" data-addsig-name="${esc(String(F(d, 'Signature') || '').replace(/\s*\((hash|domain|inside \.zip|multi-string indicators)\)$/i, '').slice(0, 70))}" data-addsig-file="${esc(F(d, 'File') || '')}" data-addsig-sev="${F(d, 'Severity') === 2 ? 'high' : 'medium'}" data-addsig-game="${esc(rGame)}" title="Every next scan finds this exact file, even renamed">+ Add to my signatures</button>` : ''}`)), 'No cheat found.'),
 
       integrity: () => head('Integrity checks', `${passed}/${integrity.length} passed`, 'Green = normal. Red = something was changed, disabled or cleaned before the check.')
         + grid(integrity.map(([t, ok]) => card(ok ? 'green' : 'red', ok ? IC.check : IC.x, t, ok ? 'Passed' : 'Failed')), ''),
@@ -1342,6 +1343,16 @@
       </div>`;
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
+    // v36: a confirmed cheat file → a hash signature (the next scans find the same file even when it is renamed)
+    view.querySelectorAll('[data-addsig]').forEach((b) => b.addEventListener('click', async () => {
+      const name = await modal({ title: 'Add to my signatures', text: 'Only add a file you checked yourself: every next scan on your servers will flag this exact file (SHA-256), even if it is renamed. Name of the cheat:', input: true, value: b.dataset.addsigName || 'Cheat file', ok: 'Add' });
+      if (!name) return;
+      b.disabled = true;
+      try {
+        await api('/api/signatures', { method: 'POST', body: { name: String(name).slice(0, 80), hashes: [b.dataset.addsig], fileNames: b.dataset.addsigFile ? [b.dataset.addsigFile.toLowerCase()] : [], severity: b.dataset.addsigSev, games: [b.dataset.addsigGame], features: ['Confirmed by staff'] } });
+        b.textContent = '✓ Added to your signatures'; toast('Signature added — the next scans will find this file.');
+      } catch (e) { b.disabled = false; toast(e.message, true); }
+    }));
     view.querySelectorAll('[data-goto-tab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.gotoTab)));
     view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
       const id = (view.querySelector('#disc-id').value || '').replace(/\D/g, '');
