@@ -2019,7 +2019,7 @@
   async function renderLicensesList(view) {
     const rows = await api('/api/admin-licenses');
     const search = (state.licQ || '').toLowerCase();
-    const filtered = search ? rows.filter(r => String(r.discord_user_id || '').includes(search) || (r.members || []).some(m => String(m.discord_user_id || '').includes(search) || String(m.claimed_discord || '').toLowerCase().includes(search))) : rows;
+    const filtered = search ? rows.filter(r => String(r.discord_user_id || '').includes(search) || String(r.claimed_discord || '').toLowerCase().includes(search) || (r.members || []).some(m => String(m.discord_id || '').includes(search))) : rows;
     view.innerHTML = `<div class="workspace-hero"><div><h2>Licenses list</h2><p>All licenses and their members. Revoke a license or remove a member.</p></div></div>
       <div class="card panel" style="margin-bottom:18px"><div style="display:flex;gap:10px;align-items:center">
         <input class="input" id="lic-q" placeholder="Search by Discord ID or name" value="${esc(state.licQ || '')}" style="flex:1;min-width:200px">
@@ -2032,8 +2032,9 @@
           const exp = r.expires_at ? fmtDate(r.expires_at) : 'Never';
           const expired = r.expires_at && new Date(r.expires_at) < new Date();
           const st = r.revoked ? '<span class="badge off">Revoked</span>' : expired ? '<span class="badge off">Expired</span>' : '<span class="badge on">Active</span>';
-          const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.claimed_discord || m.discord_user_id)}</span><span class="badge" style="font-size:11px">${esc(m.role || 'member')}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmmember="${m.id}" data-rmname="${esc(m.claimed_discord || m.discord_user_id)}">Remove</button></div>`).join('');
-          return `<tr><td class="mono">${esc(String(r.discord_user_id))}</td><td>${esc(r.enterprise ? 'Enterprise' : (r.plan || 'Personal'))}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button></td></tr>`;
+          const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.discord_id)}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmlic="${r.id}" data-rmmember="${esc(m.discord_id)}">Remove</button></div>`).join('');
+          const owner = r.claimed_discord || r.discord_user_id || '—';
+          return `<tr><td class="mono">${esc(String(owner))}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button></td></tr>`;
         }).join('')}
       </tbody></table></div>` : '<div class="empty">No licenses found.</div>'}</div>`;
     const reload = () => renderLicensesList(view).catch(e => toast(e.message, true));
@@ -2046,8 +2047,8 @@
       try { await api('/api/admin-licenses', { method: 'POST', body: { action, license_id: b.dataset.licrevoke } }); toast(`License ${action}d`); reload(); } catch (e) { toast(e.message, true); }
     }));
     view.querySelectorAll('[data-rmmember]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`Remove member ${b.dataset.rmname}?`)) return;
-      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'remove_member', member_id: b.dataset.rmmember } }); toast('Member removed'); reload(); } catch (e) { toast(e.message, true); }
+      if (!confirm(`Remove member ${b.dataset.rmmember}?`)) return;
+      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'remove_member', license_id: b.dataset.rmlic, discord_id: b.dataset.rmmember } }); toast('Member removed'); reload(); } catch (e) { toast(e.message, true); }
     }));
   }
 
