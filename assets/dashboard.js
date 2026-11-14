@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory', licenseslist: 'Licenses list',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -215,7 +215,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenseslist:'admin'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -243,6 +243,7 @@
   async function render() {
     const view = $('#view');
     
+    if (state.tab === 'licenseslist') { view.innerHTML = loading(); try { await renderLicensesList(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
     if (state.tab === 'profile') return renderProfile(view);
     if (state.tab === 'subscription') return renderSubscription(view);
@@ -2013,6 +2014,41 @@
     const search = () => { state.auditQ = view.querySelector('#audit-q').value.trim(); renderAuditLogs(view).catch((e) => toast(e.message, true)); };
     view.querySelector('[data-auditsearch]').addEventListener('click', search);
     view.querySelector('#audit-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
+  }
+
+  async function renderLicensesList(view) {
+    const rows = await api('/api/admin-licenses');
+    const search = (state.licQ || '').toLowerCase();
+    const filtered = search ? rows.filter(r => String(r.discord_user_id || '').includes(search) || (r.members || []).some(m => String(m.discord_user_id || '').includes(search) || String(m.claimed_discord || '').toLowerCase().includes(search))) : rows;
+    view.innerHTML = `<div class="workspace-hero"><div><h2>Licenses list</h2><p>All licenses and their members. Revoke a license or remove a member.</p></div></div>
+      <div class="card panel" style="margin-bottom:18px"><div style="display:flex;gap:10px;align-items:center">
+        <input class="input" id="lic-q" placeholder="Search by Discord ID or name" value="${esc(state.licQ || '')}" style="flex:1;min-width:200px">
+        <button class="btn btn-ghost btn-sm" data-licsearch>Search</button>
+      </div></div>
+      <div class="card panel"><h3>${filtered.length} license${filtered.length !== 1 ? 's' : ''}</h3>
+      ${filtered.length ? `<div class="table-wrap"><table><thead><tr><th>Owner</th><th>Plan</th><th>Duration</th><th>Expires</th><th>Seats</th><th>Status</th><th>Members</th><th></th></tr></thead><tbody>
+        ${filtered.map(r => {
+          const dur = r.duration_unit === 'lifetime' ? 'Lifetime' : `${r.duration_value} ${r.duration_unit}`;
+          const exp = r.expires_at ? fmtDate(r.expires_at) : 'Never';
+          const expired = r.expires_at && new Date(r.expires_at) < new Date();
+          const st = r.revoked ? '<span class="badge off">Revoked</span>' : expired ? '<span class="badge off">Expired</span>' : '<span class="badge on">Active</span>';
+          const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.claimed_discord || m.discord_user_id)}</span><span class="badge" style="font-size:11px">${esc(m.role || 'member')}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmmember="${m.id}" data-rmname="${esc(m.claimed_discord || m.discord_user_id)}">Remove</button></div>`).join('');
+          return `<tr><td class="mono">${esc(String(r.discord_user_id))}</td><td>${esc(r.enterprise ? 'Enterprise' : (r.plan || 'Personal'))}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button></td></tr>`;
+        }).join('')}
+      </tbody></table></div>` : '<div class="empty">No licenses found.</div>'}</div>`;
+    const reload = () => renderLicensesList(view).catch(e => toast(e.message, true));
+    const searchFn = () => { state.licQ = view.querySelector('#lic-q').value.trim(); reload(); };
+    view.querySelector('[data-licsearch]').addEventListener('click', searchFn);
+    view.querySelector('#lic-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchFn(); });
+    view.querySelectorAll('[data-licrevoke]').forEach(b => b.addEventListener('click', async () => {
+      const action = b.dataset.licstatus === 'revoked' ? 'unrevoke' : 'revoke';
+      if (!confirm(`${action === 'revoke' ? 'Revoke' : 'Unrevoke'} this license?`)) return;
+      try { await api('/api/admin-licenses', { method: 'POST', body: { action, license_id: b.dataset.licrevoke } }); toast(`License ${action}d`); reload(); } catch (e) { toast(e.message, true); }
+    }));
+    view.querySelectorAll('[data-rmmember]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(`Remove member ${b.dataset.rmname}?`)) return;
+      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'remove_member', member_id: b.dataset.rmmember } }); toast('Member removed'); reload(); } catch (e) { toast(e.message, true); }
+    }));
   }
 
   function renderServers(view) {
