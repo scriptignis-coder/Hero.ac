@@ -17,7 +17,29 @@ export default wrap(async(req,res)=>{
   if(typeof code!=='string'||!/^HS-[A-F0-9]{32}$/.test(code))throw httpError(400,'Invalid activation code');
   const hash=crypto.createHash('sha256').update(code).digest('hex');
   try {await sb('rpc/hs_claim_account_license',{method:'POST',body:{p_hash:hash,p_discord:discord}});}
-  catch(e){if(/unavailable|claimed|recipient|licensed/i.test(e.message))throw httpError(409,'License already redeemed, unavailable or not issued to this Discord account');throw e;}
+  catch(e){
+   // The claim can fail AFTER the database already recorded it — a timeout or a dropped
+   // connection on the way back. The user then retries and gets "already redeemed" for a
+   // license that is in fact their own. So before reporting anything, look the license up
+   // and say what is actually true of it.
+   let row=null;
+   try{const rows=await sb(`hs_account_licenses?license_key=eq.${enc(hash)}&select=id,claimed_discord,discord_user_id,revoked,expires_at&limit=1`);row=rows&&rows[0];}catch{/* fall through to the generic message */}
+
+   if(row){
+    // already claimed by THIS account: the earlier attempt went through. Treat as success.
+    if(row.claimed_discord&&String(row.claimed_discord)===discord){
+     clearAccessCache(discord);
+     return send(res,200,{ok:true,already:true});
+    }
+    if(row.revoked)throw httpError(409,'This license was revoked. Ask staff for a new one.');
+    if(row.expires_at&&new Date(row.expires_at)<new Date())throw httpError(409,`This license expired on ${new Date(row.expires_at).toISOString().slice(0,10)}. Ask staff to renew it.`);
+    if(row.claimed_discord)throw httpError(409,'This license is already redeemed by another Discord account. Ask staff to move it.');
+    if(row.discord_user_id&&String(row.discord_user_id)!==discord)throw httpError(409,'This license was issued to a different Discord account. Ask staff to reissue it to you.');
+    // the row exists, is free, and is yours to take — the failure was transient
+    throw httpError(503,'The licence server did not answer. Try again in a moment.');
+   }
+   if(/unavailable|claimed|recipient|licensed/i.test(e.message))throw httpError(409,'This activation code is not valid for this Discord account.');
+   throw e;}
   clearAccessCache(discord);
   await audit(user,'license.claim',{target:discord,detail:{type:'account'}});
   return send(res,200,{ok:true});
