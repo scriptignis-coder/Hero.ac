@@ -17,8 +17,11 @@ export default wrap(async (req, res) => {
   const user = await requireAccess(req, 'herocheck');
 
   if (req.method === 'GET') {
-    const strings = await sb(`memory_strings?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.desc&limit=500`);
-    const procs = await sb(`memory_processes?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);
+    // both at once: one waits for the other only because it was written that way
+    const [strings, procs] = await Promise.all([
+      sb(`memory_strings?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.desc&limit=500`),
+      sb(`memory_processes?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`),
+    ]);
     return send(res, 200, {
       strings: strings || [],
       processes: (procs || []).map((p) => p.process_name),

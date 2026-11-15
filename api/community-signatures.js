@@ -49,12 +49,24 @@ export default wrap(async (req, res) => {
   if (req.method === 'GET') {
     const mineOnly = String(req.query.mine || '') === '1';
     const q = mineOnly ? `&author_discord=eq.${enc(user.id)}` : '&hidden=is.false';
-    const rows = await sb(`community_signatures?select=*${q}&order=created_at.desc&limit=300`);
-    // which ones this user already copied, so the page can show "Added" instead of a button
-    const own = await sb(`signatures?owner_discord=eq.${enc(user.id)}&select=name`) || [];
+    // both at once, and only the column that is needed from each
+    const [rows, ownRaw] = await Promise.all([
+      sb(`community_signatures?select=*${q}&order=created_at.desc&limit=300`),
+      sb(`signatures?owner_discord=eq.${enc(user.id)}&select=id,name,file_names,domains,hashes,features,severity,games`),
+    ]);
+    const own = ownRaw || [];
     const ownNames = new Set(own.map((s) => String(s.name || '').toLowerCase()));
+    // sharedNames lets the page grey out the ones already shared
+    const sharedNames = new Set((rows || []).map((r) => String(r.name || '').toLowerCase()));
     return send(res, 200, {
       signatures: (rows || []).map((r) => ({ ...r, mine: String(r.author_discord) === String(user.id), added: ownNames.has(String(r.name || '').toLowerCase()) })),
+      // the operator's own signatures, so they can share one without typing it again
+      mine: own.map((o) => ({
+        id: o.id, name: o.name,
+        file_names: o.file_names || [], domains: o.domains || [], hashes: o.hashes || [],
+        features: o.features || [], severity: o.severity || 'high', games: o.games || [],
+        shared: sharedNames.has(String(o.name || '').toLowerCase()),
+      })),
     });
   }
 

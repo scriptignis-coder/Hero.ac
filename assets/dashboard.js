@@ -269,8 +269,18 @@
     if (state.tab === 'signatures') return renderSignatures(view);
     // A rejected promise here used to leave the PREVIOUS tab's html on screen, which made
     // Strings look like it was showing the Signatures tab. Show the real error instead.
-    if (state.tab === 'community') { view.innerHTML = loading(); try { await renderCommunity(view); } catch (e) { wsError(view, e); } return; }
-    if (state.tab === 'memstrings') { view.innerHTML = loading(); try { await renderMemStrings(view); } catch (e) { wsError(view, e); } return; }
+    // Show the last payload immediately and refresh behind it, the same way Scan PINs does.
+    // Re-entering a tab then costs nothing: the skeleton is only for the very first visit.
+    if (state.tab === 'community') {
+      if (state.communityResp) { try { renderCommunity(view, state.communityResp); } catch {} } else view.innerHTML = loading();
+      try { await renderCommunity(view); } catch (e) { if (!state.communityResp) wsError(view, e); else toast(e.message, true); }
+      return;
+    }
+    if (state.tab === 'memstrings') {
+      if (state.memStringsResp) { try { renderMemStrings(view, state.memStringsResp); } catch {} } else view.innerHTML = loading();
+      try { await renderMemStrings(view); } catch (e) { if (!state.memStringsResp) wsError(view, e); else toast(e.message, true); }
+      return;
+    }
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
@@ -1652,7 +1662,7 @@
       </section>`).join('')}</div>
       <div class="card panel" style="margin-top:18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center">
         <div><b>Still stuck?</b><p class="workspace-note" style="margin:4px 0 0">Open a support ticket with your PIN and a screenshot of the error.</p></div>
-        <a class="btn btn-primary" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener noreferrer">Open Discord support</a>
+        <a class="btn btn-primary" href="https://discord.gg/cMUD85Jgn" target="_blank" rel="noopener noreferrer">Open Discord support</a>
       </div>`;
   }
 
@@ -1717,8 +1727,9 @@
 
   // Memory strings: "find THIS text inside THAT process". The scanner already reads the memory
   // of dps / pcasvc / sysmain / dnscache / explorer on every check, so these cost no extra time.
-  async function renderMemStrings(view) {
-    const d = await api('/api/memory-strings');
+  async function renderMemStrings(view, cached) {
+    const d = cached || await api('/api/memory-strings');
+    state.memStringsResp = d;
     const procs = [...(d.builtin || []), ...(d.processes || [])];
     const rows = d.strings || [];
     const opts = procs.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
@@ -1786,7 +1797,7 @@
 
     const g = (id) => document.getElementById(id);
     const post = async (body, okMsg) => {
-      try { const r = await api('/api/memory-strings', { method: 'POST', body }); toast(r.added !== undefined ? `${okMsg} (${r.added} added${r.skipped ? `, ${r.skipped} already there` : ''})` : okMsg); renderMemStrings(view); }
+      try { const r = await api('/api/memory-strings', { method: 'POST', body }); toast(r.added !== undefined ? `${okMsg} (${r.added} added${r.skipped ? `, ${r.skipped} already there` : ''})` : okMsg); state.memStringsResp = null; renderMemStrings(view); }
       catch (e) { toast(e.message, true); }
     };
 
@@ -1804,16 +1815,17 @@
       action: 'remove_process', process: b.dataset.msDelproc,
     }, 'Process removed')));
     view.querySelectorAll('[data-ms-del]').forEach((b) => b.addEventListener('click', async () => {
-      try { await api('/api/memory-strings?id=' + encodeURIComponent(b.dataset.msDel), { method: 'DELETE' }); toast('Deleted'); renderMemStrings(view); }
+      try { await api('/api/memory-strings?id=' + encodeURIComponent(b.dataset.msDel), { method: 'DELETE' }); toast('Deleted'); state.memStringsResp = null; renderMemStrings(view); }
       catch (e) { toast(e.message, true); }
     }));
   }
 
   // Shared signatures: everyone sees them, anyone can add one. Nothing here reaches a
   // scanner until an owner presses "Add to mine", which copies it into their own list.
-  async function renderCommunity(view) {
-    const { signatures } = await api('/api/community-signatures');
-    const list = signatures || [];
+  async function renderCommunity(view, cached) {
+    const d = cached || await api('/api/community-signatures');
+    state.communityResp = d;
+    const list = d.signatures || [];
     const chip = (t) => `<span class="badge" style="font-size:11px">${esc(t)}</span>`;
 
     view.innerHTML = `
@@ -1837,6 +1849,24 @@
           </div>
         </div>
       </div>
+
+      ${(d.mine || []).length ? `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Your signatures <span class="badge">${d.mine.length}</span></h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:10px">
+          These are yours, from the Signatures tab. They stay private until you share one.
+        </p>
+        <div style="display:grid;gap:8px">${d.mine.map((m) => `
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:9px;padding:10px 13px">
+            <div style="min-width:0">
+              <strong style="font-size:14px">${esc(m.name)}</strong>
+              <div class="mono" style="font-size:11.5px;color:var(--muted);word-break:break-all">${(m.file_names || []).slice(0,4).map(esc).join(', ') || (m.domains || []).map(esc).join(', ') || '—'}</div>
+            </div>
+            ${m.shared
+              ? '<span class="badge">Shared</span>'
+              : `<button class="btn btn-ghost btn-sm" data-cs-shareown="${esc(m.id)}">Share this</button>`}
+          </div>`).join('')}</div>
+      </div>` : ''}
 
       <div class="card panel">
         <h3>Shared by the community <span class="badge">${list.length}</span></h3>
@@ -1878,22 +1908,33 @@
           hashes: v('cs-hashes'), note: v('cs-note'), severity: v('cs-sev'),
           games: v('cs-game') ? [v('cs-game')] : [],
         } });
-        toast('Shared'); renderCommunity(view);
+        toast('Shared'); state.communityResp = null; renderCommunity(view);
       } catch (e) { toast(e.message, true); }
     });
+    view.querySelectorAll('[data-cs-shareown]').forEach((b) => b.addEventListener('click', async () => {
+      const m = (d.mine || []).find((x) => String(x.id) === b.dataset.csShareown);
+      if (!m) return;
+      try {
+        await api('/api/community-signatures', { method: 'POST', body: {
+          action: 'share', name: m.name, fileNames: m.file_names, domains: m.domains,
+          hashes: m.hashes, features: m.features, severity: m.severity, games: m.games,
+        } });
+        toast('Shared with everyone'); state.communityResp = null; renderCommunity(view);
+      } catch (e) { toast(e.message, true); }
+    }));
     view.querySelectorAll('[data-cs-import]').forEach((b) => b.addEventListener('click', async () => {
-      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'import', id: b.dataset.csImport } }); toast('Added to your signatures'); renderCommunity(view); }
+      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'import', id: b.dataset.csImport } }); toast('Added to your signatures'); state.communityResp = null; renderCommunity(view); }
       catch (e) { toast(e.message, true); }
     }));
     view.querySelectorAll('[data-cs-report]').forEach((b) => b.addEventListener('click', async () => {
       const reason = prompt('What does it flag that is not a cheat?');
       if (reason === null) return;
-      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'report', id: b.dataset.csReport, reason } }); toast('Reported — thanks'); renderCommunity(view); }
+      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'report', id: b.dataset.csReport, reason } }); toast('Reported — thanks'); state.communityResp = null; renderCommunity(view); }
       catch (e) { toast(e.message, true); }
     }));
     view.querySelectorAll('[data-cs-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!confirm('Withdraw this signature from the shared list?')) return;
-      try { await api('/api/community-signatures?id=' + encodeURIComponent(b.dataset.csDel), { method: 'DELETE' }); toast('Withdrawn'); renderCommunity(view); }
+      try { await api('/api/community-signatures?id=' + encodeURIComponent(b.dataset.csDel), { method: 'DELETE' }); toast('Withdrawn'); state.communityResp = null; renderCommunity(view); }
       catch (e) { toast(e.message, true); }
     }));
   }
@@ -1922,9 +1963,23 @@
             <td class="mono">${esc((s.file_names || []).join(', '))}</td>
             <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
             <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
-            <td><button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+            <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-sharesig="${esc(s.id)}">Share</button> <button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No signatures yet.</div>'}
       </div>`;
+  }
+
+  // Publishing one of your own signatures to the shared list — otherwise sharing would mean
+  // typing the whole thing again, which is why that tab stays empty.
+  async function shareOwnSignature(view, sig) {
+    try {
+      await api('/api/community-signatures', { method: 'POST', body: {
+        action: 'share', name: sig.name, fileNames: sig.file_names || [], domains: sig.domains || [],
+        hashes: sig.hashes || [], features: sig.features || [], severity: sig.severity,
+        games: sig.games || [],
+      } });
+      toast('Shared with the community');
+      state.communityResp = null;
+    } catch (e) { toast(e.message, true); }
   }
 
   // ---------- permission duration: Duration (number) + Unit (hours … years / Lifetime) + live preview ----------
@@ -2609,6 +2664,11 @@
         await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
         toast('Signature added');
         render();
+      } else if (t.dataset.sharesig) {
+        const { signatures } = await api('/api/signatures');
+        const sig = (signatures || []).find((x) => String(x.id) === String(t.dataset.sharesig));
+        if (!sig) { toast('That signature is gone', true); return; }
+        await shareOwnSignature(null, sig);
       } else if (t.dataset.delsig) {
         await api(`/api/signatures?id=${encodeURIComponent(t.dataset.delsig)}`, { method: 'DELETE' });
         render();
