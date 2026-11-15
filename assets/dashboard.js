@@ -267,8 +267,10 @@
     if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
-    if (state.tab === 'community') return renderCommunity(view);
-    if (state.tab === 'memstrings') return renderMemStrings(view);
+    // A rejected promise here used to leave the PREVIOUS tab's html on screen, which made
+    // Strings look like it was showing the Signatures tab. Show the real error instead.
+    if (state.tab === 'community') { view.innerHTML = loading(); try { await renderCommunity(view); } catch (e) { wsError(view, e); } return; }
+    if (state.tab === 'memstrings') { view.innerHTML = loading(); try { await renderMemStrings(view); } catch (e) { wsError(view, e); } return; }
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
