@@ -5,30 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HeRo Shield · FiveM PC Check</title>
 <meta name="description" content="HeRo Shield — read-only FiveM PC check for server staff. Every trace a cheater leaves, in one clear report.">
-<meta name="theme-color" content="#050505">
+<meta name="theme-color" content="#000000">
 <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Black and white. One token set, no second :root overriding it.
+
+   There is no accent HUE on this site. The accent is white, and the only
+   colour anywhere is the verdict: clean, suspicious, cheating. On a page
+   with nothing else coloured, those three read instantly — which is the
+   one thing a staff member needs to see.
+
+   The greys are very slightly cool (a few points of blue in the channels)
+   so that pure white type on them looks clean rather than muddy; they are
+   not a hue, and nothing on the page is tinted.
+   ───────────────────────────────────────────────────────────────────────── */
 :root{
-  --bg:#050505; --bg2:#0a0a0b; --card:#0c0d0f; --card2:#111317; --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
-  --text:#f2f4f7; --muted:#9aa0aa; --dim:#5e636d; --blue:#2f9bff; --blue2:#7cc4ff; --blueglow:rgba(47,155,255,.18);
-  --green:#3ee08a; --orange:#ffb54a; --red:#ff5a6e; --r:16px; --ease:cubic-bezier(.22,.8,.24,1);
+  --bg:#000000; --bg2:#070708; --card:#0b0b0d; --card2:#101013;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.15); --line-strong:rgba(255,255,255,.24);
+  --text:#ffffff; --muted:#a2a2a8; --dim:#6a6a72;
+  /* the accent is white; --blue / --blue2 keep their names so every rule below still resolves */
+  --blue:#ffffff; --blue2:#d6d6dc; --blueglow:rgba(255,255,255,.14);
+  --cyan:#ffffff; --violet:#ffffff; --grad:linear-gradient(135deg,#ffffff,#b9b9c2);
+  /* verdict — the only colour on the site */
+  --green:#4ade80; --orange:#fbbf24; --red:#f87171;
+  --r:16px; --radius:16px; --ease:cubic-bezier(.22,.8,.24,1);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--text);font:400 16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit;text-decoration:none}
 img{max-width:100%;display:block}
-::selection{background:rgba(47,155,255,.35)}
+::selection{background:rgba(255,255,255,.22)}
 .wrap{width:min(1160px,100% - 32px);margin:0 auto}
 .mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
 
 /* background: fine grid + soft blue light that follows the page */
 .bg{position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:
-    radial-gradient(900px 520px at 50% -120px,rgba(47,155,255,.16),transparent 70%),
+    radial-gradient(900px 520px at 50% -120px,rgba(255,255,255,.07),transparent 70%),
     linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px) 0 0/56px 56px,
     linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px) 0 0/56px 56px,var(--bg);
   -webkit-mask-image:radial-gradient(130% 90% at 50% 0%,#000 55%,transparent 100%);mask-image:radial-gradient(130% 90% at 50% 0%,#000 55%,transparent 100%)}
@@ -51,36 +69,44 @@ img{max-width:100%;display:block}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 20px;border-radius:12px;font:600 14px Inter,sans-serif;cursor:pointer;border:1px solid transparent;
   transition:transform .25s var(--ease),background .25s,border-color .25s,box-shadow .25s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
-.btn-w{background:#fff;color:#050505}
-.btn-w:hover{box-shadow:0 0 0 4px rgba(255,255,255,.08),0 10px 40px rgba(47,155,255,.25);transform:translateY(-1px)}
+.btn-w{background:#fff;color:#000000}
+.btn-w:hover{box-shadow:0 0 0 4px rgba(255,255,255,.08),0 10px 40px rgba(255,255,255,.18);transform:translateY(-1px)}
 .btn-g{background:rgba(255,255,255,.03);border-color:var(--line2);color:var(--text)}
-.btn-g:hover{border-color:rgba(47,155,255,.45);background:rgba(47,155,255,.06)}
+.btn-g:hover{border-color:rgba(255,255,255,.38);background:rgba(255,255,255,.06)}
 .btn-b{background:var(--blue);color:#fff}
-.btn-b:hover{box-shadow:0 10px 40px rgba(47,155,255,.4);transform:translateY(-1px)}
+.btn-b:hover{box-shadow:0 10px 40px rgba(255,255,255,.26);transform:translateY(-1px)}
 .btn-sm{height:36px;padding:0 14px;font-size:13px;border-radius:10px}
 
 /* hero */
-.hero{padding:96px 0 40px;text-align:center}
-.pill{display:inline-flex;align-items:center;gap:10px;padding:7px 16px;border:1px solid var(--line2);border-radius:999px;background:rgba(255,255,255,.02);
-  font:600 12px Inter;letter-spacing:.14em;color:#c9ced6;text-transform:uppercase}
-.pill i{width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 12px var(--blue);animation:pulse 2.4s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.35}}
-.hero h1{margin:26px auto 0;max-width:900px;font-size:clamp(40px,7.4vw,86px);line-height:1.02;letter-spacing:-.045em;font-weight:800}
-.hero h1 span{background:linear-gradient(180deg,#fff 20%,#8fa3bf);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero h1 em{font-style:normal;color:var(--blue);text-shadow:0 0 40px rgba(47,155,255,.35)}
-.hero p.sub{max-width:620px;margin:22px auto 0;color:var(--muted);font-size:clamp(16px,2vw,18px)}
-.hero .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap}
-.status{display:inline-flex;align-items:center;gap:8px;margin-top:28px;color:var(--dim);font-size:13px}
-.status i{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);max-width:640px;margin:46px auto 0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:rgba(255,255,255,.015)}
-.stats div{padding:20px 12px}
-.stats div+div{border-left:1px solid var(--line)}
-.stats b{display:block;font-size:28px;letter-spacing:-.03em}
-.stats span{color:var(--dim);font-size:13px}
+/* ── hero ────────────────────────────────────────────────────────────────
+   Two columns: the claim on the left, the product doing its job on the right.
+   The live scan log is the most convincing thing on this page, so it sits IN
+   the hero at full size instead of below three rows of marketing furniture.
+   Left-aligned, tight tracking, no glow — the type carries it. */
+.hero{padding:76px 0 76px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:56px;align-items:center}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr;gap:38px}}
+
+.hero h1{margin:0;font-size:clamp(38px,4.6vw,62px);line-height:1.04;letter-spacing:-.038em;font-weight:700;max-width:14ch;text-wrap:balance}
+.hero h1 span,.hero h1 em{color:var(--text);background:none;-webkit-text-fill-color:currentColor;font-style:normal;text-shadow:none}
+.hero h1 em{color:var(--muted)}
+.hero p.sub{max-width:46ch;margin:22px 0 0;color:var(--muted);font-size:16.5px;line-height:1.62}
+.hero .cta{display:flex;gap:10px;margin-top:30px;flex-wrap:wrap}
+.status{display:inline-flex;align-items:center;gap:8px;margin-top:26px;color:var(--dim);font-size:12.5px}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+
+/* facts as a hairline strip across the full width, not boxed tiles */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));max-width:none;margin:52px 0 0;
+  border:0;border-top:1px solid var(--line);border-radius:0;background:none}
+.stats div{padding:22px 0 0}
+.stats div+div{border-left:0;padding-left:28px}
+@media(max-width:620px){.stats{grid-template-columns:1fr}.stats div+div{padding-left:0}}
+.stats b{display:block;font-size:30px;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1}
+.stats span{display:block;margin-top:7px;color:var(--dim);font-size:12.5px}
 
 /* terminal */
-.term{max-width:860px;margin:64px auto 0;border:1px solid var(--line2);border-radius:18px;background:linear-gradient(180deg,#0d0f13,#08090b);
-  box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 1px rgba(47,155,255,.06),0 0 120px -40px rgba(47,155,255,.35);overflow:hidden;text-align:left}
+.term{max-width:none;margin:0;border:1px solid var(--line2);border-radius:18px;background:linear-gradient(180deg,#0d0f13,#08090b);
+  box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.06),0 0 120px -40px rgba(255,255,255,.22);overflow:hidden;text-align:left}
 .term-top{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);color:var(--dim);font-size:12px}
 .term-top i{width:11px;height:11px;border-radius:50%;background:#26292f}
 .term-top span{margin-left:8px}
@@ -93,13 +119,14 @@ img{max-width:100%;display:block}
 .meters{padding:18px 20px;display:flex;flex-direction:column;gap:16px}
 .meter small{display:flex;justify-content:space-between;color:var(--dim);font-size:12px}
 .meter .bar{height:6px;border-radius:9px;background:#16181d;margin-top:7px;overflow:hidden}
-.meter .bar i{display:block;height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#1b5fd1,var(--blue),var(--blue2));transition:width 1.6s var(--ease)}
+.meter .bar i{display:block;height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#6b6b73,#ffffff);transition:width 1.6s var(--ease)}
 .verdict{margin-top:auto;padding:14px;border:1px solid rgba(255,90,110,.25);border-radius:12px;background:rgba(255,90,110,.06)}
 .verdict small{color:var(--dim);font-size:11px;letter-spacing:.12em}
 .verdict b{display:block;color:var(--red);font-size:20px;letter-spacing:.04em}
 
 /* sections */
-section{padding:110px 0}
+section{padding:104px 0}
+.hero + section{padding-top:0}
 .kicker{font:600 12px Inter;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}
 .h2{margin-top:14px;font-size:clamp(30px,4.6vw,52px);line-height:1.06;letter-spacing:-.035em;font-weight:800;max-width:760px}
 .lead{margin-top:16px;color:var(--muted);max-width:620px}
@@ -110,16 +137,16 @@ section{padding:110px 0}
 .card{position:relative;border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:26px;overflow:hidden;
   transition:border-color .35s var(--ease),transform .35s var(--ease),background .35s}
 .card::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .35s;
-  background:radial-gradient(360px circle at var(--mx,50%) var(--my,0%),rgba(47,155,255,.11),transparent 60%)}
-.card:hover{border-color:rgba(47,155,255,.28);transform:translateY(-3px)}
+  background:radial-gradient(360px circle at var(--mx,50%) var(--my,0%),rgba(255,255,255,.07),transparent 60%)}
+.card:hover{border-color:rgba(255,255,255,.28);transform:translateY(-3px)}
 .card:hover::before{opacity:1}
 .card .num{font:500 12px "JetBrains Mono";color:var(--dim)}
 .card h3{margin-top:14px;font-size:19px;letter-spacing:-.01em}
 .card p{margin-top:8px;color:var(--muted);font-size:14.5px}
-.ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;border:1px solid var(--line2);background:rgba(47,155,255,.06);color:var(--blue2)}
+.ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;border:1px solid var(--line2);background:rgba(255,255,255,.06);color:var(--blue2)}
 .ico svg{width:20px;height:20px}
 .tag{display:inline-block;margin-top:14px;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;border:1px solid var(--line2);color:#c9ced6}
-.tag.new{color:var(--blue2);border-color:rgba(47,155,255,.35);background:rgba(47,155,255,.07)}
+.tag.new{color:var(--blue2);border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.07)}
 
 /* outcomes */
 .out .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px}
@@ -146,28 +173,28 @@ section{padding:110px 0}
 .plan ul{list-style:none;margin:18px 0 22px;display:grid;gap:9px;color:var(--muted);font-size:13.5px}
 .plan li::before{content:"✓";color:var(--blue);margin-right:8px;font-weight:700}
 .plan .btn{margin-top:auto;width:100%}
-.plan.best{border-color:rgba(47,155,255,.45);background:linear-gradient(180deg,rgba(47,155,255,.08),var(--card) 45%)}
+.plan.best{border-color:rgba(255,255,255,.38);background:linear-gradient(180deg,rgba(255,255,255,.08),var(--card) 45%)}
 .badge{position:absolute;top:16px;right:16px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:var(--blue);color:#fff}
 .note{margin-top:20px;color:var(--dim);font-size:13px;text-align:center}
 
 /* download */
 .dl{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center;border:1px solid var(--line);border-radius:22px;padding:44px;
-  background:radial-gradient(600px 300px at 0% 0%,rgba(47,155,255,.10),transparent 70%),var(--card)}
+  background:radial-gradient(600px 300px at 0% 0%,rgba(255,255,255,.10),transparent 70%),var(--card)}
 .pinform{display:flex;gap:10px;margin-top:22px}
 .pinform input{flex:1;min-width:0;height:48px;border-radius:12px;border:1px solid var(--line2);background:#08090b;color:var(--text);padding:0 16px;
   font:500 16px "JetBrains Mono";letter-spacing:.25em;text-transform:uppercase;outline:none;transition:border-color .2s,box-shadow .2s}
-.pinform input:focus{border-color:rgba(47,155,255,.6);box-shadow:0 0 0 4px rgba(47,155,255,.12)}
+.pinform input:focus{border-color:rgba(255,255,255,.6);box-shadow:0 0 0 4px rgba(255,255,255,.12)}
 .pinmsg{margin-top:10px;color:var(--dim);font-size:13px;min-height:20px}
-.eyebig{width:min(340px,80%);margin:0 auto;border-radius:28px;box-shadow:0 30px 90px rgba(47,155,255,.25);animation:float 6s ease-in-out infinite}
+.eyebig{width:min(340px,80%);margin:0 auto;border-radius:28px;box-shadow:0 30px 90px rgba(255,255,255,.18);animation:float 6s ease-in-out infinite}
 @keyframes float{50%{transform:translateY(-10px)}}
 
 /* leaderboard */
 .lbtabs{display:flex;gap:8px;justify-content:center;margin-top:30px}
 .lbtab{height:38px;padding:0 16px;border-radius:10px;border:1px solid var(--line2);background:transparent;color:var(--muted);font:600 13px Inter;cursor:pointer;transition:all .2s}
-.lbtab.active{background:#fff;color:#050505;border-color:#fff}
+.lbtab.active{background:#fff;color:#000000;border-color:#fff}
 .lb{max-width:760px;margin:22px auto 0;min-height:120px}
 .lbrow{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--card);margin-top:8px;transition:border-color .25s}
-.lbrow:hover{border-color:rgba(47,155,255,.3)}
+.lbrow:hover{border-color:rgba(255,255,255,.3)}
 .lbrank{width:34px;text-align:center;font-weight:800;color:var(--blue2)}
 .lbava{width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid var(--line2)}
 .lbname{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -194,7 +221,7 @@ section{padding:110px 0}
 
 /* cta + footer */
 .final{text-align:center;padding:90px 24px;border:1px solid var(--line);border-radius:24px;
-  background:radial-gradient(600px 260px at 50% 0%,rgba(47,155,255,.14),transparent 70%),var(--card)}
+  background:radial-gradient(600px 260px at 50% 0%,rgba(255,255,255,.14),transparent 70%),var(--card)}
 footer{border-top:1px solid var(--line);padding:30px 0;color:var(--dim);font-size:13px}
 footer .wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 footer .fl{display:flex;gap:16px;margin-left:auto}
@@ -237,25 +264,27 @@ footer a:hover{color:var(--text)}
 <style id="heroshield-charcoal-v18">
 
 /* HeRoShield Charcoal Edition — presentation-only overrides */
-:root{--bg:#0d1014;--bg2:#101419;--bg-2:#101419;--card:#151a20;--card2:#191f26;--card-solid:#191f26;--line:rgba(181,199,215,.105);--line2:rgba(181,199,215,.17);--line-strong:rgba(130,170,204,.23);--text:#e8edf1;--muted:#a0aab4;--dim:#697681;--blue:#739fbe;--blue2:#b1cee2;--cyan:#739fbe;--violet:#739fbe;--blueglow:rgba(115,159,190,.12);--grad:linear-gradient(135deg,#789fb9,#a4bfce);--radius:18px;--r:18px}
-body{background:radial-gradient(ellipse 75% 30% at 50% -6%,rgba(115,159,190,.095),transparent 75%),#0d1014!important;color:#e8edf1}
-::selection{background:rgba(115,159,190,.26)}
-.bg{background:radial-gradient(780px 380px at 50% -70px,rgba(120,161,188,.13),transparent 75%),linear-gradient(rgba(255,255,255,.013) 1px,transparent 1px) 0 0/68px 68px,linear-gradient(90deg,rgba(255,255,255,.013) 1px,transparent 1px) 0 0/68px 68px,transparent!important}
-.nav.solid,header, .topbar{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
-.nav.solid{background:rgba(12,15,19,.89)!important}
+/* (the grey-blue override that used to sit here is gone: one token set only) */
+body{background:radial-gradient(ellipse 80% 34% at 50% -8%,rgba(255,255,255,.055),transparent 72%),var(--bg);color:var(--text)}
+::selection{background:rgba(255,255,255,.22);color:#000}
+.bg{background:radial-gradient(820px 400px at 50% -70px,rgba(255,255,255,.065),transparent 74%),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px) 0 0/68px 68px,linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px) 0 0/68px 68px,transparent!important}
+.nav.solid,header,.topbar{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.nav.solid{background:#000!important;border-bottom:1px solid rgba(255,255,255,.08)!important}
 .btn,.btn-w,.btn-g,.btn-b,button{transition:background .22s,border-color .22s,box-shadow .22s,transform .22s}
-.btn-b{background:#739fbe!important;color:#0c141b!important}
-.btn-b:hover{box-shadow:0 8px 30px rgba(115,159,190,.18)!important}
-.btn-w{background:#dce5eb!important;color:#12181e!important}
-.btn-g{background:rgba(210,224,234,.035)!important;border-color:rgba(210,224,234,.16)!important}
-.btn-g:hover{background:rgba(115,159,190,.10)!important;border-color:rgba(115,159,190,.40)!important}
-.pill{background:rgba(115,159,190,.055)!important;border-color:rgba(115,159,190,.19)!important;color:#b8c8d4!important}
-.brand b{color:#93b4cb!important}
-input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shadow:0 0 0 3px rgba(115,159,190,.12)}
-:where(.card,.panel,.stat,.feature,.feature-card,.glass,.metric,.tile){border-color:rgba(190,206,219,.11)!important}
-:where(.card,.panel,.feature-card,.glass){box-shadow:0 12px 38px rgba(0,0,0,.12)}
-:where(.card,.panel,.feature-card,.glass):hover{border-color:rgba(135,174,200,.23)!important}
-::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-track{background:#101419}::-webkit-scrollbar-thumb{background:#333d47;border-radius:12px;border:2px solid #101419}
+/* the one filled button on the page is white on black: nothing else competes with it */
+.btn-b{background:#fff!important;color:#000!important;font-weight:650}
+.btn-b:hover{box-shadow:0 8px 34px rgba(255,255,255,.22)!important}
+.btn-w{background:#fff!important;color:#000!important}
+.btn-g{background:rgba(255,255,255,.035)!important;border-color:rgba(255,255,255,.17)!important;color:var(--text)!important}
+.btn-g:hover{background:rgba(255,255,255,.08)!important;border-color:rgba(255,255,255,.34)!important}
+.pill{background:rgba(255,255,255,.05)!important;border-color:rgba(255,255,255,.16)!important;color:var(--muted)!important}
+.brand b{color:#fff!important}
+input:focus,textarea:focus,select:focus{outline-color:#fff!important;box-shadow:0 0 0 3px rgba(255,255,255,.14)}
+:where(.card,.panel,.stat,.feature,.feature-card,.glass,.metric,.tile){border-color:rgba(255,255,255,.09)!important}
+:where(.card,.panel,.feature-card,.glass){box-shadow:0 12px 38px rgba(0,0,0,.45)}
+:where(.card,.panel,.feature-card,.glass):hover{border-color:rgba(255,255,255,.2)!important}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-track{background:#0b0b0d}::-webkit-scrollbar-thumb{background:#2e2e34;border-radius:12px;border:2px solid #0b0b0d}
+::-webkit-scrollbar-thumb:hover{background:#43434b}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 </style>
@@ -264,7 +293,7 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 /* v36 smooth: blur behind fixed bars is repainted on every scroll frame (very heavy on normal PCs / laptops) →
    solid glass colour instead; endless background animations stop; less motion when Windows asks for it */
 *,*::before,*::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-.nav.solid,header,.topbar{background:rgba(5,8,16,.94)!important}
+.nav.solid,header,.topbar{background:#000!important}
 .modal,.modal-bg{background:rgba(0,0,0,.78)!important}
 .waves .w1,.waves .w2,.waves .w3{animation:none!important}
 .eyebig{animation:none!important}
@@ -291,16 +320,13 @@ html{scroll-behavior:auto}
 <main>
   <section class="hero">
     <div class="wrap">
-      <span class="pill rv"><i></i>Game forensics · FiveM PC check</span>
-      <h1 class="rv" style="--d:.08s"><span>Every trace they leave.</span><br><em>One clear report.</em></h1>
-      <p class="sub rv" style="--d:.16s">HeRo Shield reads what Windows remembers — programs that ran, files deleted before the check, USB sticks, cheat Discord servers and hardware — and turns it into one report for your staff.</p>
-      <div class="cta rv" style="--d:.24s"><a class="btn btn-w" href="#pricing">Get access →</a><a class="btn btn-g" href="#platform">Explore the platform</a></div>
-      <div class="status rv" style="--d:.3s"><i></i>All systems operational</div>
-      <div class="stats rv" style="--d:.36s">
-        <div><b class="mono" data-count="20">0</b><span>scan modules</span></div>
-        <div><b class="mono">&lt;5 min</b><span>full report</span></div>
-        <div><b class="mono">0</b><span>files changed</span></div>
-      </div>
+      <div class="hero-grid">
+        <div>
+          <h1 class="rv"><span>Every trace they leave.</span><br><em>One clear report.</em></h1>
+          <p class="sub rv" style="--d:.06s">HeRo Shield reads what Windows remembers — programs that ran, files deleted before the check, USB sticks, cheat Discord servers and hardware — and turns it into one report for your staff.</p>
+          <div class="cta rv" style="--d:.12s"><a class="btn btn-w" href="#pricing">Get access</a><a class="btn btn-g" href="#platform">See what it reads</a></div>
+          <div class="status rv" style="--d:.18s"><i></i>All systems operational</div>
+        </div>
 
       <div class="term rv" style="--d:.1s" id="term">
         <div class="term-top"><i></i><i></i><i></i><span class="mono">hero://scan — PIN 7XK2Q9PA</span><b class="mono">● live</b></div>
@@ -322,6 +348,13 @@ html{scroll-behavior:auto}
             <div class="verdict"><small>VERDICT</small><b>CHEATING</b></div>
           </div>
         </div>
+      </div>
+      </div><!-- /hero-grid -->
+
+      <div class="stats rv" style="--d:.24s">
+        <div><b class="mono" data-count="20">0</b><span>scan modules</span></div>
+        <div><b class="mono">&lt;5 min</b><span>full report</span></div>
+        <div><b class="mono">0</b><span>files changed on the PC</span></div>
       </div>
     </div>
   </section>
