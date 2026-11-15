@@ -267,6 +267,8 @@
     if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
+    if (state.tab === 'community') return renderCommunity(view);
+    if (state.tab === 'memstrings') return renderMemStrings(view);
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
@@ -1709,6 +1711,189 @@
     ];
     view.innerHTML = log.map(([ver, text]) => `<div class="card panel" style="margin-bottom:10px">
         <b style="color:var(--cyan)">v${ver}</b><div style="margin-top:6px;color:var(--muted)">${text}</div></div>`).join('');
+  }
+
+  // Memory strings: "find THIS text inside THAT process". The scanner already reads the memory
+  // of dps / pcasvc / sysmain / dnscache / explorer on every check, so these cost no extra time.
+  async function renderMemStrings(view) {
+    const d = await api('/api/memory-strings');
+    const procs = [...(d.builtin || []), ...(d.processes || [])];
+    const rows = d.strings || [];
+    const opts = procs.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Add a memory string</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
+          A cheat keeps things in memory while it runs — a licence key, a session id, the Discord server it talks to.
+          Windows keeps its own records too: <span class="mono">dps</span> stores what ran and when
+          (<span class="mono">!2024/06/02:22:07:58!</span>), <span class="mono">pcasvc</span> stores full paths.
+          Put a string here once and every later check looks for it, long after the cheat's files are deleted.
+        </p>
+        <div style="display:grid;gap:10px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <select id="ms-proc" class="input" style="flex:1;min-width:150px">${opts}</select>
+            <select id="ms-sev" class="input" style="flex:1;min-width:150px">
+              <option value="detect">Detect — a cheat</option>
+              <option value="warning">Warning — worth a look</option>
+            </select>
+          </div>
+          <input id="ms-client" class="input" placeholder="What you call it — e.g. Cheat Discord">
+          <input id="ms-string" class="input mono" placeholder="The string to find — e.g. 860613729283997696">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" data-ms-add>Add string</button>
+            <button class="btn btn-ghost" data-ms-bulk>Import many…</button>
+          </div>
+          <div id="ms-bulkbox" hidden style="display:grid;gap:8px">
+            <textarea id="ms-bulktext" class="input mono" rows="6" placeholder="One per line:&#10;Cheat Discord::860613729283997696&#10;Cheat::!2024/06/02:22:07:58!"></textarea>
+            <div><button class="btn btn-primary btn-sm" data-ms-bulkgo>Import into the process above</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Processes to read</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:10px">
+          These five are read on every check: <span class="mono">${(d.builtin || []).map(esc).join(', ')}</span>.
+          Add another only if you have a string for it — each one adds time to the scan, and it is only read if it is running.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          ${(d.processes || []).length
+            ? d.processes.map((p) => `<span class="badge mono">${esc(p)} <button class="btn btn-ghost btn-sm" style="padding:0 4px;color:var(--danger)" data-ms-delproc="${esc(p)}">×</button></span>`).join('')
+            : '<span style="color:var(--dim);font-size:13px">None added.</span>'}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <input id="ms-newproc" class="input mono" style="flex:1;min-width:180px" placeholder="discord.exe">
+          <button class="btn btn-ghost" data-ms-addproc>Add process</button>
+        </div>
+      </div>
+
+      <div class="card panel">
+        <h3>Strings list <span class="badge">${rows.length}</span></h3>
+        ${rows.length ? `<div style="overflow-x:auto;margin-top:12px"><table class="workspace-table" style="width:100%">
+          <thead><tr><th>Process</th><th>Name</th><th>String</th><th>Severity</th><th></th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td class="mono">${esc(r.process_name)}</td>
+            <td>${esc(r.client_name || '—')}</td>
+            <td class="mono" style="word-break:break-all;max-width:360px">${esc(r.string)}</td>
+            <td><span class="badge" style="${r.severity === 'warning' ? 'color:var(--orange)' : 'color:var(--danger)'}">${r.severity === 'warning' ? 'Warning' : 'Detect'}</span></td>
+            <td><button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-ms-del="${r.id}">Delete</button></td>
+          </tr>`).join('')}</tbody></table></div>`
+          : '<p style="color:var(--muted);margin-top:10px">No strings yet. Add one above and the next scan looks for it.</p>'}
+      </div>`;
+
+    const g = (id) => document.getElementById(id);
+    const post = async (body, okMsg) => {
+      try { const r = await api('/api/memory-strings', { method: 'POST', body }); toast(r.added !== undefined ? `${okMsg} (${r.added} added${r.skipped ? `, ${r.skipped} already there` : ''})` : okMsg); renderMemStrings(view); }
+      catch (e) { toast(e.message, true); }
+    };
+
+    g('ms-bulkbox') && view.querySelector('[data-ms-bulk]')?.addEventListener('click', () => { g('ms-bulkbox').hidden = !g('ms-bulkbox').hidden; });
+    view.querySelector('[data-ms-add]')?.addEventListener('click', () => post({
+      process: g('ms-proc').value, clientName: g('ms-client').value, string: g('ms-string').value, severity: g('ms-sev').value,
+    }, 'String added'));
+    view.querySelector('[data-ms-bulkgo]')?.addEventListener('click', () => post({
+      process: g('ms-proc').value, severity: g('ms-sev').value, bulk: g('ms-bulktext').value,
+    }, 'Imported'));
+    view.querySelector('[data-ms-addproc]')?.addEventListener('click', () => post({
+      action: 'add_process', process: g('ms-newproc').value,
+    }, 'Process added'));
+    view.querySelectorAll('[data-ms-delproc]').forEach((b) => b.addEventListener('click', () => post({
+      action: 'remove_process', process: b.dataset.msDelproc,
+    }, 'Process removed')));
+    view.querySelectorAll('[data-ms-del]').forEach((b) => b.addEventListener('click', async () => {
+      try { await api('/api/memory-strings?id=' + encodeURIComponent(b.dataset.msDel), { method: 'DELETE' }); toast('Deleted'); renderMemStrings(view); }
+      catch (e) { toast(e.message, true); }
+    }));
+  }
+
+  // Shared signatures: everyone sees them, anyone can add one. Nothing here reaches a
+  // scanner until an owner presses "Add to mine", which copies it into their own list.
+  async function renderCommunity(view) {
+    const { signatures } = await api('/api/community-signatures');
+    const list = signatures || [];
+    const chip = (t) => `<span class="badge" style="font-size:11px">${esc(t)}</span>`;
+
+    view.innerHTML = `
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Share a signature</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
+          Found a cheat? Put it here and every other server can use it. What you share does <strong>not</strong> go into
+          anyone's scanner by itself — each owner chooses to add it. That is deliberate: one wrong signature applied
+          everywhere would flag clean players on every server.
+        </p>
+        <div class="set-grid" style="display:grid;gap:10px">
+          <input id="cs-name" class="input" placeholder="Cheat name (e.g. RedENGINE)">
+          <input id="cs-files" class="input" placeholder="File names: redengine.exe, rde_loader.dll">
+          <input id="cs-domains" class="input" placeholder="Sites (optional): redengine.cc">
+          <input id="cs-hashes" class="input" placeholder="SHA-256 hashes (optional), comma separated">
+          <input id="cs-note" class="input" placeholder="How you confirmed it (optional) — helps others trust it">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <select id="cs-game" class="input" style="flex:1;min-width:140px"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
+            <select id="cs-sev" class="input" style="flex:1;min-width:140px"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <button class="btn btn-primary" data-cs-share>Share</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card panel">
+        <h3>Shared by the community <span class="badge">${list.length}</span></h3>
+        ${list.length ? `<div style="display:grid;gap:10px;margin-top:12px">${list.map((s) => `
+          <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between">
+              <strong style="font-size:15px">${esc(s.name)}</strong>
+              <span style="display:flex;gap:6px;align-items:center">
+                ${chip(s.severity)}
+                ${s.imports ? chip(`${s.imports} using`) : ''}
+                ${s.reports ? `<span class="badge" style="font-size:11px;color:var(--danger)">${s.reports} reported</span>` : ''}
+              </span>
+            </div>
+            <div style="color:var(--muted);font-size:12.5px;margin-top:6px">
+              by ${esc(s.author_name || s.author_discord)}${s.note ? ' · ' + esc(s.note) : ''}
+            </div>
+            <div class="mono" style="font-size:12px;color:var(--muted);margin-top:8px;word-break:break-all">
+              ${(s.file_names || []).map(esc).join(', ') || '—'}
+              ${(s.domains || []).length ? '<br>' + (s.domains).map(esc).join(', ') : ''}
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              ${s.added
+                ? '<span class="badge">Already in your list</span>'
+                : `<button class="btn btn-primary btn-sm" data-cs-import="${s.id}">Add to mine</button>`}
+              ${s.mine
+                ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-cs-del="${s.id}">Withdraw</button>`
+                : `<button class="btn btn-ghost btn-sm" data-cs-report="${s.id}">Report false positive</button>`}
+            </div>
+          </div>`).join('')}</div>`
+          : '<p style="color:var(--muted);margin-top:10px">Nothing shared yet. Be the first.</p>'}
+      </div>`;
+
+    const v = (id) => (document.getElementById(id)?.value || '').trim();
+    view.querySelector('[data-cs-share]')?.addEventListener('click', async () => {
+      if (!v('cs-name')) return toast('Give the signature a name', true);
+      try {
+        await api('/api/community-signatures', { method: 'POST', body: {
+          action: 'share', name: v('cs-name'), fileNames: v('cs-files'), domains: v('cs-domains'),
+          hashes: v('cs-hashes'), note: v('cs-note'), severity: v('cs-sev'),
+          games: v('cs-game') ? [v('cs-game')] : [],
+        } });
+        toast('Shared'); renderCommunity(view);
+      } catch (e) { toast(e.message, true); }
+    });
+    view.querySelectorAll('[data-cs-import]').forEach((b) => b.addEventListener('click', async () => {
+      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'import', id: b.dataset.csImport } }); toast('Added to your signatures'); renderCommunity(view); }
+      catch (e) { toast(e.message, true); }
+    }));
+    view.querySelectorAll('[data-cs-report]').forEach((b) => b.addEventListener('click', async () => {
+      const reason = prompt('What does it flag that is not a cheat?');
+      if (reason === null) return;
+      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'report', id: b.dataset.csReport, reason } }); toast('Reported — thanks'); renderCommunity(view); }
+      catch (e) { toast(e.message, true); }
+    }));
+    view.querySelectorAll('[data-cs-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Withdraw this signature from the shared list?')) return;
+      try { await api('/api/community-signatures?id=' + encodeURIComponent(b.dataset.csDel), { method: 'DELETE' }); toast('Withdrawn'); renderCommunity(view); }
+      catch (e) { toast(e.message, true); }
+    }));
   }
 
   async function renderSignatures(view) {
