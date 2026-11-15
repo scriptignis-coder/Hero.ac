@@ -35,8 +35,11 @@ export default wrap(async(req,res)=>{
     if(row.expires_at&&new Date(row.expires_at)<new Date())throw httpError(409,`This license expired on ${new Date(row.expires_at).toISOString().slice(0,10)}. Ask staff to renew it.`);
     if(row.claimed_discord)throw httpError(409,'This license is already redeemed by another Discord account. Ask staff to move it.');
     if(row.discord_user_id&&String(row.discord_user_id)!==discord)throw httpError(409,'This license was issued to a different Discord account. Ask staff to reissue it to you.');
-    // the row exists, is free, and is yours to take — the failure was transient
-    throw httpError(503,'The licence server did not answer. Try again in a moment.');
+    // The row exists, is free, and is yours to take — so the claim function itself failed.
+    // Show what the database actually said: this is the only place that knows, and hiding it
+    // leaves no way to tell a dropped connection from a function that is missing or renamed.
+    console.error('hs_claim_account_license failed',{discord,hash,error:e.message});
+    throw httpError(503,`The licence could not be activated. The database said: ${String(e.message||e).slice(0,300)}`);
    }
    if(/unavailable|claimed|recipient|licensed/i.test(e.message))throw httpError(409,'This activation code is not valid for this Discord account.');
    throw e;}

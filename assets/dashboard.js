@@ -2034,7 +2034,7 @@
           const st = r.revoked ? '<span class="badge off">Revoked</span>' : expired ? '<span class="badge off">Expired</span>' : '<span class="badge on">Active</span>';
           const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.discord_id)}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmlic="${r.id}" data-rmmember="${esc(m.discord_id)}">Remove</button></div>`).join('');
           const owner = r.claimed_discord || r.discord_user_id || '—';
-          return `<tr><td class="mono">${esc(String(owner))}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button></td></tr>`;
+          return `<tr><td class="mono">${esc(String(owner))}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button> <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-licdelete="${r.id}" data-licowner="${esc(String(owner))}">Delete</button></td></tr>`;
         }).join('')}
       </tbody></table></div>` : '<div class="empty">No licenses found.</div>'}</div>`;
     const reload = () => renderLicensesList(view).catch(e => toast(e.message, true));
@@ -2045,6 +2045,10 @@
       const action = b.dataset.licstatus === 'revoked' ? 'unrevoke' : 'revoke';
       if (!confirm(`${action === 'revoke' ? 'Revoke' : 'Unrevoke'} this license?`)) return;
       try { await api('/api/admin-licenses', { method: 'POST', body: { action, license_id: b.dataset.licrevoke } }); toast(`License ${action}d`); reload(); } catch (e) { toast(e.message, true); }
+    }));
+    view.querySelectorAll('[data-licdelete]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm(`Delete the license of ${b.dataset.licowner}?\n\nThis cannot be undone. They lose the dashboard straight away and will be asked for a license key like a new user. To block them temporarily instead, use Revoke.`)) return;
+      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'delete', license_id: b.dataset.licdelete } }); toast('License deleted'); reload(); } catch (e) { toast(e.message, true); }
     }));
     view.querySelectorAll('[data-rmmember]').forEach(b => b.addEventListener('click', async () => {
       if (!confirm(`Remove member ${b.dataset.rmmember}?`)) return;

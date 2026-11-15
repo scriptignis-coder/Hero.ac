@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {wrap,send,readBody,httpError,sb,audit} from './_lib.js';
+import {wrap,send,readBody,httpError,sb,enc,audit} from './_lib.js';
 export default wrap(async(req,res)=>{
  if(req.method!=='POST')throw httpError(405,'Method not allowed');
  const provided=String(req.headers.authorization||'').trim();
@@ -7,7 +7,7 @@ export default wrap(async(req,res)=>{
  if(!secret)throw httpError(503,'HS_BOT_LICENSE_SECRET is not configured');
  const expected=`Bearer ${secret}`;
  if(provided.length!==expected.length||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))throw httpError(401,'Unauthorized');
- const {discord_id,unit,duration,enterprise=false}=readBody(req);
+ const {discord_id,unit,duration,enterprise=false,force=false}=readBody(req);
  if(!/^\d{17,20}$/.test(String(discord_id)))throw httpError(400,'Invalid Discord user');
  if(!['hours','days','weeks','months','lifetime'].includes(unit))throw httpError(400,'Invalid unit');
  if(typeof enterprise!=='boolean')throw httpError(400,'enterprise must be true or false');
@@ -20,6 +20,19 @@ export default wrap(async(req,res)=>{
    if(!Number.isFinite(expiry.getTime())||expiry.getTime()-Date.now()>100*365.25*86400000)throw httpError(400,'Duration too long');
    expires_at=expiry.toISOString();
  }
+ // Refuse to issue a SECOND live license to the same Discord account. Without this the
+ // account ends up owning two, and every later claim/add hits "already licensed" — the code
+ // looks broken when it is simply the second license fighting the first.
+ // `force: true` overrides it, for the case where staff really do want to replace one.
+ if(!force){
+  const now=new Date().toISOString();
+  const live=await sb(`hs_account_licenses?discord_user_id=eq.${enc(String(discord_id))}&revoked=is.false&or=(expires_at.is.null,expires_at.gt.${enc(now)})&select=id,claimed_discord,expires_at&limit=1`).catch(()=>null);
+  if(live&&live[0]){
+   const l=live[0];
+   throw httpError(409,`This Discord account already has a live license (${l.claimed_discord?'already redeemed':'not redeemed yet'}${l.expires_at?`, expires ${String(l.expires_at).slice(0,10)}`:', lifetime'}). Revoke or delete it first, or send force:true to issue another anyway.`);
+  }
+ }
+
  const code=`HS-${crypto.randomBytes(16).toString('hex').toUpperCase()}`;
  const hash=crypto.createHash('sha256').update(code).digest('hex');
  await sb('hs_account_licenses',{method:'POST',body:{license_key:hash,discord_user_id:String(discord_id),duration_unit:unit,duration_value:unit==='lifetime'?null:duration,expires_at,enterprise,seats:enterprise?10:1,revoked:false},prefer:'return=minimal'});
