@@ -6,7 +6,7 @@
 <title>HeRo Shield · FiveM PC Check</title>
 <meta name="description" content="HeRo Shield — read-only FiveM PC check for server staff. Every trace a cheater leaves, in one clear report.">
 <meta name="theme-color" content="#000000">
-<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/hero-icon.ico" >
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -308,7 +308,7 @@ html{scroll-behavior:auto}
 
 <header class="nav" id="nav">
   <div class="wrap">
-    <a href="/" class="brand"><img src="/assets/logo.png" alt="">HeRo <b>Shield</b></a>
+    <a href="/" class="brand"><img src="/assets/hero-icon.png" alt="">HeRo <b>Shield</b></a>
     <div class="mnav" id="mnav"><nav class="links" aria-label="Main">
       <a href="#platform">Platform</a><a href="#workflow">Workflow</a><a href="#pricing">Pricing</a><a href="#download">Download</a><a href="#leaderboard">Leaderboard</a><a href="#partners">Partners</a><a href="#faq">FAQ</a>
     </nav>
@@ -441,7 +441,7 @@ html{scroll-behavior:auto}
           </form>
           <div class="pinmsg" id="pinmsg">Windows · read-only · nothing is installed</div>
         </div>
-        <img class="eyebig" src="/assets/logo-neon.jpg" alt="HeRo Shield">
+        <img class="eyebig" src="/assets/hero-icon.png" alt="HeRo Shield">
       </div>
     </div>
   </section>
@@ -483,7 +483,7 @@ html{scroll-behavior:auto}
   <section style="padding-top:20px">
     <div class="wrap">
       <div class="final rv">
-        <img src="/assets/logo-neon-sm.jpg" alt="" style="width:86px;margin:0 auto 18px;border-radius:20px">
+        <img src="/assets/hero-icon.png" alt="" style="width:86px;margin:0 auto 18px;border-radius:20px">
         <h2 class="h2" style="margin:0 auto">Open the dashboard, get your first report.</h2>
         <p class="lead" style="margin:14px auto 0">Sign in with Discord, create a PIN, send the link.</p>
         <div class="cta" style="display:flex;gap:12px;justify-content:center;margin-top:28px;flex-wrap:wrap"><a class="btn btn-w" href="/dashboard">Open dashboard →</a><a class="btn btn-g" href="https://discord.gg/cMUD85Jgn" target="_blank" rel="noopener">Join Discord</a></div>
@@ -494,7 +494,7 @@ html{scroll-behavior:auto}
 
 <footer>
   <div class="wrap">
-    <a href="/" class="brand"><img src="/assets/logo.png" alt="">HeRo <b>Shield</b></a>
+    <a href="/" class="brand"><img src="/assets/hero-icon.png" alt="">HeRo <b>Shield</b></a>
     <span>© <span id="year">2026</span> HeRo Shield · by HaMa · Not affiliated with Rockstar Games or Cfx.re</span>
     <div class="fl"><a href="#pricing">Pricing</a><a href="#partners">Partners</a><a href="#faq">FAQ</a><a href="/dashboard">Dashboard</a></div>
   </div>
@@ -588,7 +588,7 @@ html{scroll-behavior:auto}
       if (!d.entries?.length) { list.append(el('p', '', 'No public entries yet.')); return; }
       d.entries.forEach((u, i) => {
         const row = el('div', 'lbrow'), img = el('img', 'lbava');
-        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.src = u.avatar || '/assets/logo.png'; img.onerror = () => { img.onerror = null; img.src = '/assets/logo.png'; };
+        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.src = u.avatar || '/assets/hero-icon.png'; img.onerror = () => { img.onerror = null; img.src = '/assets/hero-icon.png'; };
         row.append(el('span', 'lbrank', i < 3 ? ['🥇', '🥈', '🥉'][i] : '#' + (i + 1)), img, el('span', 'lbname', u.name), el('span', 'lbval', String(u.value)));
         list.append(row);
       });
@@ -612,7 +612,7 @@ html{scroll-behavior:auto}
       if (!ps.length) { box.append(el('p', '', 'Our first partners are coming soon.')); box.style.display = 'block'; box.style.textAlign = 'center'; box.firstChild.style.color = 'var(--dim)'; return; }
       ps.forEach((p, i) => {
         const c = el('div', 'card ptcard rv'), top = el('div', 'top'), img = el('img'), info = el('div');
-        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; const tries = [p.icon, '/assets/logo-neon-sm.jpg', '/assets/logo.png'].filter(Boolean); let k = 0; img.onerror = () => { k++; if (k < tries.length) img.src = tries[k]; else img.onerror = null; }; img.src = tries[0];
+        img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; const tries = [p.icon, '/assets/hero-icon.png', '/assets/hero-icon.png'].filter(Boolean); let k = 0; img.onerror = () => { k++; if (k < tries.length) img.src = tries[k]; else img.onerror = null; }; img.src = tries[0];
         info.append(el('h3', '', p.name), el('div', 'mem', p.members ? Number(p.members).toLocaleString() + ' members' : 'Discord server'));
         top.append(img, info);
         const a = el('a', 'btn btn-g btn-sm', 'Join Discord ↗'); a.href = p.invite; a.target = '_blank'; a.rel = 'noopener';
@@ -659,3 +659,41 @@ html{scroll-behavior:auto}
 </script>
 </body>
 </html>
+
+<style id="hs-logo-v37">
+/* the new mark is a transparent PNG, already black and white: no circle crop, no blue halo */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  border-radius:0!important;background:none!important;object-fit:contain;
+  filter:drop-shadow(0 0 10px rgba(255,255,255,.18))!important;
+}
+</style>
+<style id="hs-logo-colour-v38">
+/* the mark keeps its own blue — it is the brand, not part of the page's palette */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:none!important;-webkit-filter:none!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+</style>
+<style id="hs-mono-v39">
+/* the mark goes black and white with the rest of the page */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
+  -webkit-filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+/* the bars were a blue-black (rgba(5,8,16)); on a pure black page that reads as a tint */
+.nav.solid,header,.topbar{background:rgba(6,6,7,.95)!important;border-color:rgba(255,255,255,.07)!important}
+/* a soft white light where the page starts, so the top is not a flat sheet of black */
+.hero,.bg{position:relative}
+.hero::before{
+  content:"";position:absolute;inset:-120px 0 auto;height:520px;pointer-events:none;z-index:0;
+  background:radial-gradient(760px 360px at 22% 18%,rgba(255,255,255,.085),transparent 72%);
+}
+.hero>*{position:relative;z-index:1}
+</style>
+<style id="hs-logo-colour-v39">
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:none!important;-webkit-filter:none!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+</style>

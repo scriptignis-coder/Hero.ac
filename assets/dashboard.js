@@ -330,7 +330,7 @@
         <h3>Partners on the website (${list.length})</h3>
         ${list.length ? `<div style="display:grid;gap:10px;margin-top:12px">${list.map((p) => `
           <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#0a0b0d">
-            <img src="${esc(p.icon || '/assets/logo-neon-sm.jpg')}" alt="" style="width:46px;height:46px;border-radius:12px;object-fit:cover" referrerpolicy="no-referrer">
+            <img src="${esc(p.icon || '/assets/hero-icon.png')}" alt="" style="width:46px;height:46px;border-radius:12px;object-fit:cover" referrerpolicy="no-referrer">
             <div style="flex:1;min-width:0"><b>${esc(p.name)}</b>${p.members ? ` <span class="workspace-note">· ${Number(p.members).toLocaleString()} members</span>` : ''}
               <div class="workspace-note" style="margin-top:2px">${esc(p.description)}</div>
               <a class="workspace-note" href="${esc(p.invite)}" target="_blank" rel="noopener" style="color:var(--cyan)">${esc(p.invite)}</a></div>
@@ -2276,7 +2276,14 @@
           const st = r.revoked ? '<span class="badge off">Revoked</span>' : expired ? '<span class="badge off">Expired</span>' : '<span class="badge on">Active</span>';
           const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.discord_id)}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmlic="${r.id}" data-rmmember="${esc(m.discord_id)}">Remove</button></div>`).join('');
           const owner = r.claimed_discord || r.discord_user_id || '—';
-          return `<tr><td class="mono">${esc(String(owner))}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button> <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-licdelete="${r.id}" data-licowner="${esc(String(owner))}">Delete</button></td></tr>`;
+          // "Owner" used to show either column without saying which, so a key nobody had
+          // redeemed looked exactly like one in use. Say which of the two this is.
+          const whose = r.claimed_discord
+            ? `<span class="mono">${esc(String(r.claimed_discord))}</span><div style="font-size:11px;color:var(--green)">In use${r.redeemed_at ? ' · since ' + esc(fmtDate(r.redeemed_at)) : ''}</div>`
+            : r.discord_user_id
+              ? `<span class="mono">${esc(String(r.discord_user_id))}</span><div style="font-size:11px;color:var(--dim)">Issued to · not redeemed yet</div>`
+              : `<span style="color:var(--dim)">—</span><div style="font-size:11px;color:var(--dim)">Free key · nobody has used it</div>`;
+          return `<tr><td>${whose}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button> <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-licdelete="${r.id}" data-licowner="${esc(String(owner))}">Delete</button></td></tr>`;
         }).join('')}
       </tbody></table></div>` : '<div class="empty">No licenses found.</div>'}</div>`;
     const reload = () => renderLicensesList(view).catch(e => toast(e.message, true));

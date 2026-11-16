@@ -34,7 +34,20 @@ export default wrap(async(req,res)=>{
     if(row.revoked)throw httpError(409,'This license was revoked. Ask staff for a new one.');
     if(row.expires_at&&new Date(row.expires_at)<new Date())throw httpError(409,`This license expired on ${new Date(row.expires_at).toISOString().slice(0,10)}. Ask staff to renew it.`);
     if(row.claimed_discord)throw httpError(409,'This license is already redeemed by another Discord account. Ask staff to move it.');
-    if(row.discord_user_id&&String(row.discord_user_id)!==discord)throw httpError(409,'This license was issued to a different Discord account. Ask staff to reissue it to you.');
+    // The row names a different RECIPIENT, but nobody has claimed it (claimed_discord is null,
+    // checked above). The recipient field is who staff meant to give it to — a note, not a lock:
+    // the key itself is the credential, and a key that was reissued or released keeps the old
+    // name on it, which is what used to block the real holder. So take the claim here instead
+    // of refusing it, writing the account that actually redeemed it. The audit line below keeps
+    // the trail. Still refused: revoked, expired, and already claimed by someone else.
+    if(row.discord_user_id&&String(row.discord_user_id)!==discord){
+     const taken=await sb(`hs_account_licenses?id=eq.${enc(row.id)}&claimed_discord=is.null&select=id`,{
+      method:'PATCH',body:{claimed_discord:discord,discord_user_id:discord},prefer:'return=representation'});
+     if(!taken||!taken.length)throw httpError(409,'This license is already redeemed by another Discord account. Ask staff to move it.');
+     clearAccessCache(discord);
+     await audit(user,'license.claim',{target:discord,detail:{type:'account',reassigned_from:String(row.discord_user_id)}});
+     return send(res,200,{ok:true,reassigned:true});
+    }
     // The row exists, is free, and is yours to take — so the claim function itself failed.
     // Show what the database actually said: this is the only place that knows, and hiding it
     // leaves no way to tell a dropped connection from a function that is missing or renamed.

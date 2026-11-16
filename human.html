@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Just a moment… · HeRo Shield</title>
-<link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/hero-icon.ico" >
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -49,7 +49,7 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 </head>
 <body>
 <main>
-  <div class="host"><img src="/assets/logo-neon-sm.jpg" alt="">__HOST__</div>
+  <div class="host"><img src="/assets/hero-icon.png" alt="">__HOST__</div>
   <h1>Security check in progress</h1>
   <p>This site uses a security service to protect itself from malicious bots. This page is shown while we check that you are not a bot.</p>
   <div class="box">
@@ -76,3 +76,41 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 </script>
 </body>
 </html>
+
+<style id="hs-logo-v37">
+/* the new mark is a transparent PNG, already black and white: no circle crop, no blue halo */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  border-radius:0!important;background:none!important;object-fit:contain;
+  filter:drop-shadow(0 0 10px rgba(255,255,255,.18))!important;
+}
+</style>
+<style id="hs-logo-colour-v38">
+/* the mark keeps its own blue — it is the brand, not part of the page's palette */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:none!important;-webkit-filter:none!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+</style>
+<style id="hs-mono-v39">
+/* the mark goes black and white with the rest of the page */
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
+  -webkit-filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+/* the bars were a blue-black (rgba(5,8,16)); on a pure black page that reads as a tint */
+.nav.solid,header,.topbar{background:rgba(6,6,7,.95)!important;border-color:rgba(255,255,255,.07)!important}
+/* a soft white light where the page starts, so the top is not a flat sheet of black */
+.hero,.bg{position:relative}
+.hero::before{
+  content:"";position:absolute;inset:-120px 0 auto;height:520px;pointer-events:none;z-index:0;
+  background:radial-gradient(760px 360px at 22% 18%,rgba(255,255,255,.085),transparent 72%);
+}
+.hero>*{position:relative;z-index:1}
+</style>
+<style id="hs-logo-colour-v39">
+.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
+  filter:none!important;-webkit-filter:none!important;
+  border-radius:0!important;background:none!important;object-fit:contain;
+}
+</style>
