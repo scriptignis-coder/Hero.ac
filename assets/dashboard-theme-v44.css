@@ -1,0 +1,162 @@
+/* HeRo Shield dashboard — v44 theme.
+ *
+ * Colours read off the reference screenshots rather than guessed, which is why the page is not
+ * pure black: the ground is #09090b, the cards sit at #121314 and the sidebar at #161616. Three
+ * steps of grey are what let a card look like a card. One blue, #3B82F6, and it is spent only on
+ * the thing that is active or the thing you are meant to click — never as decoration.
+ *
+ * Load this LAST, after every other stylesheet in dashboard.html:
+ *     <link rel="stylesheet" href="/assets/dashboard-theme-v44.css?v=44">
+ */
+
+:root{
+  --s0:#09090b;        /* the page */
+  --s1:#121314;        /* a card on the page */
+  --s2:#161616;        /* the sidebar, and panels nested inside a card */
+  --s3:#1b1b1d;        /* an input, a row that answers the cursor */
+  --line:#1f1f1f;      /* the ordinary border */
+  --line2:#272727;     /* a border that needs to be seen */
+
+  --fg:#e8eaed;        /* body text */
+  --fg-strong:#ffffff; /* headings and numbers */
+  --muted:#8b8f96;     /* labels, captions, column headers */
+  --faint:#5f636a;     /* the least important text on the page */
+
+  --accent:#3b82f6;    /* the one blue */
+  --accent-soft:#1b2238;   /* its background, for a selected row */
+  --accent-hover:#2f6fe0;
+
+  --danger:#ef4444; --warn:#f59e0b; --good:#22c55e;
+  --radius:10px;
+}
+
+/* ── ground ───────────────────────────────────────────────────────────────── */
+html,body{background:var(--s0)!important;color:var(--fg)!important}
+body{font-size:14px;line-height:1.55}
+
+/* kill the tinted glows the old theme painted behind everything */
+body::before,body::after,.bg,.bg::before,.bg::after{background-image:none!important}
+
+/* ── sidebar ──────────────────────────────────────────────────────────────── */
+.sidebar,.side,nav.side,aside{
+  background:var(--s2)!important;border-right:1px solid var(--line)!important;box-shadow:none!important;
+}
+.side-group,.side-title{
+  color:var(--faint)!important;font-size:10.5px!important;font-weight:600!important;
+  letter-spacing:.1em!important;text-transform:uppercase;padding:18px 14px 7px!important;
+}
+.side-link{
+  color:var(--muted)!important;border-radius:var(--radius)!important;padding:8px 11px!important;
+  margin:1px 8px!important;font-size:13.5px!important;font-weight:500!important;
+  display:flex;align-items:center;gap:9px;border:0!important;background:none!important;
+  transition:background .12s,color .12s;
+}
+.side-link:hover{background:#1c1c1e!important;color:var(--fg)!important}
+/* the open page: a blue wash and blue text, the way Ocean marks it */
+.side-link.active{background:var(--accent-soft)!important;color:#cfe0ff!important;font-weight:600!important}
+.side-link.active::before{display:none!important}   /* no left bar: the wash is the marker */
+
+/* ── top bar ──────────────────────────────────────────────────────────────── */
+.topbar,header{
+  background:var(--s0)!important;border-bottom:1px solid var(--line)!important;box-shadow:none!important;
+}
+.topbar h1,.topbar h2,.page-title{
+  font-size:19px!important;font-weight:700!important;color:var(--fg-strong)!important;letter-spacing:-.015em;
+}
+
+/* ── cards ────────────────────────────────────────────────────────────────── */
+.card,.panel,.workspace-card,.workspace-section,.login-card,.kpi{
+  background:var(--s1)!important;border:1px solid var(--line)!important;
+  border-radius:var(--radius)!important;box-shadow:none!important;
+}
+.card:hover,.panel:hover{border-color:var(--line)!important}
+
+/* a section heading: white, its second word blue, a rule under it */
+.panel h3,.workspace-section h3,.card h3{
+  color:var(--fg-strong)!important;font-size:15px!important;font-weight:650!important;
+  letter-spacing:-.01em!important;padding-bottom:11px!important;margin:0 0 15px!important;
+  border-bottom:1px solid var(--line)!important;
+}
+.panel p,.card p,.workspace-note{color:var(--muted)!important}
+
+/* ── inputs ───────────────────────────────────────────────────────────────── */
+.input,select,textarea,input[type=text],input[type=search],input[type=number],input[type=password]{
+  background:var(--s3)!important;border:1px solid var(--line2)!important;color:var(--fg)!important;
+  border-radius:8px!important;padding:9px 11px!important;font-size:13.5px!important;
+}
+.input::placeholder,input::placeholder,textarea::placeholder{color:var(--faint)!important}
+.input:focus,select:focus,textarea:focus,input:focus{
+  border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(59,130,246,.16)!important;outline:none!important;
+}
+input[type=checkbox],input[type=radio],progress,input[type=range]{accent-color:var(--accent)}
+
+/* ── buttons: blue is the action, grey is everything else ─────────────────── */
+.btn,button{border-radius:8px!important;font-size:13.5px!important;font-weight:600!important;padding:8px 14px!important;
+  border:1px solid var(--line2)!important;background:var(--s3)!important;color:var(--fg)!important;transition:background .12s}
+.btn:hover,button:hover{background:#232326!important}
+.btn-primary,.btn.primary,button[type=submit]{
+  background:var(--accent)!important;border-color:var(--accent)!important;color:#fff!important;
+}
+.btn-primary:hover,.btn.primary:hover,button[type=submit]:hover{background:var(--accent-hover)!important}
+.btn-danger,.btn.danger{background:transparent!important;border-color:#45262a!important;color:#f98a8a!important}
+.btn-danger:hover,.btn.danger:hover{background:#2a1618!important}
+
+/* ── tables ───────────────────────────────────────────────────────────────── */
+table{border-collapse:collapse;width:100%}
+table th,.workspace-table th{
+  color:var(--faint)!important;font-size:10.5px!important;font-weight:600!important;
+  text-transform:uppercase;letter-spacing:.09em!important;
+  padding:0 12px 9px!important;border-bottom:1px solid var(--line2)!important;text-align:left;
+}
+table td,.workspace-table td{
+  padding:11px 12px!important;border-bottom:1px solid #161617!important;font-size:13.5px!important;
+}
+tbody tr:hover td{background:#141416!important}
+tbody tr:last-child td{border-bottom:0!important}
+
+/* ── KPI tiles: the number leads, the label follows ───────────────────────── */
+.kpi{padding:16px 18px!important}
+.kpi strong{color:var(--fg-strong)!important;font-size:25px!important;font-weight:700!important;
+  letter-spacing:-.025em!important;line-height:1.15;display:block}
+.kpi span{color:var(--muted)!important;font-size:12px!important}
+
+/* ── chips, badges, verdicts ──────────────────────────────────────────────── */
+.chip,.tag,.badge{
+  background:var(--s3)!important;border:1px solid var(--line2)!important;color:var(--muted)!important;
+  border-radius:6px!important;font-size:11px!important;padding:3px 8px!important;font-weight:600!important;
+}
+.chip.active,.tag.active,.badge.blue{background:var(--accent-soft)!important;border-color:#2b3a5e!important;color:#9dc0ff!important}
+.badge.red,.sev-high{background:#2a1618!important;border-color:#45262a!important;color:#f98a8a!important}
+.badge.amber,.sev-medium{background:#2a2213!important;border-color:#4a3c1d!important;color:#f5c466!important}
+.badge.green,.sev-low{background:#15251c!important;border-color:#24422f!important;color:#7ddba4!important}
+
+/* ── misc ─────────────────────────────────────────────────────────────────── */
+code,.mono,pre{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px}
+hr,.divider{border:0;border-top:1px solid var(--line)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--s0)}
+::-webkit-scrollbar-thumb{background:#232326;border-radius:6px;border:2px solid var(--s0)}
+::-webkit-scrollbar-thumb:hover{background:#303034}
+
+/* the Discord button keeps Discord's own colour — it is a Discord link */
+a.btn.btn-discord{background:#5865f2!important;border-color:#5865f2!important;color:#fff!important}
+
+/* ── the two places the old theme still painted a gradient ────────────────── */
+/* the page header card: it was a blue wash; here it is a flat card like the rest */
+.workspace-hero,.page-hero,.hero-card,.tab-hero{
+  background:var(--s1)!important;border:1px solid var(--line)!important;
+  border-radius:var(--radius)!important;padding:20px 22px!important;
+}
+.workspace-hero h1,.page-hero h1{font-size:22px!important;font-weight:700!important;color:var(--fg-strong)!important;margin:0 0 5px!important}
+.workspace-hero p,.page-hero p{color:var(--muted)!important;font-size:13.5px!important;margin:0!important}
+
+/* the graph-paper backdrop and its blue corner glow */
+.bg,.bg-grid,.grid-bg,main::before,.content::before{
+  background-image:none!important;background:var(--s0)!important;
+}
+
+/* anything still carrying a gradient inside the page body */
+.card[style*="gradient"],.panel[style*="gradient"],
+.workspace-hero[style*="gradient"]{background:var(--s1)!important}

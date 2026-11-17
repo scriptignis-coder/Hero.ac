@@ -1,25 +1,14 @@
-/* License activation — black and white, same system as the rest of the dashboard. */
 
 #hs-activation-slot {width:100%; margin:16px 0 6px}
 #hs-license-panel {width:100%; box-sizing:border-box}
-
-.hs-lic-panel {background:#0c0c0f;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:19px;text-align:left;
-  box-shadow:0 1px 0 rgba(255,255,255,.045) inset, 0 24px 48px -28px #000}
-.hs-lic-eyebrow {font-size:10px;letter-spacing:.15em;color:#6a6a72;font-weight:700;margin-bottom:16px;text-transform:uppercase}
-.hs-lic-label {display:block;font-weight:600;color:#fff;margin-bottom:9px;font-size:13px}
-
-.hs-lic-input {display:block;box-sizing:border-box;width:100%;border-radius:10px;background:#141419;
-  border:1px solid rgba(255,255,255,.08);color:#fff;padding:13px 12px;outline:none;font:inherit}
-.hs-lic-input:focus {background:#18181e;border-color:rgba(255,255,255,.55);box-shadow:0 0 0 3px rgba(255,255,255,.07)}
-
-/* the button was white on white, so its label could not be read */
-.hs-lic-button {display:block;width:100%;margin-top:13px;border:1px solid #fff;border-radius:10px;
-  background:#fff;color:#050505;font-weight:700;padding:13px;cursor:pointer;
-  transition:box-shadow .15s,opacity .15s}
-.hs-lic-button:hover {box-shadow:0 0 0 4px rgba(255,255,255,.08)}
-.hs-lic-button:disabled {opacity:.55;cursor:wait}
-
-.hs-lic-message {font-size:12px;color:#f87171;line-height:1.5;overflow-wrap:anywhere;margin:12px 0 0}
-.hs-lic-note {font-size:11px;color:#6a6a72;text-align:center;margin:14px 0 0}
-.hs-lic-retry {background:none;border:0;color:#a2a2a8;text-decoration:underline;cursor:pointer;margin-top:8px}
+.hs-lic-panel {background:linear-gradient(160deg,#0d1524,#090e18);border:1px solid #243854;border-radius:14px;padding:19px;text-align:left;box-shadow:0 8px 32px #0004}
+.hs-lic-eyebrow {font-size:10px;letter-spacing:.15em;color:#6eabff;font-weight:800;margin-bottom:16px}
+.hs-lic-label {display:block;font-weight:700;color:#dce9fb;margin-bottom:9px;font-size:13px}
+.hs-lic-input {display:block;box-sizing:border-box;width:100%;border-radius:9px;background:#080f1b;border:1px solid #314660;color:#e8f2ff;padding:13px 12px;outline:none;font:inherit}
+.hs-lic-input:focus {border-color:#438bff;box-shadow:0 0 0 3px #286bde30}
+.hs-lic-button {display:block;width:100%;margin-top:13px;border:1px solid #337cfa;border-radius:9px;background:linear-gradient(95deg,#0756db,#2687ff);color:white;font-weight:800;padding:13px;cursor:pointer}
+.hs-lic-button:disabled {opacity:.6;cursor:wait}
+.hs-lic-message {font-size:12px;color:#ff8995;line-height:1.5;overflow-wrap:anywhere;margin:12px 0 0}
+.hs-lic-note {font-size:11px;color:#8293ac;text-align:center;margin:14px 0 0}
+.hs-lic-retry {background:none;border:0;color:#80b6ff;text-decoration:underline;cursor:pointer;margin-top:8px}
 .hs-lic-members {padding:0 18px 18px}

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HeRo Shield · Discord check</title>
-<link rel="icon" href="/assets/hero-icon.ico">
+<link rel="icon" href="/assets/hero-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
 <style>
@@ -70,6 +70,7 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 </style>
+  <link rel="stylesheet" href="/assets/dashboard-theme-v44.css?v=44">
 </head>
 <body>
 <main class="card" id="box"></main>
@@ -107,41 +108,3 @@ input:focus,textarea:focus,select:focus{outline-color:#739fbe!important;box-shad
 </script>
 </body>
 </html>
-
-<style id="hs-logo-v37">
-/* the new mark is a transparent PNG, already black and white: no circle crop, no blue halo */
-.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
-  border-radius:0!important;background:none!important;object-fit:contain;
-  filter:drop-shadow(0 0 10px rgba(255,255,255,.18))!important;
-}
-</style>
-<style id="hs-logo-colour-v38">
-/* the mark keeps its own blue — it is the brand, not part of the page's palette */
-.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
-  filter:none!important;-webkit-filter:none!important;
-  border-radius:0!important;background:none!important;object-fit:contain;
-}
-</style>
-<style id="hs-mono-v39">
-/* the mark goes black and white with the rest of the page */
-.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
-  filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
-  -webkit-filter:grayscale(1) brightness(1.5) contrast(1.08)!important;
-  border-radius:0!important;background:none!important;object-fit:contain;
-}
-/* the bars were a blue-black (rgba(5,8,16)); on a pure black page that reads as a tint */
-.nav.solid,header,.topbar{background:rgba(6,6,7,.95)!important;border-color:rgba(255,255,255,.07)!important}
-/* a soft white light where the page starts, so the top is not a flat sheet of black */
-.hero,.bg{position:relative}
-.hero::before{
-  content:"";position:absolute;inset:-120px 0 auto;height:520px;pointer-events:none;z-index:0;
-  background:radial-gradient(760px 360px at 22% 18%,rgba(255,255,255,.085),transparent 72%);
-}
-.hero>*{position:relative;z-index:1}
-</style>
-<style id="hs-logo-colour-v39">
-.brand-mark,.brand img,.logo img,.nav .brand img,.side-brand img,img[src*="hero-icon"]{
-  filter:none!important;-webkit-filter:none!important;
-  border-radius:0!important;background:none!important;object-fit:contain;
-}
-</style>

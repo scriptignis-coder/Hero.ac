@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory', licenseslist: 'Licenses list', community: 'Signatures', memstrings: 'Strings',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
@@ -215,7 +215,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenseslist:'admin', community:'herocheck', memstrings:'herocheck'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -243,7 +243,6 @@
   async function render() {
     const view = $('#view');
     
-    if (state.tab === 'licenseslist') { view.innerHTML = loading(); try { await renderLicensesList(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
     if (state.tab === 'profile') return renderProfile(view);
     if (state.tab === 'subscription') return renderSubscription(view);
@@ -267,20 +266,6 @@
     if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
-    // A rejected promise here used to leave the PREVIOUS tab's html on screen, which made
-    // Strings look like it was showing the Signatures tab. Show the real error instead.
-    // Show the last payload immediately and refresh behind it, the same way Scan PINs does.
-    // Re-entering a tab then costs nothing: the skeleton is only for the very first visit.
-    if (state.tab === 'community') {
-      if (state.communityResp) { try { renderCommunity(view, state.communityResp); } catch {} } else view.innerHTML = loading();
-      try { await renderCommunity(view); } catch (e) { if (!state.communityResp) wsError(view, e); else toast(e.message, true); }
-      return;
-    }
-    if (state.tab === 'memstrings') {
-      if (state.memStringsResp) { try { renderMemStrings(view, state.memStringsResp); } catch {} } else view.innerHTML = loading();
-      try { await renderMemStrings(view); } catch (e) { if (!state.memStringsResp) wsError(view, e); else toast(e.message, true); }
-      return;
-    }
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
@@ -330,7 +315,7 @@
         <h3>Partners on the website (${list.length})</h3>
         ${list.length ? `<div style="display:grid;gap:10px;margin-top:12px">${list.map((p) => `
           <div style="display:flex;gap:14px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#0a0b0d">
-            <img src="${esc(p.icon || '/assets/hero-icon.png')}" alt="" style="width:46px;height:46px;border-radius:12px;object-fit:cover" referrerpolicy="no-referrer">
+            <img src="${esc(p.icon || '/assets/logo-neon-sm.jpg')}" alt="" style="width:46px;height:46px;border-radius:12px;object-fit:cover" referrerpolicy="no-referrer">
             <div style="flex:1;min-width:0"><b>${esc(p.name)}</b>${p.members ? ` <span class="workspace-note">· ${Number(p.members).toLocaleString()} members</span>` : ''}
               <div class="workspace-note" style="margin-top:2px">${esc(p.description)}</div>
               <a class="workspace-note" href="${esc(p.invite)}" target="_blank" rel="noopener" style="color:var(--cyan)">${esc(p.invite)}</a></div>
@@ -1061,8 +1046,7 @@
           `<div class="rp-meta"><span class="rp-chip">${SEV[F(d, 'Severity')] || ''}</span><span class="rp-chip">${esc(METHODS[F(d, 'Method')] || '')}</span>
             ${(F(d, 'Features') || []).slice(0, 5).map((f) => `<span class="rp-chip">${esc(f)}</span>`).join('')}<span class="rp-chip">${esc(F(d, 'When'))}</span></div>
            <div class="rp-txt">${esc(F(d, 'Explain'))}</div>
-           <div class="rp-code">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? '<br>SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>
-           ${/^[0-9a-f]{64}$/i.test(F(d, 'Sha256') || '') ? `<button class="btn btn-sm" style="margin-top:10px" data-addsig="${esc(F(d, 'Sha256'))}" data-addsig-name="${esc(String(F(d, 'Signature') || '').replace(/\s*\((hash|domain|inside \.zip|multi-string indicators)\)$/i, '').slice(0, 70))}" data-addsig-file="${esc(F(d, 'File') || '')}" data-addsig-sev="${F(d, 'Severity') === 2 ? 'high' : 'medium'}" data-addsig-game="${esc(rGame)}" title="Every next scan finds this exact file, even renamed">+ Add to my signatures</button>` : ''}`)), 'No cheat found.'),
+           <div class="rp-code">${esc(F(d, 'Path'))}${F(d, 'Sha256') ? '<br>SHA-256 ' + esc(F(d, 'Sha256')) : ''}</div>`)), 'No cheat found.'),
 
       integrity: () => head('Integrity checks', `${passed}/${integrity.length} passed`, 'Green = normal. Red = something was changed, disabled or cleaned before the check.')
         + grid(integrity.map(([t, ok]) => card(ok ? 'green' : 'red', ok ? IC.check : IC.x, t, ok ? 'Passed' : 'Failed')), ''),
@@ -1358,16 +1342,6 @@
       </div>`;
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
-    // v36: a confirmed cheat file → a hash signature (the next scans find the same file even when it is renamed)
-    view.querySelectorAll('[data-addsig]').forEach((b) => b.addEventListener('click', async () => {
-      const name = await modal({ title: 'Add to my signatures', text: 'Only add a file you checked yourself: every next scan on your servers will flag this exact file (SHA-256), even if it is renamed. Name of the cheat:', input: true, value: b.dataset.addsigName || 'Cheat file', ok: 'Add' });
-      if (!name) return;
-      b.disabled = true;
-      try {
-        await api('/api/signatures', { method: 'POST', body: { name: String(name).slice(0, 80), hashes: [b.dataset.addsig], fileNames: b.dataset.addsigFile ? [b.dataset.addsigFile.toLowerCase()] : [], severity: b.dataset.addsigSev, games: [b.dataset.addsigGame], features: ['Confirmed by staff'] } });
-        b.textContent = '✓ Added to your signatures'; toast('Signature added — the next scans will find this file.');
-      } catch (e) { b.disabled = false; toast(e.message, true); }
-    }));
     view.querySelectorAll('[data-goto-tab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.gotoTab)));
     view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
       const id = (view.querySelector('#disc-id').value || '').replace(/\D/g, '');
@@ -1662,7 +1636,7 @@
       </section>`).join('')}</div>
       <div class="card panel" style="margin-top:18px;display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center">
         <div><b>Still stuck?</b><p class="workspace-note" style="margin:4px 0 0">Open a support ticket with your PIN and a screenshot of the error.</p></div>
-        <a class="btn btn-primary" href="https://discord.gg/cMUD85Jgn" target="_blank" rel="noopener noreferrer">Open Discord support</a>
+        <a class="btn btn-primary" href="https://discord.gg/V7gvW7ncP" target="_blank" rel="noopener noreferrer">Open Discord support</a>
       </div>`;
   }
 
@@ -1725,220 +1699,6 @@
         <b style="color:var(--cyan)">v${ver}</b><div style="margin-top:6px;color:var(--muted)">${text}</div></div>`).join('');
   }
 
-  // Memory strings: "find THIS text inside THAT process". The scanner already reads the memory
-  // of dps / pcasvc / sysmain / dnscache / explorer on every check, so these cost no extra time.
-  async function renderMemStrings(view, cached) {
-    const d = cached || await api('/api/memory-strings');
-    state.memStringsResp = d;
-    const procs = [...(d.builtin || []), ...(d.processes || [])];
-    const rows = d.strings || [];
-    const opts = procs.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-
-    view.innerHTML = `
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Add a memory string</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
-          A cheat keeps things in memory while it runs — a licence key, a session id, the Discord server it talks to.
-          Windows keeps its own records too: <span class="mono">dps</span> stores what ran and when
-          (<span class="mono">!2024/06/02:22:07:58!</span>), <span class="mono">pcasvc</span> stores full paths.
-          Put a string here once and every later check looks for it, long after the cheat's files are deleted.
-        </p>
-        <div style="display:grid;gap:10px">
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <select id="ms-proc" class="input" style="flex:1;min-width:150px">${opts}</select>
-            <select id="ms-sev" class="input" style="flex:1;min-width:150px">
-              <option value="detect">Detect — a cheat</option>
-              <option value="warning">Warning — worth a look</option>
-            </select>
-          </div>
-          <input id="ms-client" class="input" placeholder="What you call it — e.g. Cheat Discord">
-          <input id="ms-string" class="input mono" placeholder="The string to find — e.g. 860613729283997696">
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn btn-primary" data-ms-add>Add string</button>
-            <button class="btn btn-ghost" data-ms-bulk>Import many…</button>
-          </div>
-          <div id="ms-bulkbox" hidden style="display:grid;gap:8px">
-            <textarea id="ms-bulktext" class="input mono" rows="6" placeholder="One per line:&#10;Cheat Discord::860613729283997696&#10;Cheat::!2024/06/02:22:07:58!"></textarea>
-            <div><button class="btn btn-primary btn-sm" data-ms-bulkgo>Import into the process above</button></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Processes to read</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:10px">
-          These five are read on every check: <span class="mono">${(d.builtin || []).map(esc).join(', ')}</span>.
-          Add another only if you have a string for it — each one adds time to the scan, and it is only read if it is running.
-        </p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          ${(d.processes || []).length
-            ? d.processes.map((p) => `<span class="badge mono">${esc(p)} <button class="btn btn-ghost btn-sm" style="padding:0 4px;color:var(--danger)" data-ms-delproc="${esc(p)}">×</button></span>`).join('')
-            : '<span style="color:var(--dim);font-size:13px">None added.</span>'}
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <input id="ms-newproc" class="input mono" style="flex:1;min-width:180px" placeholder="discord.exe">
-          <button class="btn btn-ghost" data-ms-addproc>Add process</button>
-        </div>
-      </div>
-
-      <div class="card panel">
-        <h3>Strings list <span class="badge">${rows.length}</span></h3>
-        ${rows.length ? `<div style="overflow-x:auto;margin-top:12px"><table class="workspace-table" style="width:100%">
-          <thead><tr><th>Process</th><th>Name</th><th>String</th><th>Severity</th><th></th></tr></thead>
-          <tbody>${rows.map((r) => `<tr>
-            <td class="mono">${esc(r.process_name)}</td>
-            <td>${esc(r.client_name || '—')}</td>
-            <td class="mono" style="word-break:break-all;max-width:360px">${esc(r.string)}</td>
-            <td><span class="badge" style="${r.severity === 'warning' ? 'color:var(--orange)' : 'color:var(--danger)'}">${r.severity === 'warning' ? 'Warning' : 'Detect'}</span></td>
-            <td><button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-ms-del="${r.id}">Delete</button></td>
-          </tr>`).join('')}</tbody></table></div>`
-          : '<p style="color:var(--muted);margin-top:10px">No strings yet. Add one above and the next scan looks for it.</p>'}
-      </div>`;
-
-    const g = (id) => document.getElementById(id);
-    const post = async (body, okMsg) => {
-      try { const r = await api('/api/memory-strings', { method: 'POST', body }); toast(r.added !== undefined ? `${okMsg} (${r.added} added${r.skipped ? `, ${r.skipped} already there` : ''})` : okMsg); state.memStringsResp = null; renderMemStrings(view); }
-      catch (e) { toast(e.message, true); }
-    };
-
-    g('ms-bulkbox') && view.querySelector('[data-ms-bulk]')?.addEventListener('click', () => { g('ms-bulkbox').hidden = !g('ms-bulkbox').hidden; });
-    view.querySelector('[data-ms-add]')?.addEventListener('click', () => post({
-      process: g('ms-proc').value, clientName: g('ms-client').value, string: g('ms-string').value, severity: g('ms-sev').value,
-    }, 'String added'));
-    view.querySelector('[data-ms-bulkgo]')?.addEventListener('click', () => post({
-      process: g('ms-proc').value, severity: g('ms-sev').value, bulk: g('ms-bulktext').value,
-    }, 'Imported'));
-    view.querySelector('[data-ms-addproc]')?.addEventListener('click', () => post({
-      action: 'add_process', process: g('ms-newproc').value,
-    }, 'Process added'));
-    view.querySelectorAll('[data-ms-delproc]').forEach((b) => b.addEventListener('click', () => post({
-      action: 'remove_process', process: b.dataset.msDelproc,
-    }, 'Process removed')));
-    view.querySelectorAll('[data-ms-del]').forEach((b) => b.addEventListener('click', async () => {
-      try { await api('/api/memory-strings?id=' + encodeURIComponent(b.dataset.msDel), { method: 'DELETE' }); toast('Deleted'); state.memStringsResp = null; renderMemStrings(view); }
-      catch (e) { toast(e.message, true); }
-    }));
-  }
-
-  // Shared signatures: everyone sees them, anyone can add one. Nothing here reaches a
-  // scanner until an owner presses "Add to mine", which copies it into their own list.
-  async function renderCommunity(view, cached) {
-    const d = cached || await api('/api/community-signatures');
-    state.communityResp = d;
-    const list = d.signatures || [];
-    const chip = (t) => `<span class="badge" style="font-size:11px">${esc(t)}</span>`;
-
-    view.innerHTML = `
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Share a signature</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
-          Found a cheat? Put it here and every other server can use it. What you share does <strong>not</strong> go into
-          anyone's scanner by itself — each owner chooses to add it. That is deliberate: one wrong signature applied
-          everywhere would flag clean players on every server.
-        </p>
-        <div class="set-grid" style="display:grid;gap:10px">
-          <input id="cs-name" class="input" placeholder="Cheat name (e.g. RedENGINE)">
-          <input id="cs-files" class="input" placeholder="File names: redengine.exe, rde_loader.dll">
-          <input id="cs-domains" class="input" placeholder="Sites (optional): redengine.cc">
-          <input id="cs-hashes" class="input" placeholder="SHA-256 hashes (optional), comma separated">
-          <input id="cs-note" class="input" placeholder="How you confirmed it (optional) — helps others trust it">
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <select id="cs-game" class="input" style="flex:1;min-width:140px"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
-            <select id="cs-sev" class="input" style="flex:1;min-width:140px"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
-            <button class="btn btn-primary" data-cs-share>Share</button>
-          </div>
-        </div>
-      </div>
-
-      ${(d.mine || []).length ? `
-      <div class="card panel" style="margin-bottom:18px">
-        <h3>Your signatures <span class="badge">${d.mine.length}</span></h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:10px">
-          These are yours, from the Signatures tab. They stay private until you share one.
-        </p>
-        <div style="display:grid;gap:8px">${d.mine.map((m) => `
-          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:9px;padding:10px 13px">
-            <div style="min-width:0">
-              <strong style="font-size:14px">${esc(m.name)}</strong>
-              <div class="mono" style="font-size:11.5px;color:var(--muted);word-break:break-all">${(m.file_names || []).slice(0,4).map(esc).join(', ') || (m.domains || []).map(esc).join(', ') || '—'}</div>
-            </div>
-            ${m.shared
-              ? '<span class="badge">Shared</span>'
-              : `<button class="btn btn-ghost btn-sm" data-cs-shareown="${esc(m.id)}">Share this</button>`}
-          </div>`).join('')}</div>
-      </div>` : ''}
-
-      <div class="card panel">
-        <h3>Shared by the community <span class="badge">${list.length}</span></h3>
-        ${list.length ? `<div style="display:grid;gap:10px;margin-top:12px">${list.map((s) => `
-          <div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between">
-              <strong style="font-size:15px">${esc(s.name)}</strong>
-              <span style="display:flex;gap:6px;align-items:center">
-                ${chip(s.severity)}
-                ${s.imports ? chip(`${s.imports} using`) : ''}
-                ${s.reports ? `<span class="badge" style="font-size:11px;color:var(--danger)">${s.reports} reported</span>` : ''}
-              </span>
-            </div>
-            <div style="color:var(--muted);font-size:12.5px;margin-top:6px">
-              by ${esc(s.author_name || s.author_discord)}${s.note ? ' · ' + esc(s.note) : ''}
-            </div>
-            <div class="mono" style="font-size:12px;color:var(--muted);margin-top:8px;word-break:break-all">
-              ${(s.file_names || []).map(esc).join(', ') || '—'}
-              ${(s.domains || []).length ? '<br>' + (s.domains).map(esc).join(', ') : ''}
-            </div>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              ${s.added
-                ? '<span class="badge">Already in your list</span>'
-                : `<button class="btn btn-primary btn-sm" data-cs-import="${s.id}">Add to mine</button>`}
-              ${s.mine
-                ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-cs-del="${s.id}">Withdraw</button>`
-                : `<button class="btn btn-ghost btn-sm" data-cs-report="${s.id}">Report false positive</button>`}
-            </div>
-          </div>`).join('')}</div>`
-          : '<p style="color:var(--muted);margin-top:10px">Nothing shared yet. Be the first.</p>'}
-      </div>`;
-
-    const v = (id) => (document.getElementById(id)?.value || '').trim();
-    view.querySelector('[data-cs-share]')?.addEventListener('click', async () => {
-      if (!v('cs-name')) return toast('Give the signature a name', true);
-      try {
-        await api('/api/community-signatures', { method: 'POST', body: {
-          action: 'share', name: v('cs-name'), fileNames: v('cs-files'), domains: v('cs-domains'),
-          hashes: v('cs-hashes'), note: v('cs-note'), severity: v('cs-sev'),
-          games: v('cs-game') ? [v('cs-game')] : [],
-        } });
-        toast('Shared'); state.communityResp = null; renderCommunity(view);
-      } catch (e) { toast(e.message, true); }
-    });
-    view.querySelectorAll('[data-cs-shareown]').forEach((b) => b.addEventListener('click', async () => {
-      const m = (d.mine || []).find((x) => String(x.id) === b.dataset.csShareown);
-      if (!m) return;
-      try {
-        await api('/api/community-signatures', { method: 'POST', body: {
-          action: 'share', name: m.name, fileNames: m.file_names, domains: m.domains,
-          hashes: m.hashes, features: m.features, severity: m.severity, games: m.games,
-        } });
-        toast('Shared with everyone'); state.communityResp = null; renderCommunity(view);
-      } catch (e) { toast(e.message, true); }
-    }));
-    view.querySelectorAll('[data-cs-import]').forEach((b) => b.addEventListener('click', async () => {
-      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'import', id: b.dataset.csImport } }); toast('Added to your signatures'); state.communityResp = null; renderCommunity(view); }
-      catch (e) { toast(e.message, true); }
-    }));
-    view.querySelectorAll('[data-cs-report]').forEach((b) => b.addEventListener('click', async () => {
-      const reason = prompt('What does it flag that is not a cheat?');
-      if (reason === null) return;
-      try { await api('/api/community-signatures', { method: 'POST', body: { action: 'report', id: b.dataset.csReport, reason } }); toast('Reported — thanks'); state.communityResp = null; renderCommunity(view); }
-      catch (e) { toast(e.message, true); }
-    }));
-    view.querySelectorAll('[data-cs-del]').forEach((b) => b.addEventListener('click', async () => {
-      if (!confirm('Withdraw this signature from the shared list?')) return;
-      try { await api('/api/community-signatures?id=' + encodeURIComponent(b.dataset.csDel), { method: 'DELETE' }); toast('Withdrawn'); state.communityResp = null; renderCommunity(view); }
-      catch (e) { toast(e.message, true); }
-    }));
-  }
-
   async function renderSignatures(view) {
     const { signatures } = await api('/api/signatures');
     view.innerHTML = `
@@ -1963,23 +1723,9 @@
             <td class="mono">${esc((s.file_names || []).join(', '))}</td>
             <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
             <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
-            <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-sharesig="${esc(s.id)}">Share</button> <button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+            <td><button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
           : '<div class="empty">No signatures yet.</div>'}
       </div>`;
-  }
-
-  // Publishing one of your own signatures to the shared list — otherwise sharing would mean
-  // typing the whole thing again, which is why that tab stays empty.
-  async function shareOwnSignature(view, sig) {
-    try {
-      await api('/api/community-signatures', { method: 'POST', body: {
-        action: 'share', name: sig.name, fileNames: sig.file_names || [], domains: sig.domains || [],
-        hashes: sig.hashes || [], features: sig.features || [], severity: sig.severity,
-        games: sig.games || [],
-      } });
-      toast('Shared with the community');
-      state.communityResp = null;
-    } catch (e) { toast(e.message, true); }
   }
 
   // ---------- permission duration: Duration (number) + Unit (hours … years / Lifetime) + live preview ----------
@@ -2256,53 +2002,6 @@
     const search = () => { state.auditQ = view.querySelector('#audit-q').value.trim(); renderAuditLogs(view).catch((e) => toast(e.message, true)); };
     view.querySelector('[data-auditsearch]').addEventListener('click', search);
     view.querySelector('#audit-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') search(); });
-  }
-
-  async function renderLicensesList(view) {
-    const rows = await api('/api/admin-licenses');
-    const search = (state.licQ || '').toLowerCase();
-    const filtered = search ? rows.filter(r => String(r.discord_user_id || '').includes(search) || String(r.claimed_discord || '').toLowerCase().includes(search) || (r.members || []).some(m => String(m.discord_id || '').includes(search))) : rows;
-    view.innerHTML = `<div class="workspace-hero"><div><h2>Licenses list</h2><p>All licenses and their members. Revoke a license or remove a member.</p></div></div>
-      <div class="card panel" style="margin-bottom:18px"><div style="display:flex;gap:10px;align-items:center">
-        <input class="input" id="lic-q" placeholder="Search by Discord ID or name" value="${esc(state.licQ || '')}" style="flex:1;min-width:200px">
-        <button class="btn btn-ghost btn-sm" data-licsearch>Search</button>
-      </div></div>
-      <div class="card panel"><h3>${filtered.length} license${filtered.length !== 1 ? 's' : ''}</h3>
-      ${filtered.length ? `<div class="table-wrap"><table><thead><tr><th>Owner</th><th>Plan</th><th>Duration</th><th>Expires</th><th>Seats</th><th>Status</th><th>Members</th><th></th></tr></thead><tbody>
-        ${filtered.map(r => {
-          const dur = r.duration_unit === 'lifetime' ? 'Lifetime' : `${r.duration_value} ${r.duration_unit}`;
-          const exp = r.expires_at ? fmtDate(r.expires_at) : 'Never';
-          const expired = r.expires_at && new Date(r.expires_at) < new Date();
-          const st = r.revoked ? '<span class="badge off">Revoked</span>' : expired ? '<span class="badge off">Expired</span>' : '<span class="badge on">Active</span>';
-          const mems = (r.members || []).map(m => `<div style="display:flex;align-items:center;gap:6px;margin:2px 0"><span class="mono" style="font-size:12px">${esc(m.discord_id)}</span><button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:var(--danger)" data-rmlic="${r.id}" data-rmmember="${esc(m.discord_id)}">Remove</button></div>`).join('');
-          const owner = r.claimed_discord || r.discord_user_id || '—';
-          // "Owner" used to show either column without saying which, so a key nobody had
-          // redeemed looked exactly like one in use. Say which of the two this is.
-          const whose = r.claimed_discord
-            ? `<span class="mono">${esc(String(r.claimed_discord))}</span><div style="font-size:11px;color:var(--green)">In use${r.redeemed_at ? ' · since ' + esc(fmtDate(r.redeemed_at)) : ''}</div>`
-            : r.discord_user_id
-              ? `<span class="mono">${esc(String(r.discord_user_id))}</span><div style="font-size:11px;color:var(--dim)">Issued to · not redeemed yet</div>`
-              : `<span style="color:var(--dim)">—</span><div style="font-size:11px;color:var(--dim)">Free key · nobody has used it</div>`;
-          return `<tr><td>${whose}</td><td>${r.enterprise ? 'Enterprise' + (r.enterprise_name ? ' · ' + esc(r.enterprise_name) : '') : 'Personal'}</td><td>${dur}</td><td class="mono">${exp}</td><td>${r.seats}</td><td>${st}</td><td>${mems || '<span style="color:var(--dim)">—</span>'}</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-licrevoke="${r.id}" data-licstatus="${r.revoked ? 'revoked' : 'active'}">${r.revoked ? 'Unrevoke' : 'Revoke'}</button> <button class="btn btn-ghost btn-sm" style="color:var(--danger)" data-licdelete="${r.id}" data-licowner="${esc(String(owner))}">Delete</button></td></tr>`;
-        }).join('')}
-      </tbody></table></div>` : '<div class="empty">No licenses found.</div>'}</div>`;
-    const reload = () => renderLicensesList(view).catch(e => toast(e.message, true));
-    const searchFn = () => { state.licQ = view.querySelector('#lic-q').value.trim(); reload(); };
-    view.querySelector('[data-licsearch]').addEventListener('click', searchFn);
-    view.querySelector('#lic-q').addEventListener('keydown', e => { if (e.key === 'Enter') searchFn(); });
-    view.querySelectorAll('[data-licrevoke]').forEach(b => b.addEventListener('click', async () => {
-      const action = b.dataset.licstatus === 'revoked' ? 'unrevoke' : 'revoke';
-      if (!confirm(`${action === 'revoke' ? 'Revoke' : 'Unrevoke'} this license?`)) return;
-      try { await api('/api/admin-licenses', { method: 'POST', body: { action, license_id: b.dataset.licrevoke } }); toast(`License ${action}d`); reload(); } catch (e) { toast(e.message, true); }
-    }));
-    view.querySelectorAll('[data-licdelete]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`Delete the license of ${b.dataset.licowner}?\n\nThis cannot be undone. They lose the dashboard straight away and will be asked for a license key like a new user. To block them temporarily instead, use Revoke.`)) return;
-      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'delete', license_id: b.dataset.licdelete } }); toast('License deleted'); reload(); } catch (e) { toast(e.message, true); }
-    }));
-    view.querySelectorAll('[data-rmmember]').forEach(b => b.addEventListener('click', async () => {
-      if (!confirm(`Remove member ${b.dataset.rmmember}?`)) return;
-      try { await api('/api/admin-licenses', { method: 'POST', body: { action: 'remove_member', license_id: b.dataset.rmlic, discord_id: b.dataset.rmmember } }); toast('Member removed'); reload(); } catch (e) { toast(e.message, true); }
-    }));
   }
 
   function renderServers(view) {
@@ -2671,11 +2370,6 @@
         await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
         toast('Signature added');
         render();
-      } else if (t.dataset.sharesig) {
-        const { signatures } = await api('/api/signatures');
-        const sig = (signatures || []).find((x) => String(x.id) === String(t.dataset.sharesig));
-        if (!sig) { toast('That signature is gone', true); return; }
-        await shareOwnSignature(null, sig);
       } else if (t.dataset.delsig) {
         await api(`/api/signatures?id=${encodeURIComponent(t.dataset.delsig)}`, { method: 'DELETE' });
         render();
