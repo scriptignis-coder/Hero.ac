@@ -32,19 +32,6 @@
   50%    {opacity:1;  transform:translateX(-50%) scale(1.07)}
 }
 
-/* the beam: one pass down the hero when the page opens, then it is gone */
-.hero .wrap{position:relative}
-.hero .wrap::before{
-  content:"";position:absolute;left:-40%;right:-40%;top:0;height:140px;pointer-events:none;z-index:-1;
-  background:linear-gradient(180deg, transparent, rgba(59,130,246,.14) 55%, rgba(160,205,255,.5) 78%, transparent);
-  animation:hs-sweep 2.4s cubic-bezier(.4,0,.2,1) .35s 1 both;
-}
-@keyframes hs-sweep{
-  from{transform:translateY(-160px);opacity:0}
-  18%{opacity:1}
-  to  {transform:translateY(760px);opacity:0}
-}
-
 /* ── the headline arrives one line at a time ──────────────────────────────── */
 .hero h1 span,.hero h1 em{display:inline-block;animation:hs-rise .85s cubic-bezier(.22,1,.36,1) both}
 .hero h1 span{animation-delay:.1s}

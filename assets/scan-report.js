@@ -101,6 +101,17 @@
   ];
   const listFor = (k) => (REPORT && REPORT.groups && REPORT.groups[k]) || [];
 
+  /** red = proof, amber = a lead, green = a check that passed, blue = information. */
+  function levelOf(d, catKey) {
+    const t = (d.tag || '').toLowerCase();
+    if (/suspic|lead|review|maybe|warn/.test(t)) return 'suspicious';
+    if (/clean|ok|pass/.test(t)) return 'clean';
+    if (catKey === 'detections') return 'detected';
+    if (catKey === 'warnings') return 'suspicious';
+    if (catKey === 'integrity') return 'clean';
+    return 'info';
+  }
+
   function draw() {
     const r = REPORT;
     const bad = String(r.verdict || '').toLowerCase();
@@ -192,11 +203,12 @@
         ${slice.length ? slice.map((d, i) => {
           const idx = page * PER + i;
           const st = strength(d);
-          return `<div class="sr-item-card ${cObj.cls}" data-row="${idx}">
+          const lv = levelOf(d, cat);
+          return `<div class="sr-item-card ${cObj.cls} lv-${lv}" data-row="${idx}">
             <div class="sr-top">
               <span class="sr-name">${esc(d.name)}</span>
               ${d.count > 1 ? `<span class="sr-mult">seen ${d.count}×</span>` : ''}
-              ${d.tag ? `<span class="sr-tag${cat === 'detections' ? ' hot' : ''}">${esc(d.tag)}</span>` : ''}
+              ${d.tag ? `<span class="sr-tag sev-${lv}">${esc(d.tag)}</span>` : ''}
               <span class="sr-strength">evidence
                 <span class="bars">${[0,1,2,3].map((n) => `<i class="${n < st ? 'f' : ''}"></i>`).join('')}</span></span>
             </div>

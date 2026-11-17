@@ -3,21 +3,6 @@
 (() => {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  // ── the scroll progress hairline ────────────────────────────────────────
-  const bar = document.createElement('div');
-  bar.id = 'hs-prog';
-  addEventListener('DOMContentLoaded', () => document.body.appendChild(bar));
-  let ticking = false;
-  addEventListener('scroll', () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      const h = document.documentElement.scrollHeight - innerHeight;
-      bar.style.width = (h > 0 ? (scrollY / h) * 100 : 0) + '%';
-      ticking = false;
-    });
-  }, { passive: true });
-
   // ── cards lean toward the cursor, buttons follow it a little ────────────
   const TILT = '.card,.feature,.tier,.plan,.pricing-card,.faq-item';
   let held = null;

@@ -2,16 +2,10 @@
  * Each one is small, and each one answers something the visitor does — scrolls, points,
  * reaches a section. Nothing here moves on its own except the one featured price card. */
 
-/* ── a hairline that fills as the page scrolls ────────────────────────────── */
-#hs-prog{position:fixed;left:0;top:0;height:2px;width:0;z-index:999;pointer-events:none;
-  background:linear-gradient(90deg,#1d4ed8,#3b82f6 55%,#93c5fd);
-  box-shadow:0 0 12px rgba(59,130,246,.65);transition:width .08s linear}
-
-/* ── film grain, so the flat blacks stop banding on big screens ───────────── */
-body::after{
-  content:"";position:fixed;inset:0;z-index:998;pointer-events:none;opacity:.028;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
-}
+/* The scroll hairline and the film grain are gone.
+ * The grain was drawn with feTurbulence, which produces RGB noise: over a black page that
+ * reads as a brown cast across everything. Banding is better answered by the page having
+ * real tonal steps, which it now does, than by throwing noise over it. */
 
 /* ── nav links: a rule that grows from the middle ─────────────────────────── */
 .nav a:not(.btn){position:relative}
@@ -55,7 +49,6 @@ html{scroll-behavior:smooth;scroll-padding-top:86px}
 
 @media (prefers-reduced-motion: reduce){
   html{scroll-behavior:auto}
-  #hs-prog{display:none}
   .tier.featured::after,.plan.featured::after,.pricing-card.featured::after,.tier:last-child::after{animation:none;opacity:.35}
   .hs-wipe{background:none;-webkit-text-fill-color:currentColor;color:var(--fg-strong)}
   .hs-tilt{transform:none!important}

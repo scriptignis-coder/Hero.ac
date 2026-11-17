@@ -221,3 +221,41 @@ body{margin:0;font-family:Inter,-apple-system,"Segoe UI",system-ui,sans-serif}
 .sr-me b{display:block;color:var(--fg-strong);font-size:12.5px}
 .sr-me i{font-style:normal;color:var(--faint);font-size:11.5px;cursor:pointer}
 .sr-me i:hover{color:var(--fg)}
+
+/* ── severity carries a colour, in the row and on the tag ────────────────────
+   A report where every line is the same red tells a reviewer nothing about what
+   to look at first. Three states, three colours, used the same way everywhere:
+   red is proof, amber is a lead, green is a check that passed. */
+
+.sr-tag{background:var(--s3);border:1px solid var(--line2);color:var(--muted)}
+.sr-tag.sev-detected,.sr-tag.hot{
+  background:#2a1618;border-color:#5c3035;color:#ff8d95;
+  box-shadow:inset 0 0 0 1px rgba(240,97,107,.1);
+}
+.sr-tag.sev-suspicious{
+  background:#2e2412;border-color:#5e4a1f;color:#f7c15c;
+  box-shadow:inset 0 0 0 1px rgba(233,169,60,.12);
+}
+.sr-tag.sev-clean{background:#132419;border-color:#255238;color:#6fdb9c}
+.sr-tag.sev-info{background:#111c2e;border-color:#27405f;color:#8fbcff}
+
+/* the row's dot and its left edge follow the same three colours */
+.sr-item-card{border-left:2px solid transparent!important}
+.sr-item-card.lv-detected{border-left-color:#e04b56!important}
+.sr-item-card.lv-suspicious{border-left-color:#e9a93c!important}
+.sr-item-card.lv-clean{border-left-color:#3fbd7f!important}
+.sr-item-card.lv-info{border-left-color:var(--accent)!important}
+.sr-item-card.lv-detected .sr-top::before{background:#e04b56!important}
+.sr-item-card.lv-suspicious .sr-top::before{background:#e9a93c!important}
+.sr-item-card.lv-clean .sr-top::before{background:#3fbd7f!important}
+.sr-item-card.lv-info .sr-top::before{background:var(--accent)!important}
+.sr-item-card.lv-detected:hover{background:#140f10!important}
+.sr-item-card.lv-suspicious:hover{background:#141109!important}
+
+/* the evidence bars take the row's colour too */
+.lv-suspicious .sr-strength .bars i.f{background:#e9a93c}
+.lv-clean .sr-strength .bars i.f{background:#3fbd7f}
+.lv-info .sr-strength .bars i.f{background:var(--accent)}
+
+/* the category pills in the switch and the rail */
+.sr-cat .pip,.sr-segb .pip{box-shadow:0 0 0 3px rgba(255,255,255,.03)}
