@@ -41,7 +41,7 @@ body::before,body::after,.bg,.bg::before,.bg::after{background-image:none!import
 .sidebar,.side,nav.side,aside{
   background:var(--s2)!important;border-right:1px solid var(--line)!important;box-shadow:none!important;
 }
-.side-group,.side-title{
+.side-label,.side-label,.side-group,.side-title{
   color:var(--faint)!important;font-size:10.5px!important;font-weight:600!important;
   letter-spacing:.1em!important;text-transform:uppercase;padding:18px 14px 7px!important;
 }
@@ -160,3 +160,94 @@ a.btn.btn-discord{background:#5865f2!important;border-color:#5865f2!important;co
 /* anything still carrying a gradient inside the page body */
 .card[style*="gradient"],.panel[style*="gradient"],
 .workspace-hero[style*="gradient"]{background:var(--s1)!important}
+
+/* ── the dashboard's own sidebar, in the same boxed sections ──────────────────
+   The dashboard draws one long column of links under lettered headings. Wrapping
+   each heading's links in a panel gives the eye a place to stop, which a list of
+   twenty tabs badly needs. Nothing is renamed or moved — only grouped. */
+.sidebar,.side,nav.side{display:flex;flex-direction:column;padding-top:14px}
+.side-label,.side-group,.side-title{
+  color:var(--fg-strong)!important;font-size:11px!important;font-weight:700!important;
+  letter-spacing:0!important;text-transform:none!important;
+  margin:10px 9px 0!important;padding:11px 10px 7px!important;
+  background:#121213;border:1px solid var(--line);border-bottom:0;
+  border-radius:11px 11px 0 0;
+}
+/* the links that follow a heading continue that heading's panel */
+.side-label+.side-link,.side-group+.side-link,.side-title+.side-link{border-radius:0!important}
+.side-link{
+  margin:0 9px!important;padding:7px 10px!important;border-radius:0!important;
+  background:#121213!important;border:1px solid var(--line)!important;border-top:0!important;border-bottom:0!important;
+  font-size:12.5px!important;
+}
+.side-link:hover:not(.active){background:#1a1a1c!important}
+.side-link.active{background:var(--accent-soft)!important;color:#cfe0ff!important}
+.side-link.active::before{display:none!important}
+/* the last link before the next heading closes the panel */
+.side-link:has(+ .side-label),.side-link:has(+ .side-group),.side-link:has(+ .side-title),.side-link:last-of-type{
+  border-bottom:1px solid var(--line)!important;border-radius:0 0 11px 11px!important;
+  margin-bottom:9px!important;padding-bottom:9px!important;
+}
+
+/* ══ the public site, on the dashboard's palette ══════════════════════════════
+   index.html was darker than the dashboard and painted its headline with a
+   grey-blue gradient and a glow. Same three greys here, same single blue, so a
+   visitor who signs in does not arrive somewhere that looks like another product. */
+
+body{background:var(--s0)!important}
+
+/* the top bar matches the dashboard's */
+.nav,.nav.solid,.site-nav{background:rgba(9,9,11,.95)!important;border-bottom:1px solid var(--line)!important}
+.nav a{color:var(--muted)!important}
+.nav a:hover{color:var(--fg)!important;text-decoration:none}
+
+/* the headline: solid white, and the second line in the brand blue — no gradient,
+   no glow. A glow on type is the first thing that dates a page. */
+.hero h1,.hero-title,h1.display{
+  background:none!important;-webkit-text-fill-color:currentColor!important;
+  color:var(--fg-strong)!important;text-shadow:none!important;filter:none!important;
+  letter-spacing:-.03em!important;
+}
+/* the markup is <span>first line</span><br><em>second line</em>: the span stays white
+   and only the em carries the blue, which is the one accent on the page */
+.hero h1 span,.hero-title span{
+  background:none!important;-webkit-text-fill-color:var(--fg-strong)!important;
+  color:var(--fg-strong)!important;text-shadow:none!important;filter:none!important;
+}
+.hero h1 em,.hero h1 b,.hero-title em{
+  background:none!important;-webkit-text-fill-color:var(--accent)!important;
+  color:var(--accent)!important;text-shadow:none!important;filter:none!important;font-style:normal;
+}
+.hero p,.hero-sub{color:var(--muted)!important}
+
+/* one blue button and one quiet button, instead of two greys */
+.hero .btn:first-of-type,.hero-cta .btn:first-of-type,.btn.cta,.btn.primary{
+  background:var(--accent)!important;border:1px solid var(--accent)!important;color:#fff!important;font-weight:650!important;
+}
+.hero .btn:first-of-type:hover,.btn.cta:hover,.btn.primary:hover{background:var(--accent-hover)!important}
+.hero .btn+.btn,.hero-cta .btn+.btn{
+  background:var(--s1)!important;border:1px solid var(--line2)!important;color:var(--fg)!important;
+}
+.hero .btn+.btn:hover{background:#1f2022!important}
+
+/* every panel on the page is a dashboard card */
+.card,.feature,.tier,.plan,.faq-item,.stat-strip,.panel,.section-card,.pricing-card{
+  background:var(--s1)!important;border:1px solid var(--line)!important;border-radius:12px!important;
+  box-shadow:none!important;
+}
+.feature h3,.tier h3,.plan h3,.faq-item h3{color:var(--fg-strong)!important}
+.feature p,.tier p,.plan p,.faq-item p{color:var(--muted)!important}
+
+/* section headings the way the dashboard writes them */
+section h2,.section h2{color:var(--fg-strong)!important;letter-spacing:-.022em!important}
+section h2 span,.section h2 em{color:var(--accent)!important;font-style:normal}
+.eyebrow,.kicker,.section-label{color:#4e5157!important;letter-spacing:.14em!important;font-size:10.5px!important}
+
+/* the pricing tier the page recommends is the only thing that gets the blue */
+.tier.featured,.plan.featured,.pricing-card.featured{border-color:#2b3a5e!important;background:#101318!important}
+.tier.featured .btn,.plan.featured .btn{background:var(--accent)!important;border-color:var(--accent)!important;color:#fff!important}
+
+/* footer */
+footer,.site-footer{background:var(--s0)!important;border-top:1px solid var(--line)!important;color:var(--muted)!important}
+footer a{color:var(--muted)!important}
+footer a:hover{color:var(--fg)!important}

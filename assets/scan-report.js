@@ -11,13 +11,16 @@
   const PIN = (qs.get('pin') || '').toUpperCase();
 
   // ── sidebar ────────────────────────────────────────────────────────────────
-  // The dashboard's own tabs, in the dashboard's own groups — the report is a page of that
-  // dashboard, so its sidebar is the dashboard's sidebar, not a second navigation invented here.
+  // The dashboard's own tabs, in the dashboard's own groups, drawn as boxed sections with a
+  // collapsible parent and indented children. The grouping is what makes a long list readable:
+  // five headings of four items each scan far faster than one column of twenty.
   const NAV = [
     { title:'Scanner & Screenshare', items:[
-      { ic:'⤓', label:'Download scanner', tab:'scanner' },
-      { ic:'⚲', label:'Scan PINs',        tab:'pins', on:true },
-      { ic:'🖼', label:'Scanner GUI',      tab:'scannergui' },
+      { ic:'◉', label:'Scanner', open:true, sub:[
+        { ic:'⤓', label:'Download scanner', tab:'scanner' },
+        { ic:'⚲', label:'Scan PINs',        tab:'pins', on:true },
+        { ic:'🖼', label:'Scanner GUI',      tab:'scannergui' },
+      ]},
     ]},
     { title:'Help', items:[
       { ic:'🗎', label:'Tutorial',        tab:'tutorial' },
@@ -32,19 +35,25 @@
       { ic:'🏆', label:'Leaderboard',   tab:'ranking' },
     ]},
     { title:'Account', items:[
-      { ic:'🗝', label:'Permission Manager', tab:'rolemanager' },
-      { ic:'🗝', label:'Access',             tab:'access' },
-      { ic:'👥', label:'Partners',           tab:'partners' },
-      { ic:'👥', label:'Team Directory',     tab:'teamdirectory' },
-      { ic:'👥', label:'Staff team',         tab:'staff' },
+      { ic:'🗝', label:'Permission Manager',   tab:'rolemanager' },
+      { ic:'🗝', label:'Access',               tab:'access' },
+      { ic:'👥', label:'Partners',             tab:'partners' },
+      { ic:'👥', label:'Team Directory',       tab:'teamdirectory' },
+      { ic:'👥', label:'Staff team',           tab:'staff' },
+      { ic:'🏢', label:'Enterprise Management', tab:'enterprisemanagement' },
+      { ic:'🗎', label:'Activity logs',         tab:'auditlogs' },
     ]},
   ];
-  const navItem = (i) => `<a class="sr-item${i.on ? ' on' : ''}" href="/dashboard.html#${i.tab}">
-      <span class="ic">${i.ic}</span>${esc(i.label)}</a>`;
+  const navItem = (i, sub) => i.sub
+    ? `<div class="sr-item parent"><span class="ic">${i.ic}</span>${esc(i.label)}<span class="caret">⌃</span></div>`
+        + i.sub.map((x) => navItem(x, true)).join('')
+    : `<a class="sr-item${i.on ? ' on' : ''}${sub ? ' sr-sub' : ''}" href="/dashboard.html#${i.tab}">
+         <span class="ic">${i.ic}</span>${esc(i.label)}</a>`;
   $('#srSide').innerHTML =
     `<div class="sr-brand"><img src="/assets/hero-icon.png" alt="">HeRo Shield</div>` +
     NAV.map((g) => `<div class="sr-grp"><b>${g.title}</b>` +
-      g.items.map(navItem).join('') + `</div>`).join('');
+      g.items.map((i) => navItem(i)).join('') + `</div>`).join('') +
+    `<div class="sr-me"><span class="av"></span><span><b>Signed in</b><i>Log out</i></span></div>`;
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const fmtAgo = (t) => {

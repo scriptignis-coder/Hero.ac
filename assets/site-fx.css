@@ -1,0 +1,109 @@
+/* Motion and depth for the public site.
+ *
+ * The product reads a machine and reports what it finds, so the effects are built from that:
+ * a scan beam that sweeps the hero once, a grid that drifts like something being surveyed,
+ * and cards that light up under the cursor the way a row lights up when you hover a report.
+ * Nothing loops forever in the corner of the eye — the loud parts happen once, on arrival.
+ *
+ * Everything here stops dead under prefers-reduced-motion.
+ */
+
+/* ── the hero's ground: a drifting grid and one soft blue pool ─────────────── */
+.hero{position:relative;overflow:hidden;isolation:isolate}
+.hero::before{
+  content:"";position:absolute;inset:-60% -20% auto;height:170%;z-index:-2;pointer-events:none;
+  background:
+    linear-gradient(transparent 0 39px, rgba(255,255,255,.028) 39px 40px) 0 0/40px 40px,
+    linear-gradient(90deg, transparent 0 39px, rgba(255,255,255,.028) 39px 40px) 0 0/40px 40px;
+  mask-image:radial-gradient(70% 55% at 50% 38%, #000 25%, transparent 78%);
+  -webkit-mask-image:radial-gradient(70% 55% at 50% 38%, #000 25%, transparent 78%);
+  animation:hs-drift 34s linear infinite;
+}
+@keyframes hs-drift{to{transform:translate3d(40px,40px,0)}}
+
+.hero::after{
+  content:"";position:absolute;left:50%;top:14%;width:980px;height:560px;z-index:-3;
+  transform:translateX(-50%);pointer-events:none;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%, rgba(59,130,246,.17), rgba(59,130,246,.05) 42%, transparent 70%);
+  filter:blur(42px);animation:hs-breathe 9s ease-in-out infinite;
+}
+@keyframes hs-breathe{
+  0%,100%{opacity:.75;transform:translateX(-50%) scale(1)}
+  50%    {opacity:1;  transform:translateX(-50%) scale(1.07)}
+}
+
+/* the beam: one pass down the hero when the page opens, then it is gone */
+.hero .wrap{position:relative}
+.hero .wrap::before{
+  content:"";position:absolute;left:-40%;right:-40%;top:0;height:140px;pointer-events:none;z-index:-1;
+  background:linear-gradient(180deg, transparent, rgba(59,130,246,.14) 55%, rgba(160,205,255,.5) 78%, transparent);
+  animation:hs-sweep 2.4s cubic-bezier(.4,0,.2,1) .35s 1 both;
+}
+@keyframes hs-sweep{
+  from{transform:translateY(-160px);opacity:0}
+  18%{opacity:1}
+  to  {transform:translateY(760px);opacity:0}
+}
+
+/* ── the headline arrives one line at a time ──────────────────────────────── */
+.hero h1 span,.hero h1 em{display:inline-block;animation:hs-rise .85s cubic-bezier(.22,1,.36,1) both}
+.hero h1 span{animation-delay:.1s}
+.hero h1 em{animation-delay:.26s}
+@keyframes hs-rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+
+/* the blue line keeps a very slight glow, which reads as light rather than as a text-shadow */
+.hero h1 em{filter:drop-shadow(0 0 26px rgba(59,130,246,.28))}
+
+/* ── the primary button: a sheen that crosses it on hover ─────────────────── */
+.hero .btn,.btn-w,.btn.cta{position:relative;overflow:hidden;
+  transition:transform .18s cubic-bezier(.22,1,.36,1), box-shadow .22s, background .18s}
+.btn-w::after,.btn.cta::after{
+  content:"";position:absolute;inset:0;transform:translateX(-120%);
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.34) 50%,transparent 65%);
+}
+.btn-w:hover,.btn.cta:hover{transform:translateY(-1px);box-shadow:0 8px 28px -10px rgba(59,130,246,.75)}
+.btn-w:hover::after,.btn.cta:hover::after{animation:hs-sheen .7s ease-out}
+@keyframes hs-sheen{to{transform:translateX(120%)}}
+.btn-g:hover,.hero .btn+.btn:hover{transform:translateY(-1px);border-color:#34353a!important}
+
+/* the live dot actually pulses */
+.status i,.pill i{position:relative}
+.status i::after{content:"";position:absolute;inset:-5px;border-radius:50%;
+  border:1px solid rgba(74,222,128,.5);animation:hs-ping 2.4s ease-out infinite}
+@keyframes hs-ping{0%{transform:scale(.6);opacity:.9}70%,100%{transform:scale(1.5);opacity:0}}
+
+/* ── cards: they lift, and the border lights where the cursor is ──────────── */
+.card,.feature,.tier,.plan,.faq-item,.panel,.pricing-card{
+  position:relative;transition:transform .2s cubic-bezier(.22,1,.36,1), border-color .2s, background .2s;
+}
+.card::before,.feature::before,.tier::before,.plan::before,.pricing-card::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;
+  transition:opacity .22s;
+  background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%), rgba(59,130,246,.11), transparent 62%);
+}
+.card:hover,.feature:hover,.tier:hover,.plan:hover,.pricing-card:hover{
+  transform:translateY(-3px);border-color:#2b3a5e!important;
+}
+.card:hover::before,.feature:hover::before,.tier:hover::before,.plan:hover::before,.pricing-card:hover::before{opacity:1}
+
+/* ── sections arrive as you reach them ────────────────────────────────────── */
+.hs-in{opacity:0;transform:translateY(20px)}
+.hs-in.hs-seen{opacity:1;transform:none;transition:opacity .62s cubic-bezier(.22,1,.36,1), transform .62s cubic-bezier(.22,1,.36,1)}
+
+/* ── the nav gains its line once the page scrolls ─────────────────────────── */
+.nav,header{transition:background .25s, border-color .25s}
+body.hs-scrolled .nav,body.hs-scrolled header{
+  background:rgba(9,9,11,.97)!important;border-bottom-color:#26262a!important;
+}
+
+/* ── the terminal in the hero gets a soft blue edge, like a lit screen ────── */
+.term{box-shadow:0 0 0 1px var(--line), 0 28px 70px -40px rgba(59,130,246,.55)!important}
+
+/* ── anyone who asked for less motion gets none of it ─────────────────────── */
+@media (prefers-reduced-motion: reduce){
+  .hero::before,.hero::after,.hero .wrap::before,
+  .hero h1 span,.hero h1 em,.status i::after{animation:none!important}
+  .hs-in{opacity:1;transform:none}
+  .card,.feature,.tier,.plan,.pricing-card{transition:none}
+  .card:hover,.feature:hover,.tier:hover,.plan:hover,.pricing-card:hover{transform:none}
+}
