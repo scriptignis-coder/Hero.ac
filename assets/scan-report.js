@@ -11,38 +11,40 @@
   const PIN = (qs.get('pin') || '').toUpperCase();
 
   // ── sidebar ────────────────────────────────────────────────────────────────
+  // The dashboard's own tabs, in the dashboard's own groups — the report is a page of that
+  // dashboard, so its sidebar is the dashboard's sidebar, not a second navigation invented here.
   const NAV = [
-    { title:'Services', items:[
-      { ic:'▣', label:'Dashboard', href:'/dashboard.html' },
-      { ic:'◉', label:'Scanner', open:true, sub:[
-        { ic:'⚲', label:'Scan PINs', href:'/dashboard.html#scanpins', on:true },
-        { ic:'⬡', label:'Detections', href:'/dashboard.html#detections' },
-      ]},
-      { ic:'▤', label:'Database', caret:true, href:'/dashboard.html#players' },
-      { ic:'⛉', label:'Anti-cheat', caret:true, href:'/dashboard.html#bans' },
+    { title:'Scanner & Screenshare', items:[
+      { ic:'⤓', label:'Download scanner', tab:'scanner' },
+      { ic:'⚲', label:'Scan PINs',        tab:'pins', on:true },
+      { ic:'🖼', label:'Scanner GUI',      tab:'scannergui' },
     ]},
-    { title:'Support', items:[
-      { ic:'✉', label:'Tickets', href:'/dashboard.html#tickets' },
-      { ic:'💬', label:'Chat', href:'/dashboard.html#chat' },
+    { title:'Help', items:[
+      { ic:'🗎', label:'Tutorial',        tab:'tutorial' },
+      { ic:'🗎', label:'Changelogs',      tab:'changelogs' },
+      { ic:'🗎', label:'Troubleshooting', tab:'troubleshooting' },
     ]},
-    { title:'Others', items:[
-      { ic:'🗀', label:'Resources', open:true, sub:[
-        { ic:'🏆', label:'Leaderboard', href:'/dashboard.html#leaderboard' },
-        { ic:'📖', label:'Documentation', href:'/troubleshooting.html' },
-        { ic:'🛒', label:'Pricing', href:'/#pricing' },
-        { ic:'⤓',  label:'Download', href:'/dashboard.html#scanner' },
-        { ic:'⚖', label:'Legal', href:'/#legal' },
-        { ic:'🗎', label:'Changelogs', href:'/dashboard.html#changelogs' },
-      ]},
+    { title:'Scanner workspace', items:[
+      { ic:'👤', label:'My Profile',    tab:'profile' },
+      { ic:'🗝', label:'My License',    tab:'subscription' },
+      { ic:'🗎', label:'Webhooks',      tab:'webhooks' },
+      { ic:'⚲', label:'Scan Activity', tab:'scanactivity' },
+      { ic:'🏆', label:'Leaderboard',   tab:'ranking' },
+    ]},
+    { title:'Account', items:[
+      { ic:'🗝', label:'Permission Manager', tab:'rolemanager' },
+      { ic:'🗝', label:'Access',             tab:'access' },
+      { ic:'👥', label:'Partners',           tab:'partners' },
+      { ic:'👥', label:'Team Directory',     tab:'teamdirectory' },
+      { ic:'👥', label:'Staff team',         tab:'staff' },
     ]},
   ];
-  const navItem = (i, sub) => `<a class="sr-item${i.on ? ' on' : ''}${sub ? ' sr-sub' : ''}" href="${i.href || '#'}">
-      <span class="ic">${i.ic}</span>${esc(i.label)}${i.caret || i.sub ? '<span class="caret">▾</span>' : ''}</a>`;
+  const navItem = (i) => `<a class="sr-item${i.on ? ' on' : ''}" href="/dashboard.html#${i.tab}">
+      <span class="ic">${i.ic}</span>${esc(i.label)}</a>`;
   $('#srSide').innerHTML =
     `<div class="sr-brand"><img src="/assets/hero-icon.png" alt="">HeRo Shield</div>` +
     NAV.map((g) => `<div class="sr-grp"><b>${g.title}</b>` +
-      g.items.map((i) => navItem(i) + (i.sub || []).map((s) => navItem(s, true)).join('')).join('') +
-    `</div>`).join('');
+      g.items.map(navItem).join('') + `</div>`).join('');
 
   // ── helpers ────────────────────────────────────────────────────────────────
   const fmtAgo = (t) => {
@@ -55,18 +57,27 @@
   };
   const dur = (sec) => !sec ? '—' : (sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's');
 
-  /** The small pixel block top-right: one square per finding, red where it is serious. */
-  function pixelMap(el, n, bad) {
-    const C = 7, cols = 9, rows = 5;
-    const cv = document.createElement('canvas');
-    cv.width = cols * C * 2; cv.height = rows * C * 2; cv.style.width = cols * C + 'px'; cv.style.height = rows * C + 'px';
-    const x = cv.getContext('2d'); x.scale(2, 2);
-    for (let i = 0; i < cols * rows; i++) {
-      if (i >= n) continue;
-      x.fillStyle = i < bad ? '#d8454f' : '#3a3a3e';
-      x.fillRect((i % cols) * C, Math.floor(i / cols) * C, C - 2, C - 2);
-    }
-    el.appendChild(cv);
+  /**
+   * The session ruler: the scan drawn as the stretch of time it covered, with a mark where each
+   * finding sits. A report is a sequence of moments, so the header shows the sequence rather than
+   * a decorative block — and a cluster of marks in one place is itself worth seeing.
+   */
+  function ruler(r, groups) {
+    const marks = [];
+    const n = groups.detections.length, w = groups.warnings.length;
+    for (let i = 0; i < Math.min(n, 40); i++) marks.push({ p: (i + 0.5) / Math.max(1, Math.min(n, 40)) * 0.86 + 0.07, w: false });
+    for (let i = 0; i < Math.min(w, 20); i++) marks.push({ p: Math.random() * 0.86 + 0.07, w: true });
+    const start = r.scannedAt ? new Date(new Date(r.scannedAt).getTime() - (r.durationSec || 0) * 1000) : null;
+    const end = r.scannedAt ? new Date(r.scannedAt) : null;
+    const hhmm = (d) => d ? String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '—';
+    return `<div class="sr-ruler">
+      <div class="sr-ruler-track"><div class="sr-ruler-fill"></div>
+        ${marks.map((m) => `<span class="sr-ruler-mark${m.w ? ' w' : ''}" style="left:${(m.p * 100).toFixed(1)}%"></span>`).join('')}
+      </div>
+      <div class="sr-ruler-legend"><span>Scan started ${hhmm(start)}</span>
+        <span>${n} finding${n === 1 ? '' : 's'} along this session</span>
+        <span>finished ${hhmm(end)}</span></div>
+    </div>`;
   }
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -84,7 +95,7 @@
   function draw() {
     const r = REPORT;
     const bad = String(r.verdict || '').toLowerCase();
-    const vClass = bad.includes('cheat') ? 'bad' : bad.includes('suspic') || bad.includes('warn') ? 'warn' : 'ok';
+    const vClass = bad.includes('cheat') ? 'bad' : (bad.includes('suspic') || bad.includes('warn')) ? 'warn' : 'ok';
     const total = CATS.reduce((n, c) => n + listFor(c.key).length, 0);
 
     let rows = listFor(cat);
@@ -95,94 +106,107 @@
     page = Math.min(page, pages - 1);
     const slice = rows.slice(page * PER, page * PER + PER);
     const tags = [...new Set(listFor(cat).map((d) => d.tag).filter(Boolean))];
+    const cObj = CATS.find((c) => c.key === cat);
+
+    /* How much there is behind one finding. A detection backed by a hash and a path is not the
+       same claim as one backed by a name, and the report should not present them as equals. */
+    const strength = (d) => (d.sha256 ? 1 : 0) + (d.path ? 1 : 0) + (d.count > 1 ? 1 : 0) + (d.explain ? 1 : 0);
+
+    const verdictLine = vClass === 'bad' ? 'Evidence of cheating was found on this PC.'
+      : vClass === 'warn' ? 'Nothing conclusive, but there is something to look at.'
+      : 'Nothing was found that points to cheating.';
 
     $('#srBody').innerHTML = `
-      <div class="sr-head">
-        <div class="sr-map" id="srMap"></div>
-        <div class="sr-meta">
-          <span>${esc(r.game || 'Unknown game')}</span><span class="dotsep">·</span>
-          <span class="mono">${esc(r.pin || PIN)}</span><span class="dotsep">·</span>
-          <span>@${esc(r.player || 'unknown')}</span><span class="dotsep">·</span>
-          <span>${r.public ? 'Public' : 'Private'}</span>
-        </div>
-        <div class="sr-verdict ${vClass}">${esc(r.verdict || 'Unknown')}</div>
-        <div class="sr-times">
-          <div><b>${fmtAgo(r.scannedAt)}</b><span>Scanned</span></div>
-          <div><b>${dur(r.durationSec)}</b><span>Duration</span></div>
-          <div><b>${esc(r.gameTime || 'not running')}</b><span>Game time</span></div>
+      <div class="sr-head ${vClass}">
+        <div class="sr-rail-v"></div>
+        <div class="sr-head-in">
+          <div class="sr-meta">
+            <span>${esc(r.game || 'Unknown game')}</span>
+            <span class="k">${esc(r.pin || PIN)}</span>
+            <span>@${esc(r.player || 'unknown')}</span>
+            <span>·</span><span>${r.public ? 'Public report' : 'Private report'}</span>
+          </div>
+          <div class="sr-vline">
+            <span class="sr-vword">${esc(r.verdict || 'Unknown')}</span>
+            <span class="sr-vsub">${verdictLine}</span>
+          </div>
+          ${ruler(r, { detections: listFor('detections'), warnings: listFor('warnings') })}
+          <div class="sr-stats">
+            <div class="sr-stat"><b>${fmtAgo(r.scannedAt)}</b><span>Scanned</span></div>
+            <div class="sr-stat"><b>${dur(r.durationSec)}</b><span>Took</span></div>
+            <div class="sr-stat"><b>${esc(r.gameTime || 'not running')}</b><span>Game during the check</span></div>
+            <div class="sr-stat"><b>${total}</b><span>Entries in this report</span></div>
+          </div>
         </div>
       </div>
 
       <div class="sr-actions">
-        <span class="sr-risk">Player risk ${r.risk == null ? '—' : r.risk + '%'}</span>
-        ${r.risk >= 60 ? '<span class="sr-flag">⊘ High Risk</span>' : ''}
-        <button class="sr-copy" id="btnReport">⚑ Report Scan</button>
-        <button class="sr-copy" id="btnExport">⤓ Export</button>
+        <span class="sr-risk">Risk <b>${r.risk == null ? '—' : r.risk + '%'}</b>
+          <span class="meter"><i style="width:${Math.max(0, Math.min(100, r.risk || 0))}%"></i></span></span>
+        ${r.cheaterRecords ? '<span class="sr-risk" style="border-color:#45262a;color:#f0959b">Seen in earlier reports</span>' : ''}
+        <span class="spacer"></span>
+        <button class="sr-copy" id="btnReport">⚑ Flag this report</button>
+        <button class="sr-copy" id="btnExport">⤓ Export JSON</button>
       </div>
 
-      <h2 class="sr-h">Session <em>Overview</em></h2>
-      <div class="sr-tiles">
-        ${[['⏻','Boot Time', r.bootTime],['⚿','VPN', r.vpn],['🗑','Recycle', r.recycle],
-           ['🗓','Install Date', r.installDate],['⌖','Country', r.country],
-           ['▷','Game', r.gameTime, 'Open during the scan'],['🗔','Window Text', r.windowText],
-          ].map(([ic,k,v,note]) => `<div class="sr-tile"><small>${ic} ${k}</small><b>${esc(v || '—')}</b>${note ? `<i>${note}</i>` : ''}</div>`).join('')}
+      <div class="sr-sec"><h2>Session <em>Overview</em></h2></div>
+      <div class="sr-facts">
+        ${[['Last boot', r.bootTime],['VPN', r.vpn],['Recycle bin', r.recycle],['Windows installed', r.installDate],
+           ['Country', r.country],['Game window', r.windowText || 'None'],['Game running', r.gameTime]]
+          .map(([k, v]) => `<div class="sr-fact"><small>${k}</small><b>${esc(v || '—')}</b></div>`).join('')}
+        ${r.cheaterRecords ? `<div class="sr-fact flag"><small>Earlier reports</small><b>This PC has been checked before</b></div>` : ''}
       </div>
 
-      <h2 class="sr-h" style="margin-top:28px">Scan <em>details</em></h2>
-      <div class="sr-tabs">
-        ${[['logs','✉','All logs', total],['accounts','👤','Accounts'],['activity','📈','Activity', (r.activity||[]).length],['evidence','🗎','Evidence']]
-          .map(([k,ic,label,n]) => `<div class="sr-tab${k === 'logs' ? ' on' : ''}">${ic} ${label}${n ? `<span class="n">${n}</span>` : ''}</div>`).join('')}
-        ${r.cheaterRecords ? '<div class="sr-cheater">⚠ Cheater Records <b>Found</b></div>' : ''}
+      <div class="sr-sec" style="margin-top:30px"><h2>Detection <em>Results</em></h2></div>
+
+      <div class="sr-wrap">
+      <div class="sr-rail">
+        <b>Categories <span>${total}</span></b>
+        ${CATS.map((c) => `<div class="sr-cat${c.key === cat ? ' on' : ''}" data-cat="${c.key}">
+           <span class="pip"></span>${c.label}<span class="n">${listFor(c.key).length}</span></div>`).join('')}
       </div>
 
-      <h2 class="sr-h">Detection <em>Results</em></h2>
-      <div class="sr-res">
-        <div class="sr-rail">
-          <b>Categories <span>${total}</span></b>
-          ${CATS.map((c) => `<div class="sr-cat${c.key === cat ? ' on' : ''}" data-cat="${c.key}">
-             <span class="sr-ic ${c.cls}" style="width:19px;height:19px;font-size:11px">${c.ic}</span>
-             ${c.label}<span class="n">${listFor(c.key).length}</span></div>`).join('')}
-        </div>
+      <div class="sr-panel">
+      <div class="sr-ptitle"><h3>${cObj.label}</h3><span>${listFor(cat).length}</span></div>
+      <p class="sr-psub">${cat === 'detections' ? 'Cheats and ways to hide them.'
+        : cat === 'warnings' ? 'Things worth a second look.'
+        : cat === 'integrity' ? 'Checks that came back clean.' : 'What the antivirus recorded.'}</p>
 
-        <div class="sr-panel">
-          <div class="sr-ptitle"><h3>${CATS.find((c) => c.key === cat).label}</h3><span>${listFor(cat).length}</span></div>
-          <p class="sr-psub">${cat === 'detections' ? 'Cheats and ways to hide them.'
-            : cat === 'warnings' ? 'Things worth a second look.'
-            : cat === 'integrity' ? 'Checks that came back clean.' : 'What the antivirus recorded.'}</p>
+      <div class="sr-bar">
+        <span class="sr-chip${chip === 'all' ? ' on' : ''}" data-chip="all">Everything</span>
+        ${tags.map((t) => `<span class="sr-chip${chip === t.toLowerCase() ? ' on' : ''}" data-chip="${esc(t.toLowerCase())}">${esc(t)} · ${listFor(cat).filter((d) => d.tag === t).length}</span>`).join('')}
+        <span class="sr-search">🔍<input id="srQ" placeholder="Search these ${listFor(cat).length} entries" value="${esc(q)}"></span>
+        <button class="sr-copy" id="btnCopy">⧉ Copy all</button>
+      </div>
 
-          <div class="sr-bar">
-            <span class="sr-chip${chip === 'all' ? ' on' : ''}" data-chip="all">All ${listFor(cat).length}</span>
-            ${tags.map((t) => `<span class="sr-chip${chip === t.toLowerCase() ? ' on' : ''}" data-chip="${esc(t.toLowerCase())}">${esc(t)} ${listFor(cat).filter((d) => d.tag === t).length}</span>`).join('')}
-            <span class="sr-search">🔍<input id="srQ" placeholder="Search the logs" value="${esc(q)}"></span>
-            <button class="sr-copy" id="btnCopy">⧉ Copy all</button>
-          </div>
-
-          ${slice.length ? slice.map((d, i) => {
-            const idx = page * PER + i;
-            const c = CATS.find((x) => x.key === cat);
-            return `<div class="sr-row" data-row="${idx}">
-              <span class="sr-ic ${c.cls}">${c.ic}</span>
+      <div class="sr-list">
+        ${slice.length ? slice.map((d, i) => {
+          const idx = page * PER + i;
+          const st = strength(d);
+          return `<div class="sr-item-card ${cObj.cls}" data-row="${idx}">
+            <div class="sr-top">
               <span class="sr-name">${esc(d.name)}</span>
-              <span class="sr-detail">${esc(d.detail || '')}</span>
-              ${d.count > 1 ? `<span class="sr-mult">×${d.count}</span>` : ''}
-              ${d.tag ? `<span class="sr-tag${/boot|recovery/i.test(d.tag) && cat !== 'detections' ? ' grey' : (cat === 'detections' ? '' : ' grey')}">${esc(d.tag)}</span>` : ''}
-              <span class="sr-exp">${openRow === idx ? '▴' : '▾'}</span>
-            </div>${openRow === idx ? `<div class="sr-more">${esc(d.explain || 'No further detail was recorded for this entry.')}
-              ${d.sha256 ? `<br><b>SHA-256</b> <span class="mono">${esc(d.sha256)}</span>` : ''}
-              ${d.path ? `<br><b>Path</b> <span class="mono">${esc(d.path)}</span>` : ''}</div>` : ''}`;
-          }).join('') : `<div class="sr-empty">Nothing in this category.</div>`}
+              ${d.count > 1 ? `<span class="sr-mult">seen ${d.count}×</span>` : ''}
+              ${d.tag ? `<span class="sr-tag${cat === 'detections' ? ' hot' : ''}">${esc(d.tag)}</span>` : ''}
+              <span class="sr-strength">evidence
+                <span class="bars">${[0,1,2,3].map((n) => `<i class="${n < st ? 'f' : ''}"></i>`).join('')}</span></span>
+            </div>
+            ${d.detail ? `<div class="sr-detail">${esc(d.detail)}</div>` : ''}
+            ${openRow === idx ? `<div class="sr-more">${esc(d.explain || 'No further detail was recorded for this entry.')}
+              ${d.sha256 ? `<div class="sr-kv"><b>SHA-256</b> ${esc(d.sha256)}</div>` : ''}
+              ${d.path ? `<div class="sr-kv"><b>Path</b> ${esc(d.path)}</div>` : ''}</div>` : ''}
+          </div>`;
+        }).join('') : `<div class="sr-empty">Nothing in this category.</div>`}
+      </div>
 
-          <div class="sr-foot">
-            <span>${rows.length ? `Showing ${page * PER + 1}–${Math.min(rows.length, (page + 1) * PER)} of ${rows.length} results` : ''}</span>
-            <span class="sr-pg">
-              <button id="pgPrev" ${page === 0 ? 'disabled' : ''}>‹ Prev</button>
-              <button id="pgNext" class="p" ${page >= pages - 1 ? 'disabled' : ''}>Next ›</button>
-            </span>
-          </div>
-        </div>
-      </div>`;
-
-    pixelMap($('#srMap'), Math.min(45, total), Math.min(45, listFor('detections').length));
+      <div class="sr-foot">
+        <span>${rows.length ? `${page * PER + 1}–${Math.min(rows.length, (page + 1) * PER)} of ${rows.length}` : ''}</span>
+        <span class="sr-pg">
+          <button id="pgPrev" ${page === 0 ? 'disabled' : ''}>‹ Prev</button>
+          <button id="pgNext" class="p" ${page >= pages - 1 ? 'disabled' : ''}>Next ›</button>
+        </span>
+      </div>
+      </div></div>`;
 
     $('#srBody').querySelectorAll('[data-cat]').forEach((e) =>
       e.onclick = () => { cat = e.dataset.cat; chip = 'all'; page = 0; openRow = -1; draw(); });

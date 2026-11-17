@@ -1,131 +1,202 @@
-/* The scan report. Layout only — colours all come from dashboard-theme-v44.css. */
+/* The scan report — HeRo Shield's own layout.
+ *
+ * Where a report like this usually leads with a coloured word and a grid of tiles, this one is
+ * built around a single idea: a check is a TIMELINE. The scan has a start and an end, the
+ * findings sit at points along it, and the verdict is what the line adds up to. So the header
+ * carries a real time ruler of the session, the findings are ordered as a spine with a rail down
+ * the left, and the evidence behind each one is shown as a strength bar rather than a badge.
+ */
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,-apple-system,"Segoe UI",system-ui,sans-serif}
 
 .sr-shell{display:flex;min-height:100vh}
-.sr-side{width:218px;flex:none;background:var(--s2);border-right:1px solid var(--line);padding:14px 0}
-.sr-main{flex:1;min-width:0;padding:16px 24px 60px}
+.sr-side{width:224px;flex:none;background:var(--s2);border-right:1px solid var(--line);padding:16px 0}
+.sr-main{flex:1;min-width:0;padding:18px 26px 70px;max-width:1500px}
 
-/* ── sidebar, grouped the way a product with services + support + extras is ── */
-.sr-brand{display:flex;align-items:center;gap:9px;padding:4px 16px 16px;font-weight:700;color:var(--fg-strong)}
-.sr-brand img{width:22px;height:22px;object-fit:contain}
-.sr-grp{margin:4px 8px 10px;background:#121213;border:1px solid var(--line);border-radius:10px;padding:6px}
-.sr-grp>b{display:block;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);padding:7px 9px 6px;font-weight:600}
-.sr-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;color:var(--muted);
-  font-size:13px;cursor:pointer;user-select:none}
-.sr-item:hover{background:#1c1c1e;color:var(--fg)}
+/* ── sidebar: a flat list under lettered headings, no boxes ───────────────── */
+.sr-brand{display:flex;align-items:center;gap:10px;padding:2px 18px 18px;font-weight:700;color:var(--fg-strong);font-size:15px}
+.sr-brand img{width:23px;height:23px;object-fit:contain}
+.sr-grp{margin:0 0 16px}
+.sr-grp>b{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#4e5157;
+  padding:0 18px 8px;font-weight:700}
+.sr-item{display:flex;align-items:center;gap:11px;padding:8px 11px;margin:1px 9px;border-radius:9px;
+  color:var(--muted);font-size:13.5px;cursor:pointer;user-select:none;text-decoration:none}
+.sr-item:hover{color:var(--fg);background:#1c1c1e}
 .sr-item.on{background:var(--accent-soft);color:#cfe0ff;font-weight:600}
-.sr-item .ic{width:15px;text-align:center;opacity:.8}
-.sr-item .caret{margin-left:auto;font-size:10px;opacity:.6}
-.sr-sub{padding-left:14px}
+.sr-item .ic{width:15px;text-align:center;opacity:.75}
+.sr-item .caret{margin-left:auto;font-size:9px;opacity:.5}
+.sr-sub{padding-left:33px;font-size:12.5px}
 
-.sr-crumb{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:12.5px;margin-bottom:16px}
-.sr-crumb i{font-style:normal;opacity:.5}
+.sr-crumb{display:flex;align-items:center;gap:8px;color:var(--faint);font-size:12.5px;margin-bottom:18px}
+.sr-crumb i{font-style:normal;opacity:.45}
 .sr-empty{color:var(--muted);padding:40px 0}
 
-/* ── the header: verdict, the three times, risk and the actions ───────────── */
-.sr-head{background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:20px 22px;position:relative;overflow:hidden}
-.sr-meta{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
-.sr-meta .dotsep{opacity:.4}
-.sr-verdict{font-size:40px;font-weight:800;letter-spacing:-.03em;margin:10px 0 14px;line-height:1}
-.sr-verdict.bad{color:#f05a5a}.sr-verdict.ok{color:#4ec98a}.sr-verdict.warn{color:#e9a93c}
-.sr-times{display:flex;gap:40px;flex-wrap:wrap}
-.sr-times div b{display:block;font-size:15.5px;color:var(--fg-strong);font-weight:700}
-.sr-times div span{font-size:11.5px;color:var(--faint)}
-/* the little pixel map that sits top-right of the header */
-.sr-map{position:absolute;right:22px;top:18px;display:flex;gap:16px;opacity:.85}
-.sr-map canvas{display:block}
+/* ── the verdict strip: a coloured rail down the left edge, not a big word ── */
+.sr-head{display:flex;gap:0;background:var(--s1);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sr-rail-v{width:4px;flex:none;background:#3a3a3e}
+.sr-head.bad .sr-rail-v{background:#e04b56}
+.sr-head.warn .sr-rail-v{background:#e9a93c}
+.sr-head.ok  .sr-rail-v{background:#3fbd7f}
+.sr-head-in{flex:1;min-width:0;padding:19px 22px}
+.sr-meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint);flex-wrap:wrap;margin-bottom:11px}
+.sr-meta .k{background:var(--s3);border:1px solid var(--line2);border-radius:5px;padding:2px 8px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--muted)}
+.sr-vline{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.sr-vword{font-size:26px;font-weight:750;letter-spacing:-.022em;line-height:1}
+.sr-head.bad .sr-vword{color:#f0616b}
+.sr-head.warn .sr-vword{color:#e9a93c}
+.sr-head.ok  .sr-vword{color:#4ec98a}
+.sr-vsub{color:var(--faint);font-size:12.5px}
 
-.sr-actions{display:flex;gap:8px;justify-content:flex-end;margin:12px 0 26px;flex-wrap:wrap}
-.sr-risk{background:var(--accent);color:#fff;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700}
-.sr-flag{color:#f05a5a;font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;padding:6px 4px}
+/* the session ruler: where the scan started, where it ended, what was found along it */
+.sr-ruler{margin-top:17px}
+.sr-ruler-track{position:relative;height:30px;border-radius:7px;background:#17171a;border:1px solid var(--line);overflow:hidden}
+.sr-ruler-fill{position:absolute;inset:0;background:linear-gradient(90deg,rgba(59,130,246,.16),rgba(59,130,246,.03))}
+.sr-ruler-mark{position:absolute;top:5px;width:2px;height:20px;border-radius:2px;background:#e04b56;opacity:.9}
+.sr-ruler-mark.w{background:#e9a93c}
+.sr-ruler-legend{display:flex;justify-content:space-between;color:var(--faint);font-size:11px;margin-top:6px}
 
-/* ── section titles: white word + blue word ───────────────────────────────── */
-.sr-h{font-size:21px;font-weight:700;letter-spacing:-.02em;margin:0 0 14px;color:var(--fg-strong)}
-.sr-h em{font-style:normal;color:var(--accent)}
+/* ── the four numbers, as one strip of stats ──────────────────────────────── */
+.sr-stats{display:flex;gap:0;margin-top:14px;border-top:1px solid var(--line);padding-top:15px;flex-wrap:wrap}
+.sr-stat{padding-right:34px;margin-right:34px;border-right:1px solid var(--line)}
+.sr-stat:last-child{border-right:0;margin-right:0;padding-right:0}
+.sr-stat b{display:block;color:var(--fg-strong);font-size:16px;font-weight:700;letter-spacing:-.01em}
+.sr-stat span{font-size:11px;color:var(--faint)}
 
-/* ── the fact tiles ───────────────────────────────────────────────────────── */
-.sr-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:0;
+.sr-actions{display:flex;gap:8px;align-items:center;margin:14px 0 30px;flex-wrap:wrap}
+.sr-actions .spacer{flex:1}
+.sr-risk{display:flex;align-items:center;gap:9px;background:var(--s1);border:1px solid var(--line);
+  border-radius:8px;padding:7px 13px;font-size:12px;color:var(--muted);font-weight:600}
+.sr-risk .meter{width:74px;height:5px;border-radius:3px;background:#232326;overflow:hidden}
+.sr-risk .meter i{display:block;height:100%;background:#e04b56;border-radius:3px}
+.sr-risk b{color:var(--fg-strong)}
+
+/* ── headings: an eyebrow and a plain white line ──────────────────────────── */
+.sr-sec{margin:0 0 14px}
+.sr-sec small{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4e5157;font-weight:700;margin-bottom:6px}
+.sr-sec h2{margin:0;font-size:18px;font-weight:700;color:var(--fg-strong);letter-spacing:-.018em}
+
+/* ── facts: cards in a grid, each with its own box ────────────────────────── */
+.sr-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:10px}
+.sr-fact{background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+.sr-fact small{display:block;color:var(--faint);font-size:11px;margin-bottom:6px}
+.sr-fact b{display:block;color:var(--fg-strong);font-size:14px;font-weight:650;word-break:break-word}
+.sr-fact.flag{border-color:#45262a;background:#15100f}
+.sr-fact.flag b{color:#f0959b}
+
+/* ── findings: a segmented switch, not a left rail ────────────────────────── */
+.sr-seg{display:inline-flex;background:var(--s1);border:1px solid var(--line);border-radius:9px;padding:4px;gap:3px;flex-wrap:wrap}
+.sr-segb{display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:6px;font-size:12.5px;
+  color:var(--muted);cursor:pointer;font-weight:600;border:0;background:none}
+.sr-segb:hover{background:#1c1c1e;color:var(--fg)}
+.sr-segb.on{background:#1f2022;color:#fff}
+.sr-segb .n{background:#232326;border-radius:4px;padding:1px 6px;font-size:10.5px;color:var(--muted)}
+.sr-segb.on .n{background:var(--accent);color:#fff}
+.sr-segb .pip{width:6px;height:6px;border-radius:50%;background:#e04b56}
+.sr-segb[data-cat=warnings] .pip{background:#e9a93c}
+.sr-segb[data-cat=integrity] .pip{background:#3fbd7f}
+.sr-segb[data-cat=antivirus] .pip{background:var(--accent)}
+
+.sr-bar{display:flex;align-items:center;gap:8px;margin:14px 0 2px;flex-wrap:wrap}
+.sr-chip{padding:5px 11px;border-radius:999px;background:var(--s1);border:1px solid var(--line2);
+  color:var(--muted);font-size:11.5px;cursor:pointer;font-weight:600}
+.sr-chip.on{background:#1f2022;border-color:#34353a;color:#fff}
+.sr-search{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--s1);
+  border:1px solid var(--line2);border-radius:999px;padding:6px 13px;min-width:215px}
+.sr-search input{background:none;border:0;outline:none;color:var(--fg);font-size:12.5px;width:100%}
+.sr-copy{display:flex;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--line2);
+  color:var(--muted);border-radius:999px;padding:6px 13px;font-size:11.5px;cursor:pointer;font-weight:600}
+.sr-copy:hover{background:#232326;color:var(--fg)}
+
+/* each finding is a card on a spine, so a long report still reads as a sequence */
+.sr-list{margin-top:14px;padding-left:19px;border-left:1px solid var(--line)}
+.sr-item-card{position:relative;background:var(--s1);border:1px solid var(--line);border-radius:10px;
+  padding:13px 15px;margin-bottom:9px;cursor:pointer}
+.sr-item-card:hover{border-color:#2c2d31}
+.sr-item-card::before{content:"";position:absolute;left:-24px;top:19px;width:9px;height:9px;border-radius:50%;
+  background:#e04b56;border:2px solid var(--s0)}
+.sr-item-card.w::before{background:#e9a93c}
+.sr-item-card.g::before{background:#3fbd7f}
+.sr-item-card.b::before{background:var(--accent)}
+.sr-top{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.sr-name{color:var(--fg-strong);font-weight:650;font-size:13.5px}
+.sr-mult{background:var(--s3);border:1px solid var(--line2);color:var(--muted);border-radius:5px;
+  padding:1px 7px;font-size:10.5px;font-weight:700}
+.sr-tag{background:var(--s3);border:1px solid var(--line2);color:var(--muted);border-radius:999px;
+  padding:2px 9px;font-size:10.5px;font-weight:600}
+.sr-tag.hot{background:#2a1618;border-color:#45262a;color:#f0959b}
+.sr-strength{margin-left:auto;display:flex;align-items:center;gap:7px;color:var(--faint);font-size:10.5px}
+.sr-strength .bars{display:flex;gap:2px}
+.sr-strength .bars i{width:14px;height:4px;border-radius:2px;background:#232326}
+.sr-strength .bars i.f{background:#e04b56}
+.sr-detail{margin-top:8px;color:var(--muted);font-size:12px;
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;word-break:break-all}
+.sr-more{margin-top:11px;padding-top:11px;border-top:1px solid var(--line);color:var(--muted);
+  font-size:12.5px;line-height:1.65}
+.sr-more b{color:var(--fg);font-weight:600}
+.sr-kv{margin-top:7px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--faint);word-break:break-all}
+
+.sr-foot{display:flex;align-items:center;justify-content:space-between;padding-top:16px;color:var(--faint);font-size:12.5px}
+.sr-pg{display:flex;gap:7px}
+.sr-pg button{background:var(--s1);border:1px solid var(--line2);color:var(--muted);
+  border-radius:999px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600}
+.sr-pg button:disabled{opacity:.38;cursor:default}
+.sr-pg button.p{background:var(--accent);border-color:var(--accent);color:#fff}
+
+@media(max-width:1000px){
+  .sr-side{display:none}
+  .sr-list{padding-left:0;border-left:0}
+  .sr-item-card::before{display:none}
+  .sr-strength{margin-left:0;width:100%}
+}
+
+
+/* ── back to the first layout: joined tiles, blue-accented headings, a left rail ──
+   The second pass moved these around to look less like anything else; the first
+   arrangement read better, so it is what the page uses. */
+.sr-sec small{display:none}
+.sr-sec h2{font-size:21px}
+.sr-sec h2 em{font-style:normal;color:var(--accent)}
+
+/* the facts join back into one strip */
+.sr-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;
   background:var(--s1);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.sr-tile{padding:15px 17px;border-right:1px solid var(--line)}
-.sr-tile:last-child{border-right:0}
-.sr-tile small{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:11.5px;margin-bottom:7px}
-.sr-tile b{display:block;color:var(--fg-strong);font-size:14px;font-weight:650}
-.sr-tile i{display:block;font-style:normal;color:var(--faint);font-size:11px;margin-top:6px}
+.sr-fact{border:0;border-right:1px solid var(--line);border-radius:0;padding:15px 17px;background:none}
+.sr-fact:last-child{border-right:0}
+.sr-fact.flag{background:#15100f}
 
-/* ── tabs ─────────────────────────────────────────────────────────────────── */
-.sr-tabs{display:flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--line);
-  border-radius:10px;padding:7px;margin-bottom:16px;flex-wrap:wrap}
-.sr-tab{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:7px;font-size:13px;
-  color:var(--muted);cursor:pointer;font-weight:500}
-.sr-tab:hover{background:#1c1c1e;color:var(--fg)}
-.sr-tab.on{background:var(--accent);color:#fff;font-weight:600}
-.sr-tab .n{background:#2a1618;color:#f98a8a;border-radius:5px;font-size:10.5px;padding:1px 6px;font-weight:700}
-.sr-tab.on .n{background:rgba(255,255,255,.22);color:#fff}
-.sr-cheater{margin-left:auto;display:flex;align-items:center;gap:8px;background:#2a1618;border:1px solid #45262a;
-  color:#f98a8a;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600}
-.sr-cheater b{background:#f05a5a;color:#fff;border-radius:4px;padding:1px 6px;font-size:10.5px}
+/* findings: the spine becomes a plain list of rows again */
+.sr-list{padding-left:0;border-left:0;margin-top:10px}
+.sr-item-card{border:0;border-bottom:1px solid #161617;border-radius:0;margin:0;padding:13px 10px;background:none}
+.sr-item-card:hover{background:#141416;border-color:#161617}
+.sr-item-card::before{display:none}
+.sr-item-card .sr-top{flex-wrap:nowrap}
+.sr-item-card .sr-name{width:218px;flex:none}
+.sr-detail{margin-top:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-item-card .sr-top{gap:13px}
+/* the row's own coloured dot, back on the left where it reads as severity */
+.sr-item-card .sr-top::before{content:"";width:9px;height:9px;flex:none;border-radius:50%;background:#e04b56}
+.sr-item-card.w .sr-top::before{background:#e9a93c}
+.sr-item-card.g .sr-top::before{background:#3fbd7f}
+.sr-item-card.b .sr-top::before{background:var(--accent)}
 
-/* ── results: the category rail and the rows ──────────────────────────────── */
-.sr-res{display:grid;grid-template-columns:212px 1fr;gap:16px;align-items:start}
+/* the whole findings block sits in one panel again */
+.sr-wrap{display:grid;grid-template-columns:214px 1fr;gap:16px;align-items:start}
 .sr-rail{background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:8px}
 .sr-rail>b{display:flex;justify-content:space-between;padding:8px 10px 10px;color:var(--fg-strong);font-size:13.5px}
 .sr-rail>b span{color:var(--faint);font-weight:500}
-.sr-cat{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;
-  font-size:13px;color:var(--muted)}
+.sr-cat{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted)}
 .sr-cat:hover{background:#1c1c1e;color:var(--fg)}
 .sr-cat.on{background:var(--accent-soft);color:#cfe0ff;font-weight:600}
+.sr-cat .pip{width:8px;height:8px;border-radius:50%;background:#e04b56}
+.sr-cat[data-cat=warnings] .pip{background:#e9a93c}
+.sr-cat[data-cat=integrity] .pip{background:#3fbd7f}
+.sr-cat[data-cat=antivirus] .pip{background:var(--accent)}
 .sr-cat .n{margin-left:auto;color:var(--faint);font-size:12px;font-weight:600}
 .sr-cat.on .n{color:#9dc0ff}
-
 .sr-panel{background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:18px}
 .sr-ptitle{display:flex;align-items:baseline;gap:9px;margin-bottom:3px}
 .sr-ptitle h3{margin:0;font-size:17px;color:var(--fg-strong);font-weight:700}
 .sr-ptitle span{color:var(--faint);font-size:14px}
 .sr-psub{color:var(--faint);font-size:12.5px;margin:0 0 15px}
-
-.sr-bar{display:flex;align-items:center;gap:7px;margin-bottom:12px;flex-wrap:wrap}
-.sr-chip{padding:5px 11px;border-radius:7px;background:var(--s3);border:1px solid var(--line2);
-  color:var(--muted);font-size:12px;cursor:pointer;font-weight:600}
-.sr-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.sr-search{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--s3);
-  border:1px solid var(--line2);border-radius:7px;padding:5px 10px;min-width:210px}
-.sr-search input{background:none;border:0;outline:none;color:var(--fg);font-size:12.5px;width:100%}
-.sr-copy{display:flex;align-items:center;gap:6px;background:var(--s3);border:1px solid var(--line2);
-  color:var(--muted);border-radius:7px;padding:6px 11px;font-size:12px;cursor:pointer;font-weight:600}
-.sr-copy:hover{background:#232326;color:var(--fg)}
-
-.sr-row{display:flex;align-items:center;gap:13px;padding:13px 10px;border-bottom:1px solid #161617;cursor:pointer}
-.sr-row:last-of-type{border-bottom:0}
-.sr-row:hover{background:#141416}
-.sr-ic{width:25px;height:25px;flex:none;border-radius:7px;background:#2a1618;color:#f05a5a;
-  display:flex;align-items:center;justify-content:center;font-size:13px}
-.sr-ic.w{background:#2a2213;color:#f5c466}.sr-ic.g{background:#15251c;color:#7ddba4}
-.sr-ic.b{background:var(--accent-soft);color:#9dc0ff}
-.sr-name{width:215px;flex:none;color:var(--fg-strong);font-weight:600;font-size:13.5px}
-.sr-detail{flex:1;min-width:0;color:var(--muted);font-size:12.5px;
-  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sr-tag{flex:none;background:#2a1618;border:1px solid #45262a;color:#f98a8a;border-radius:6px;
-  padding:3px 9px;font-size:11px;font-weight:600}
-.sr-tag.grey{background:var(--s3);border-color:var(--line2);color:var(--muted)}
-.sr-mult{flex:none;background:var(--s3);border:1px solid var(--line2);color:var(--muted);
-  border-radius:5px;padding:2px 7px;font-size:11px;font-weight:700}
-.sr-exp{flex:none;color:var(--faint);font-size:11px;width:14px;text-align:center}
-.sr-more{padding:12px 10px 2px;color:var(--muted);font-size:12.5px;line-height:1.6;
-  border-bottom:1px solid #161617;background:#0e0e10}
-.sr-more b{color:var(--fg)}
-
-.sr-foot{display:flex;align-items:center;justify-content:space-between;padding-top:15px;color:var(--faint);font-size:12.5px}
-.sr-pg{display:flex;gap:7px}
-.sr-pg button{background:var(--s3);border:1px solid var(--line2);color:var(--muted);
-  border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600}
-.sr-pg button:disabled{opacity:.4;cursor:default}
-.sr-pg button.p{background:var(--accent);border-color:var(--accent);color:#fff}
-
-@media(max-width:1000px){
-  .sr-side{display:none}
-  .sr-res{grid-template-columns:1fr}
-  .sr-name{width:auto}
-  .sr-detail{display:none}
-  .sr-map{display:none}
-}
+@media(max-width:1000px){.sr-wrap{grid-template-columns:1fr}.sr-item-card .sr-name{width:auto}.sr-detail{display:none}}
