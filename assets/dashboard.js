@@ -13,6 +13,18 @@
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
     auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
+  // The verdict on a PIN, in one word and one colour. The scanner writes 'cheating',
+  // 'clean' or 'suspicious'; staff read the table fastest when the word matches the colour
+  // and nothing else in the row competes with it.
+  function hsResultBadge(r) {
+    if (!r) return '<span class="badge hs-res res-wait">Waiting</span>';
+    const v = String(r).toLowerCase();
+    if (/cheat|detect|ban/.test(v))  return '<span class="badge hs-res res-detected">Detected</span>';
+    if (/suspic|kick|review/.test(v)) return '<span class="badge hs-res res-suspicious">Suspicious</span>';
+    if (/clean|safe|ok/.test(v))      return '<span class="badge hs-res res-safe">Safe</span>';
+    return `<span class="badge hs-res res-wait">${esc(r)}</span>`;
+  }
+
   const SCANNER_URL = 'https://github.com/scriptignis-coder/SouthSide/releases/download/v1.0/HeRoShield.exe';
   const ERRORS = {
     state: 'Session expired, try again.', token: 'Discord refused the login.',
@@ -717,8 +729,8 @@
             <td><div style="display:flex;align-items:center;gap:8px" title="${esc(gameOf(p.game).name)}">${gameIcon(p.game, 16)}<span style="font-size:13px">${esc(gameOf(p.game).name)}</span></div></td>
             <td class="mono" style="color:var(--cyan);font-size:14px">${esc(p.pin)}</td>
             <td>${esc(p.player) || '-'}${p.discord_check && p.discord_check.user ? ` <span class="badge log" title="${esc(p.discord_check.user.name)}">Discord ✓</span>` : ''}</td>
-            <td><span class="badge ${p.used ? 'on' : 'off'}">${p.used ? 'Yes' : 'Pending'}</span></td>
-            <td>${p.result ? `<span class="badge ${p.result === 'cheating' ? 'ban' : p.result === 'clean' ? 'on' : 'kick'}">${esc(p.result)}</span>` : '-'}</td>
+            <td><span class="badge hs-used ${p.used ? 'used-yes' : 'used-no'}">${p.used ? 'Used' : 'Pending'}</span></td>
+            <td>${hsResultBadge(p.result)}</td>
             <td class="mono">${fmtDate(p.created_at)}</td>
             <td><div class="actions-cell">
               ${p.used ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}

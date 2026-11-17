@@ -251,3 +251,33 @@ section h2 span,.section h2 em{color:var(--accent)!important;font-style:normal}
 footer,.site-footer{background:var(--s0)!important;border-top:1px solid var(--line)!important;color:var(--muted)!important}
 footer a{color:var(--muted)!important}
 footer a:hover{color:var(--fg)!important}
+
+/* ── the verdict and the used state, in colour ────────────────────────────────
+   These two columns are what staff scan the PIN table for. Grey badges made
+   every row look the same, so the one that mattered had to be hunted for. */
+
+.badge.hs-res{
+  font-size:11px!important;font-weight:700!important;letter-spacing:.01em;
+  border-radius:999px!important;padding:3px 11px!important;border:1px solid transparent!important;
+}
+.badge.hs-res.res-detected{background:#2a1618!important;border-color:#5c3035!important;color:#ff8d95!important}
+.badge.hs-res.res-suspicious{background:#2e2412!important;border-color:#5e4a1f!important;color:#f7c15c!important}
+.badge.hs-res.res-safe{background:#132419!important;border-color:#255238!important;color:#6fdb9c!important}
+.badge.hs-res.res-wait{background:var(--s3)!important;border-color:var(--line2)!important;color:var(--faint)!important}
+
+/* Used: a filled dot for a PIN that has been run, a hollow one for a PIN still waiting */
+.badge.hs-used{
+  font-size:11px!important;font-weight:650!important;border-radius:999px!important;
+  padding:3px 11px 3px 9px!important;display:inline-flex;align-items:center;gap:7px;
+  background:var(--s3)!important;border:1px solid var(--line2)!important;
+}
+.badge.hs-used::before{content:"";width:6px;height:6px;border-radius:50%}
+.badge.hs-used.used-yes{background:#111c2e!important;border-color:#27405f!important;color:#8fbcff!important}
+.badge.hs-used.used-yes::before{background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.18)}
+.badge.hs-used.used-no{color:var(--faint)!important}
+.badge.hs-used.used-no::before{background:none;border:1.5px solid #4e5157}
+
+/* the same three colours wherever a verdict is printed, not only in this table */
+.badge.ban,.verdict-cheating{background:#2a1618!important;border-color:#5c3035!important;color:#ff8d95!important}
+.badge.kick,.verdict-suspicious{background:#2e2412!important;border-color:#5e4a1f!important;color:#f7c15c!important}
+.badge.on,.verdict-clean{background:#132419!important;border-color:#255238!important;color:#6fdb9c!important}

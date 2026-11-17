@@ -207,6 +207,7 @@
           return `<div class="sr-item-card ${cObj.cls} lv-${lv}" data-row="${idx}">
             <div class="sr-top">
               <span class="sr-name">${esc(d.name)}</span>
+              ${d.cheat ? `<span class="sr-cheat">${esc(d.cheat)}</span>` : ''}
               ${d.count > 1 ? `<span class="sr-mult">seen ${d.count}×</span>` : ''}
               ${d.tag ? `<span class="sr-tag sev-${lv}">${esc(d.tag)}</span>` : ''}
               <span class="sr-strength">evidence
@@ -264,6 +265,7 @@
       name: x.signature || x.name || x.title || 'Finding',
       detail: x.path || x.detail || x.explain || '',
       explain: x.explain || x.detail || '',
+      cheat: x.cheatName || x.CheatName || null,
       sha256: x.sha256 || x.Sha256 || null,
       path: x.path || x.Path || null,
       tag: x.tag || (x.deleted ? 'Recovery' : x.boot ? 'Boot' : x.category) || null,

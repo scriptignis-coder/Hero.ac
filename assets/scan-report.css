@@ -259,3 +259,14 @@ body{margin:0;font-family:Inter,-apple-system,"Segoe UI",system-ui,sans-serif}
 
 /* the category pills in the switch and the rail */
 .sr-cat .pip,.sr-segb .pip{box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+
+/* The cheat's own name, beside the finding.
+   "Possible Windows API Injection" tells staff what happened; "Eulen" tells them what it was.
+   Both matter, so both are shown, and the name is the one that carries the colour. */
+.sr-cheat{
+  background:#2a1618;border:1px solid #5c3035;color:#ff8d95;
+  border-radius:6px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.01em;
+  white-space:nowrap;
+}
+.lv-suspicious .sr-cheat{background:#2e2412;border-color:#5e4a1f;color:#f7c15c}
+.lv-clean .sr-cheat{background:#132419;border-color:#255238;color:#6fdb9c}
