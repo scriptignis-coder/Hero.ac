@@ -25,16 +25,44 @@ const SILENT_AFTER_SEC = 90;
 // silence tells us nothing.
 const NO_PULSE_AFTER_MIN = 20;
 
-/** Cache the threshold for a minute; it is read on nearly every dashboard load. */
-let _thr = { at: 0, value: 3 };
-export async function abuseThreshold() {
-  if (Date.now() - _thr.at < 60_000) return _thr.value;
+/** Cache the settings for a minute; they are read on nearly every dashboard load. */
+let _set = { at: 0, kill: 1, self: 5 };
+export async function abuseSettings() {
+  if (Date.now() - _set.at < 60_000) return _set;
   try {
-    const rows = await sb(`hs_settings?key=eq.abuse_threshold&select=value&limit=1`);
-    const n = parseInt(rows?.[0]?.value ?? '3', 10);
-    _thr = { at: Date.now(), value: Number.isFinite(n) ? n : 3 };
-  } catch { _thr = { at: Date.now(), value: 3 }; }
-  return _thr.value;
+    const rows = await sb(`hs_settings?key=in.(abuse_threshold,self_scan_limit)&select=key,value`);
+    const get = (k, d) => {
+      const n = parseInt(rows?.find((r) => r.key === k)?.value ?? String(d), 10);
+      return Number.isFinite(n) ? n : d;
+    };
+    _set = { at: Date.now(), kill: get('abuse_threshold', 1), self: get('self_scan_limit', 5) };
+  } catch { _set = { at: Date.now(), kill: 1, self: 5 }; }
+  return _set;
+}
+export async function abuseThreshold() { return (await abuseSettings()).kill; }
+
+/**
+ * Scans the licence holder ran on their own PC.
+ *
+ * Separate from the killed-scan count, and allowed a higher limit, because the two are not the
+ * same thing. Killing a scan has no honest reason; scanning your own PC does — it is the first
+ * thing anyone does after buying, and the obvious way to check the tool still works. One or two
+ * is testing. A run of them is somebody learning what the detection catches, on their own
+ * machine, where no report ever reaches staff.
+ */
+export async function selfScanCount(ownerDiscord) {
+  try {
+    const rows = await sb(`scan_pins?self_scan=eq.true&select=id&limit=200`
+      + `&license_id=in.(${(await licensesOf(ownerDiscord)).map(enc).join(',')})`);
+    return rows?.length || 0;
+  } catch { return 0; }
+}
+
+async function licensesOf(ownerDiscord) {
+  try {
+    const rows = await sb(`scanner_licenses?owner_discord=eq.${enc(String(ownerDiscord))}&select=id`);
+    return (rows || []).map((r) => r.id);
+  } catch { return []; }
 }
 
 /** The active blacklist row for this Discord id, or null. */
@@ -65,12 +93,15 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
       + `&used=eq.false&abandoned_at=is.null&started_at=not.is.null`
       + `&select=id,pin,player,license_id,started_at,starts,beat_at,self_scan&limit=80`);
   } catch { return null; }      // before v36: nothing to do
-  if (!started?.length) return null;
+  // Not `return null` on an empty list: a licence holder can cross the self-scan limit without
+  // ever killing a scan, and that check lives further down.
+  started = started || [];
 
   // A scan is abandoned when its pulse has stopped. One that never had a pulse (an older
   // scanner) falls back to the long wait, because for those silence proves nothing.
   const stale = started.filter((p) => p.beat_at ? p.beat_at < silent : p.started_at < old);
-  if (!stale.length) return null;
+  // NOTE: no early return here. An account can cross the self-scan limit without ever killing
+  // a scan, and returning early on an empty `stale` list skipped that check completely.
 
   // mark them first, so a second request cannot count the same scan twice
   const now = new Date().toISOString();
@@ -88,16 +119,23 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
     } catch { }
   }
 
-  const threshold = await abuseThreshold();
-  if (threshold <= 0) return null;                   // automatic blacklisting switched off
+  const cfg = await abuseSettings();
 
-  let total = 0;
+  let killed = 0;
   try {
     const rows = await sb(
       `hs_abandoned_scans?owner_discord=eq.${enc(String(ownerDiscord))}&select=id&limit=200`);
-    total = rows?.length || 0;
+    killed = rows?.length || 0;
   } catch { return null; }
-  if (total < threshold) return null;
+
+  const selfs = cfg.self > 0 ? await selfScanCount(ownerDiscord) : 0;
+
+  // Either count on its own is enough. They are kept apart rather than added together because
+  // they mean different things and deserve different limits.
+  const byKill = cfg.kill > 0 && killed >= cfg.kill;
+  const bySelf = cfg.self > 0 && selfs >= cfg.self;
+  if (!byKill && !bySelf) return null;
+  const total = killed;
 
   // already blacklisted (or an admin lifted it — a lifted row is left alone)
   const existing = await blacklistOf(ownerDiscord);
@@ -108,10 +146,16 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
     if (lifted?.length) return null;                 // lifted by an admin: do not re-apply by itself
   } catch { }
 
+  const nScan = (n) => `${n} scan${n === 1 ? ' was' : 's were'}`;
+  const reason = byKill && bySelf
+    ? `${nScan(killed)} started on this account's PINs and never finished, and ${nScan(selfs)} run on the licence holder's own PC.`
+    : byKill
+      ? `${nScan(killed)} started on this account's PINs and never finished.`
+      : `${nScan(selfs)} run on the licence holder's own PC rather than on a player's.`;
   const row = {
-    discord_id: String(ownerDiscord), created_by: 'system',
-    reason: `${total} scans were started on this account's PINs and never finished.`,
-    detail: { abandoned: total, threshold, last_pins: stale.map((p) => p.pin).slice(0, 5) },
+    discord_id: String(ownerDiscord), created_by: 'system', reason,
+    detail: { abandoned: killed, self_scans: selfs, kill_limit: cfg.kill, self_limit: cfg.self,
+              last_pins: stale.map((p) => p.pin).slice(0, 5) },
   };
   try { await sb('hs_blacklist', { method: 'POST', prefer: 'return=minimal', body: row }); }
   catch { return null; }

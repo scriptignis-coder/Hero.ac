@@ -289,3 +289,6 @@ footer a:hover{color:var(--fg)!important}
   display:inline-block;margin-top:5px;font-size:10px;font-weight:700;letter-spacing:.02em;
   background:#1b1b1d;border:1px solid #2f2f33;color:#8b8f96;border-radius:5px;padding:2px 7px;
 }
+
+/* ── Discord accounts rows (PC & accounts tab) ───────────────────────────────────────── */
+.hs-acc-ic svg{width:16px!important;height:16px!important;color:#fff!important}

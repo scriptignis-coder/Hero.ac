@@ -13,12 +13,13 @@ export default wrap(async (req, res) => {
       sb('hs_blacklist?order=created_at.desc&limit=200&select=*').catch(() => []),
       sb('hs_abandoned_scans?order=noticed_at.desc&limit=100&select=*').catch(() => []),
     ]);
-    let threshold = 3;
+    let threshold = 1, selfLimit = 5;
     try {
-      const t = await sb('hs_settings?key=eq.abuse_threshold&select=value&limit=1');
-      threshold = parseInt(t?.[0]?.value ?? '3', 10);
+      const t = await sb('hs_settings?key=in.(abuse_threshold,self_scan_limit)&select=key,value');
+      threshold = parseInt(t?.find((x) => x.key === 'abuse_threshold')?.value ?? '1', 10);
+      selfLimit = parseInt(t?.find((x) => x.key === 'self_scan_limit')?.value ?? '5', 10);
     } catch { }
-    return send(res, 200, { blacklist: rows || [], abandoned: recent || [], threshold });
+    return send(res, 200, { blacklist: rows || [], abandoned: recent || [], threshold, selfLimit });
   }
 
   if (req.method !== 'POST') throw httpError(405, 'Method not allowed');
@@ -52,11 +53,13 @@ export default wrap(async (req, res) => {
 
   // ── how many abandoned scans before the block is automatic ────────────────
   if (b.action === 'threshold') {
+    // which limit: 'kill' (scans started and never finished) or 'self' (scans on the owner's own PC)
+    const key = b.which === 'self' ? 'self_scan_limit' : 'abuse_threshold';
     const n = Math.max(0, Math.min(50, parseInt(b.value, 10) || 0));
     await sb('hs_settings', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
-      body: { key: 'abuse_threshold', value: String(n) } });
-    await audit(user, 'blacklist.threshold', { detail: { value: n } });
-    return send(res, 200, { ok: true, threshold: n });
+      body: { key, value: String(n) } });
+    await audit(user, 'blacklist.threshold', { detail: { key, value: n } });
+    return send(res, 200, { ok: true, [key]: n });
   }
 
   throw httpError(400, 'Unknown action');

@@ -1237,9 +1237,40 @@
       usb: () => {
         const items = fl(usbs, 'Name', 'Serial', 'Why', 'LastConnected');
         const ran = dets.filter((d) => F(d, 'Method') === 21);
+
+        // Drives that are no longer here. This is the part staff actually look for after a
+        // screenshare where a stick came out, so it sits at the top of the tab rather than
+        // being split across a warning and a detection somewhere else.
+        const goneDrives = (R('RemovedDrives') || []).map((d) => {
+          const folders = F(d, 'Folders') || [], files = F(d, 'Files') || [], hits = F(d, 'Hits') || [];
+          const list = (arr, label, cls) => arr.length
+            ? `<div style="margin-top:9px"><div style="color:var(--dim);font-size:11px;margin-bottom:4px">${label} · ${arr.length}</div>`
+              + arr.slice(0, 40).map((x) => `<div class="mono" style="font-size:11.5px;color:${cls};word-break:break-all;padding:1px 0">${esc(x)}</div>`).join('')
+              + (arr.length > 40 ? `<div style="color:var(--dim);font-size:11px;margin-top:3px">+${arr.length - 40} more</div>` : '')
+              + '</div>'
+            : '';
+          return `<div style="background:var(--s1,#121314);border:1px solid var(--line,#1f1f1f);border-left:3px solid #ffb35c;
+                              border-radius:10px;padding:14px 16px;margin-bottom:10px">
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+              <b style="color:var(--text);font-size:15px">Drive ${esc(F(d, 'Letter'))}</b>
+              <span style="color:#ffb35c;font-size:12px;font-weight:600">not connected now</span>
+              ${F(d, 'Device') ? `<span style="color:var(--dim);font-size:12px">${esc(F(d, 'Device'))}</span>` : ''}
+              ${F(d, 'Serial') ? `<span class="mono" style="color:var(--dim);font-size:11px">serial ${esc(F(d, 'Serial'))}</span>` : ''}
+            </div>
+            <div style="color:var(--dim);font-size:12px;margin-top:6px;line-height:1.5">
+              The files left with the drive and cannot be read. This is what Windows still
+              remembers about it — ask the player to plug it back in and run the check again.
+            </div>
+            ${list(hits, 'Matched your signatures', '#ff8597')}
+            ${list(files, 'Programs and archives remembered on it', 'var(--text)')}
+            ${list(folders, 'Folders opened on it', 'var(--dim)')}
+          </div>`;
+        }).join('');
+
         return head('USB drives', items.length,
             'Every USB stick / external drive Windows remembers, with the last time it was plugged in. Orange = plugged in shortly before the check and pulled out. '
             + 'Cheats are sometimes kept on a USB stick and removed before a screenshare.')
+          + goneDrives
           + (ran.length ? rows(ran.map((d) => rowL(F(d, 'Severity') === 2 ? 'red' : 'orange', `<b style="color:var(--text)">${esc(F(d, 'Signature'))}</b><div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(d, 'Path'))}</div>`, esc(F(d, 'When') || ''))), '') + '<div style="height:12px"></div>' : '')
           + rows(items.map((x) => rowL(F(x, 'Level') >= 1 ? 'orange' : '',
               `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> ${F(x, 'Present') ? '<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(47,155,255,.15);color:#8cc8ff;font-size:11px;font-weight:700">plugged in now</span>' : ''}`
@@ -1354,7 +1385,69 @@
 
       pc: () => {
         const kv = (list) => `<div class="rp-kv">${list.map(([k, v]) => `<span>${k}</span><b>${esc(v || '-')}</b>`).join('')}</div>`;
-        return `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">
+
+        // ── Every Discord account this PC has seen ───────────────────────────────────────────
+        // Not only the one signed in now. A player who is asked to screenshare signs out of the
+        // account that everyone knows and signs into a clean one; the one that bought the cheat
+        // is the one that was there before. Each row gets a Check button so staff can run the
+        // bot lookup on any of them without retyping the id.
+        const seen = L('DiscordAccountsSeen').map((a) => ({
+          id: String(F(a, 'Id') || ''),
+          source: String(F(a, 'Source') || ''),
+          current: !!F(a, 'Current'),
+        })).filter((a) => /^\d{17,20}$/.test(a.id));
+        // One row per id: an account can show up in Discord and Discord PTB both.
+        const byId = new Map();
+        for (const a of seen) {
+          const prev = byId.get(a.id);
+          if (prev) { prev.current = prev.current || a.current; if (a.source && !prev.sources.includes(a.source)) prev.sources.push(a.source); }
+          else byId.set(a.id, { id: a.id, current: a.current, sources: a.source ? [a.source] : [] });
+        }
+        if (localDiscord && /^\d{17,20}$/.test(String(localDiscord)) && !byId.has(String(localDiscord)))
+          byId.set(String(localDiscord), { id: String(localDiscord), current: true, sources: ['Discord'] });
+        const accs = [...byId.values()].sort((x, y) => (y.current ? 1 : 0) - (x.current ? 1 : 0));
+        const checkedId = dc && dc.user && dc.user.id ? String(dc.user.id) : '';
+        const extra = accs.filter((a) => !a.current).length;
+
+        const accRow = (a) => {
+          const isChecked = checkedId && a.id === checkedId;
+          const lvl = a.current ? 'blue' : 'orange';
+          return `<div class="rp-card ${lvl}" style="padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span class="hs-acc-ic" style="width:30px;height:30px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;flex:none">${IC.disc}</span>
+            <div style="flex:1;min-width:180px">
+              <b class="mono" style="color:var(--text);font-size:13.5px">${esc(a.id)}</b>
+              <div style="color:var(--dim);font-size:11.5px;margin-top:2px">${esc(a.sources.join(' · ') || 'Discord')}${isChecked && dc.user.username ? ` · <b style="color:var(--text)">@${esc(dc.user.username)}</b>` : ''}</div>
+            </div>
+            <span class="rp-tag">${a.current ? 'SIGNED IN NOW' : 'SIGNED OUT — used on this PC'}</span>
+            <button class="btn ${isChecked ? '' : 'btn-primary'}" data-dcheck="${esc(a.id)}" style="padding:6px 12px;font-size:12px">${isChecked ? 'Checked — open' : 'Check this account'}</button>
+          </div>`;
+        };
+
+        const gameAcc = (label, list, note) => {
+          const items = L(list);
+          return `<div class="rp-card blue" style="padding:12px 14px">
+            <div class="rp-head" style="font-size:14px;padding:0 0 6px">${label} <span style="color:var(--dim);font-weight:400">· ${items.length}</span></div>
+            ${items.length
+              ? `<div style="display:flex;flex-direction:column;gap:4px">${items.map((v) => `<b class="mono" style="color:var(--text);font-size:12.5px">${esc(String(v))}</b>`).join('')}</div>`
+              : `<div style="color:var(--dim);font-size:12px">${esc(note)}</div>`}
+          </div>`;
+        };
+
+        const accounts = head('Discord accounts used on this PC', accs.length,
+            'Every Discord account this PC has signed into — not only the one open now. Signing out does not remove an account from this list. '
+            + 'Blue = signed in right now. Orange = signed out but used on this PC, which is the account worth checking. Press Check to run your bot on it.')
+          + (accs.length
+            ? `<div style="display:flex;flex-direction:column;gap:8px">${accs.map(accRow).join('')}</div>`
+              + (extra ? `<div class="rp-txt" style="color:#fbbf24;margin-top:10px">⚠ ${extra} other Discord account${extra > 1 ? 's have' : ' has'} been used on this PC besides the one signed in now.</div>` : '')
+            : `<p style="color:var(--dim);font-size:12.5px">No Discord account list on this PC — Discord is not installed, or the player used an older scanner (needs v4.11+).</p>`)
+          + `<div style="height:18px"></div>` + head('Game accounts', 0, 'Steam, Rockstar Social Club and Epic accounts read from the PC.')
+          + `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+              ${gameAcc('Steam', 'SteamAccounts', 'No Steam account on this PC.')}
+              ${gameAcc('Rockstar Social Club', 'RockstarAccounts', 'No Rockstar account on this PC.')}
+              ${gameAcc('Epic Games', 'EpicAccounts', 'No Epic account on this PC.')}
+            </div><div style="height:18px"></div>`;
+
+        return accounts + `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(360px,1fr))">
           <div class="rp-card blue"><div class="rp-head" style="font-size:15px">PC information</div>${kv([
             ['System', (S('Os') || '-') + ' ' + (S('WinBuild') || '')], ['CPU', S('Cpu')], ['GPU', S('Gpu')], ['RAM', S('RamGb')], ['Motherboard', S('Motherboard')],
             ['Time zone', S('TimeZone')], ['Windows installed', S('WindowsInstall')], ['Boot', S('BootTime')], ['Uptime', S('Uptime')],
@@ -1363,9 +1456,9 @@
           <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Hardware IDs (for bans)</div>${kv([
             ['HWID', S('Hwid')], ['UUID', S('Uuid')], ['Machine GUID', S('MachineGuid')], ['BIOS serial', S('BiosSerial')],
             ['Disk serials', S('DiskSerials')], ['MAC', S('MacAddresses')], ['Windows SID', S('Sid')]])}</div>
-          <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Linked accounts</div>${kv([
-            ['Discord (PC)', localDiscord], ['Discord (connected)', dc && dc.user ? `${dc.user.name} · ${dc.user.id}` : 'not connected'],
-            ['Steam', L('SteamAccounts').join(', ')], ['Rockstar', L('RockstarAccounts').join(', ')], ['Epic Games', L('EpicAccounts').join(', ')],
+          <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Other</div>${kv([
+            ['Discord signed in now', localDiscord], ['Discord accounts seen', String(accs.length)],
+            ['Discord checked here', dc && dc.user ? `${dc.user.name} · ${dc.user.id}` : 'not checked'],
             ['Browsers', L('Browsers').join(', ')], ['USB devices', L('UsbDevices').join(', ')]])}</div>
         </div>`;
       },
@@ -1389,6 +1482,19 @@
 
     view.querySelectorAll('[data-rtab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.rtab)));
     view.querySelectorAll('[data-goto-tab]').forEach((b) => b.addEventListener('click', () => renderPinReport(view, pin, b.dataset.gotoTab)));
+    // Check button on a Discord account row in PC & accounts: same lookup, no retyping.
+    view.querySelectorAll('[data-dcheck]').forEach((b) => b.addEventListener('click', async (ev) => {
+      const id = String(b.dataset.dcheck || '').replace(/\D/g, '');
+      if (!/^\d{17,20}$/.test(id)) return toast('Not a Discord ID', true);
+      if (dc && dc.user && String(dc.user.id) === id) return renderPinReport(view, pin, 'discord');
+      ev.target.disabled = true; ev.target.textContent = 'Checking…';
+      try {
+        await api('/api/discord-lookup', { method: 'POST', body: { pin, id } });
+        if (state.reports) delete state.reports[pin];
+        if (state.discHist) delete state.discHist[id];
+        renderPinReport(view, pin, 'discord');
+      } catch (e) { toast(e.message, true); ev.target.disabled = false; ev.target.textContent = 'Check this account'; }
+    }));
     view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
       const id = (view.querySelector('#disc-id').value || '').replace(/\D/g, '');
       if (!/^\d{17,20}$/.test(id)) return toast('Enter a Discord ID (17–20 digits)', true);
@@ -1416,7 +1522,41 @@
     if (!active.some(l => l.id === state.guiLicenseId)) state.guiLicenseId = active[0].id;
     const { bg } = await api(`/api/scanner-bg?license_id=${encodeURIComponent(state.guiLicenseId)}`);
     state.scanbg = bg || '';
+    const COLORS = ['#3b82f6', '#22d3ee', '#a855f7', '#ef4444', '#22c55e', '#f59e0b', '#ec4899', '#e5e7eb'];
+    if (!state.bgGen) state.bgGen = { name: '', sub: 'think. scan. find.', color: COLORS[0], design: 'tide' };
+    const G = state.bgGen;
+    const genOk = !!window.HSBG;
+
     view.innerHTML = `
+      ${genOk ? `<div class="card panel" style="margin-bottom:18px">
+        <h3>Background generator</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">
+          Make the animated background here — your name, your colour, no image to find.
+          <b>Add to scanner</b> builds the GIF and puts it straight on this license's scanner, same as an upload.</p>
+        <div class="grid-2">
+          <div>
+            <canvas id="bg-prev" width="500" height="300" style="width:100%;border:1px solid var(--line);border-radius:14px;background:#05070c;display:block"></canvas>
+            <p style="color:var(--dim);font-size:11px;margin-top:8px">Live preview — 500×300 · 16 frames · loops</p>
+          </div>
+          <div>
+            <label style="display:block" for="bg-name">Your name</label>
+            <input id="bg-name" class="input" maxlength="24" placeholder="Your server or your name" value="${esc(G.name)}" style="margin:6px 0 14px">
+            <label style="display:block" for="bg-sub">Line under it</label>
+            <input id="bg-sub" class="input" maxlength="32" placeholder="optional" value="${esc(G.sub)}" style="margin:6px 0 14px">
+            <label style="display:block">Colour</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 16px">
+              ${COLORS.map((c) => `<button data-bgcolor="${c}" title="${c}" style="width:26px!important;height:26px!important;min-width:0!important;padding:0!important;border-radius:50%!important;background:${c}!important;cursor:pointer;border:2px solid ${G.color === c ? '#fff' : 'transparent'}!important;box-shadow:0 0 0 1px var(--line)"></button>`).join('')}
+              <input type="color" data-bgcustom value="${esc(G.color)}" style="width:30px;height:26px;padding:0;border:none;background:none;cursor:pointer">
+            </div>
+            <label style="display:block">Design</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px">
+              ${HSBG.designs.map((d) => `<button class="btn ${G.design === d.id ? 'btn-primary' : 'btn-ghost'}" data-bgdesign="${d.id}" title="${esc(d.note)}" style="padding:6px 12px;font-size:12.5px">${esc(d.name)}</button>`).join('')}
+            </div>
+            <button class="btn btn-primary" data-bgadd style="min-width:190px">Add to scanner</button>
+            <p style="color:var(--dim);font-size:11px;margin-top:10px">Takes a few seconds — the GIF is built in your browser, nothing is uploaded.</p>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="card panel" style="margin-bottom:18px">
         <h3>Scanner background</h3>
         <label for="sg-license">Scanner license</label>
@@ -1444,6 +1584,58 @@
         </div>
       </div>`;
     $('#sg-license').addEventListener('change', e => { state.guiLicenseId = e.target.value; state.scannewbg = null; renderScannerGui(view); });
+
+    // ── background generator ────────────────────────────────────────────────────────────
+    if (genOk) {
+      const cv = $('#bg-prev'), cx = cv.getContext('2d');
+      // One preview loop for the whole tab. It is cancelled when the tab is left, otherwise a
+      // few tab switches leave several loops drawing into canvases that are no longer shown.
+      if (state.bgRaf) cancelAnimationFrame(state.bgRaf);
+      const T = 2000;                                   // one full loop, matching 16 frames @ 12fps-ish
+      const loop = () => {
+        if (!document.body.contains(cv)) { state.bgRaf = 0; return; }
+        HSBG.draw(cx, G, (Date.now() % T) / T);
+        state.bgRaf = requestAnimationFrame(loop);
+      };
+      loop();
+
+      const redraw = () => HSBG.draw(cx, G, 0);
+      $('#bg-name').addEventListener('input', (e) => { G.name = e.target.value; });
+      $('#bg-sub').addEventListener('input', (e) => { G.sub = e.target.value; });
+      view.querySelectorAll('[data-bgcolor]').forEach((b) => b.addEventListener('click', () => {
+        G.color = b.dataset.bgcolor;
+        view.querySelectorAll('[data-bgcolor]').forEach((o) => o.style.setProperty('border-color', o.dataset.bgcolor === G.color ? '#fff' : 'transparent', 'important'));
+        redraw();
+      }));
+      view.querySelector('[data-bgcustom]')?.addEventListener('input', (e) => {
+        G.color = e.target.value;
+        view.querySelectorAll('[data-bgcolor]').forEach((o) => o.style.setProperty('border-color', 'transparent', 'important'));
+        redraw();
+      });
+      view.querySelectorAll('[data-bgdesign]').forEach((b) => b.addEventListener('click', () => {
+        G.design = b.dataset.bgdesign;
+        view.querySelectorAll('[data-bgdesign]').forEach((o) => {
+          o.className = 'btn ' + (o.dataset.bgdesign === G.design ? 'btn-primary' : 'btn-ghost');
+        });
+        redraw();
+      }));
+      view.querySelector('[data-bgadd]')?.addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        if (!(G.name || '').trim()) return toast('Type a name first', true);
+        btn.disabled = true;
+        try {
+          const url = await HSBG.gif({ ...G, frames: 16, fps: 12 }, (p) => {
+            btn.textContent = p < 1 ? `Building… ${Math.round(p * 100)}%` : 'Saving…';
+          });
+          await api('/api/scanner-bg', { method: 'POST', body: { license_id: state.guiLicenseId, image: url } });
+          toast('Background added — it shows on every PIN of this license');
+          state.scannewbg = null;
+          renderScannerGui(view);
+        } catch (e) {
+          toast(e.message, true); btn.disabled = false; btn.textContent = 'Add to scanner';
+        }
+      });
+    }
     const file = $('#sg-file'), saveBtn = $('[data-sgsave]');
     file.addEventListener('change', () => {
       const f = file.files && file.files[0]; if (!f) return;
