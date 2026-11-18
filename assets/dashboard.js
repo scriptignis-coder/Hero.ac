@@ -523,22 +523,46 @@
         </div>`;
 
       const lookupForm = view.querySelector('#hs-license-lookup-form');
-      lookupForm?.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const id = view.querySelector('#hs-license-lookup-id').value.trim();
-        const out = view.querySelector('#hs-license-lookup-result');
+      const lookupOutput = view.querySelector('#hs-license-lookup-result');
+      async function runLicenseLookup(id) {
         const button = lookupForm.querySelector('button');
-        if (!/^\d{17,20}$/.test(id)) { out.textContent = 'Enter a valid Discord ID (17–20 digits).'; return; }
         button.disabled = true;
-        out.innerHTML = '<p class="workspace-note">Checking license database…</p>';
+        lookupOutput.innerHTML = '<p class="workspace-note">Checking license database…</p>';
         try {
           const result = await api('/api/license-lookup?discord_id=' + encodeURIComponent(id));
           const label = result.has_active_license ? 'ACTIVE LICENSE FOUND' : 'NO ACTIVE LICENSE';
           const cls = result.has_active_license ? 'hs-lookup-good' : 'hs-lookup-none';
-          out.innerHTML = `<div class="hs-lookup-result ${cls}"><strong>${label}</strong><p class="workspace-note">Discord ID: ${esc(result.discord_id)}</p>
-            ${(result.licenses || []).map(l => `<div class="hs-lookup-entry"><b>${esc(l.type)}</b> · ${esc(l.relation)} · <b>${esc(l.state)}</b> · ${l.expires_at ? 'Expires ' + fmtDate(l.expires_at) : 'No expiry'}${l.name ? ' · ' + esc(l.name) : ''}</div>`).join('') || '<p class="workspace-note">No license records found for this ID.</p>'}</div>`;
-        } catch(e) { out.textContent = 'Lookup failed: ' + (e.message || 'Unknown error'); }
+          lookupOutput.innerHTML = `<div class="hs-lookup-result ${cls}"><strong>${label}</strong><p class="workspace-note">Discord ID: ${esc(result.discord_id)}</p>
+            ${(result.licenses || []).map(l => `<div class="hs-lookup-entry" style="padding:12px 0;border-top:1px solid #273745">
+              <div><b>${esc(l.type)}</b> · ${esc(l.relation)} · <b>${esc(l.state)}</b> · ${l.expires_at ? 'Expires ' + fmtDate(l.expires_at) : 'No expiry'}${l.name ? ' · ' + esc(l.name) : ''}</div>
+              <div class="workspace-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn btn-sm ${l.state === 'revoked' ? 'btn-primary' : 'btn-danger'}" data-lookup-act="${l.state === 'revoked' ? 'restore' : 'revoke'}" data-lookup-license="${esc(l.id)}">${l.state === 'revoked' ? 'Unrevoke' : 'Revoke'}</button>
+                <button type="button" class="btn btn-sm btn-ghost" data-lookup-act="delete" data-lookup-license="${esc(l.id)}">Delete</button>
+              </div></div>`).join('') || '<p class="workspace-note">No license records found for this ID.</p>'}</div>`;
+          lookupOutput.querySelectorAll('[data-lookup-act]').forEach(btn => btn.addEventListener('click', async () => {
+            const action = btn.dataset.lookupAct;
+            const licenseId = btn.dataset.lookupLicense;
+            if (action === 'delete') {
+              if (!confirm('Permanently delete this license? This cannot be undone.')) return;
+              if (prompt('Type DELETE to confirm permanent deletion:') !== 'DELETE') return;
+            } else if (!confirm(`${action === 'revoke' ? 'Revoke' : 'Restore'} this license?`)) return;
+            btn.disabled = true;
+            try {
+              await api('/api/license-list', { method: 'POST', body: { id: licenseId, action } });
+              toast(action === 'delete' ? 'License deleted' : action === 'revoke' ? 'License revoked' : 'License restored');
+              await renderLicenseList(view);
+              const input = view.querySelector('#hs-license-lookup-id');
+              if (input) { input.value = id; await runLicenseLookup(id); }
+            } catch (e) { toast(e.message, true); btn.disabled = false; }
+          }));
+        } catch(e) { lookupOutput.textContent = 'Lookup failed: ' + (e.message || 'Unknown error'); }
         finally { button.disabled = false; }
+      }
+      lookupForm?.addEventListener('submit', async event => {
+        event.preventDefault();
+        const id = view.querySelector('#hs-license-lookup-id').value.trim();
+        if (!/^\d{17,20}$/.test(id)) { lookupOutput.textContent = 'Enter a valid Discord ID (17–20 digits).'; return; }
+        await runLicenseLookup(id);
       });
       view.querySelectorAll('[data-licfilter]').forEach((b) => b.addEventListener('click', () => {
         state.licFilter = b.dataset.licfilter;
