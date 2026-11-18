@@ -11,7 +11,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', licenselist: 'License list', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   // The verdict on a PIN, in one word and one colour. The scanner writes 'cheating',
   // 'clean' or 'suspicious'; staff read the table fastest when the word matches the colour
@@ -261,7 +261,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenselist:'heroshield'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -294,6 +294,7 @@
     if (state.tab === 'subscription') return renderSubscription(view);
     if (state.tab === 'enterprise') return renderEnterprise(view);
     if (state.tab === 'enterprisemanagement') return renderEnterpriseManagement(view);
+    if (state.tab === 'licenselist') return renderLicenseList(view);
     if (state.tab === 'webhooks') return renderWebhooks(view);
     if (state.tab === 'ranking') return renderRanking(view);
     if (state.tab === 'scanactivity') return renderScanActivity(view);
@@ -469,6 +470,62 @@
       }));
     }catch(e){wsError(view,e);}
   }
+  async function renderLicenseList(view) {
+    view.innerHTML = loading();
+    try {
+      const data = await api('/api/license-list');
+      const all = data.licenses || [];
+      const f = state.licFilter || 'all';
+      const counts = {
+        all: all.length,
+        active: all.filter((l) => l.state === 'active').length,
+        unclaimed: all.filter((l) => l.state === 'unclaimed').length,
+        expired: all.filter((l) => l.state === 'expired').length,
+        revoked: all.filter((l) => l.state === 'revoked').length,
+      };
+      const list = f === 'all' ? all : all.filter((l) => l.state === f);
+      // The state is what staff act on, so it carries the colour and leads the row.
+      const tint = { active: '#22c55e', unclaimed: '#8b8f96', expired: '#f59e0b', revoked: '#ef4444' };
+
+      view.innerHTML = `<div class="workspace-hero"><div><h2>License list</h2>
+          <p>Every account license: who holds it, what it is and until when. License keys are never displayed — only their hash is stored.</p></div></div>
+        <div class="workspace-section">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+            ${['all', 'active', 'unclaimed', 'expired', 'revoked'].map((k) => `<button class="btn ${f === k ? 'btn-primary' : 'btn-ghost'} btn-sm" data-licfilter="${k}">${k[0].toUpperCase() + k.slice(1)} <b style="opacity:.7">${counts[k]}</b></button>`).join('')}
+          </div>
+          ${list.length ? list.map((l) => `<div class="workspace-card" style="margin:12px 0;border-left:3px solid ${tint[l.state] || '#8b8f96'}">
+              <strong>${esc(l.name || l.type)}${l.type === 'Enterprise' && l.name ? ' <span style="opacity:.6;font-weight:400">· Enterprise</span>' : ''}</strong>
+              <p class="workspace-note">
+                <b style="color:${tint[l.state]}">${l.state}</b>
+                · holder ${esc(l.owner || '—')}${!l.claimed && l.issued_to ? ` <span style="opacity:.6">(issued to ${esc(l.issued_to)}, not redeemed)</span>` : ''}
+                · ${Number(l.seats)} seat${Number(l.seats) > 1 ? 's' : ''}
+                · ${esc(l.duration)}
+                · ${l.expires_at ? 'until ' + fmtDate(l.expires_at) : 'no expiry'}
+                · created ${l.created_at ? fmtDate(l.created_at) : '—'}</p>
+              <div class="workspace-actions">
+                <button class="btn ${l.state === 'revoked' ? 'btn-ghost' : 'btn-danger'} btn-sm" data-lic="${esc(l.id)}" data-licact="${l.state === 'revoked' ? 'restore' : 'revoke'}">${l.state === 'revoked' ? 'Restore' : 'Revoke'}</button>
+              </div></div>`).join('')
+            : `<p class="workspace-note">No ${f === 'all' ? '' : f + ' '}licenses.</p>`}
+        </div>`;
+
+      view.querySelectorAll('[data-licfilter]').forEach((b) => b.addEventListener('click', () => {
+        state.licFilter = b.dataset.licfilter;
+        renderLicenseList(view);
+      }));
+      view.querySelectorAll('[data-lic]').forEach((b) => b.addEventListener('click', async () => {
+        const act = b.dataset.licact;
+        // Revoking takes a license away from somebody who paid for it, so it is confirmed.
+        if (act === 'revoke' && !confirm('Revoke this license? The holder loses access immediately.')) return;
+        b.disabled = true;
+        try {
+          await api('/api/license-list', { method: 'POST', body: { id: b.dataset.lic, action: act } });
+          toast(act === 'revoke' ? 'License revoked' : 'License restored');
+          await renderLicenseList(view);
+        } catch (e) { toast(e.message, true); b.disabled = false; }
+      }));
+    } catch (e) { wsError(view, e); }
+  }
+
   async function renderWebhooks(view) {
     view.innerHTML=loading();
     try {

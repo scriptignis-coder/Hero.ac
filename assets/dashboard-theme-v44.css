@@ -292,3 +292,9 @@ footer a:hover{color:var(--fg)!important}
 
 /* ── Discord accounts rows (PC & accounts tab) ───────────────────────────────────────── */
 .hs-acc-ic svg{width:16px!important;height:16px!important;color:#fff!important}
+
+/* ── small buttons (License list, Enterprise Management) ─────────────────────────────── */
+/* .btn-sm was used in the markup but never defined, so those rows carried full-size
+   buttons and wrapped awkwardly on a narrow screen. */
+.btn-sm{padding:6px 12px!important;font-size:12.5px!important;min-width:0!important}
+.workspace-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
