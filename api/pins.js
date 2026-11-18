@@ -43,6 +43,20 @@ export default wrap(async(req,res)=>{
   return send(res,200,{pins:(pins||[]).map(p=>({...p,scanner_licenses:{label:owned.get(p.license_id)?.label||'Scanner'}})),licenses:permitted,quota});
  }
  if(req.method==='POST'){
+  // Before handing out another PIN, settle the ones already out: any scan started and never
+  // finished is recorded, and an account past the operator's threshold is blacklisted. This
+  // is the right moment because it is the moment somebody asks for another go.
+  try {
+   const { sweepAbandoned } = await import('./_abuse.js');
+   const hit = await sweepAbandoned({ ownerDiscord: user.id, licenseIds:[...owned.keys()] });
+   if (hit) {
+    const err = httpError(403, 'This account is blacklisted. ' + hit.reason
+      + ' If you believe this is wrong, open a ticket — staff can lift it.');
+    err.blacklisted = true; err.blacklistReason = hit.reason;
+    throw err;
+   }
+  } catch(e){ if(e && e.status===403) throw e; }
+
   const b=readBody(req);const license=owned.get(String(b.license_id||''));
   if(!license||license.revoked_at) throw httpError(403,'Active account or scanner license required');
   const quota=await quotaFor(user,access,[...owned.keys()]);

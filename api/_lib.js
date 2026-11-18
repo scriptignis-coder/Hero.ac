@@ -143,7 +143,11 @@ export function wrap(handler) {
       await handler(req, res);
     } catch (e) {
       if (!e.expose) console.error(e);
-      if (!res.headersSent) send(res, e.status || 500, { error: e.expose ? e.message : 'Server error' });
+      if (!res.headersSent) send(res, e.status || 500, {
+        error: e.expose ? e.message : 'Server error',
+        // carried through so the dashboard can show one explanation instead of an error toast
+        ...(e.blacklisted ? { blacklisted: true, blacklistReason: e.blacklistReason || null } : {}),
+      });
     }
   };
 }
@@ -268,6 +272,20 @@ export async function audit(actor, action, { target = null, targetName = null, d
 // Logged in AND has the permission ('heroshield' | 'herocheck' | 'admin'), else 403.
 export async function requireAccess(req, perm) {
   const user = requireUser(req);
+
+  // A blacklisted account is stopped at the door, before any permission is considered.
+  // The message says what happened and who to talk to: a block nobody can explain reads as
+  // a bug, and the operator then spends their evening answering the same question.
+  const { blacklistOf } = await import('./_abuse.js');
+  const banned = await blacklistOf(user.id);
+  if (banned) {
+    const e = httpError(403, 'This account is blacklisted. ' + (banned.reason || '')
+      + ' If you believe this is wrong, open a ticket — staff can lift it.');
+    e.blacklisted = true;
+    e.blacklistReason = banned.reason || null;
+    throw e;
+  }
+
   const access = await getAccess(user);
   if (access.viewer && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || 'GET').toUpperCase()))
     throw httpError(403, 'View-only account (Admin test) — you can look, but not change anything');

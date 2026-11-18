@@ -110,8 +110,42 @@
     let data = {};
     try { data = await r.json(); } catch {}
     if (r.status === 401 && !path.includes('/api/me')) { showLogin(); throw new Error('Not logged in'); }
+    // A blacklisted account gets 403 on everything, so catching it here means the screen is
+    // shown once, from whichever request happened to be first, instead of 20 error toasts.
+    if (r.status === 403 && data && data.blacklisted) { showBlacklisted(data); throw new Error('blacklisted'); }
     if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
     return data;
+  }
+
+
+  // The whole dashboard replaced by one explanation. It says what was seen, not just "blocked":
+  // a block nobody can explain reads as a bug, and the operator then answers the same question
+  // all evening. The way out is named too, because there is one.
+  let _blShown = false;
+  function showBlacklisted(data) {
+    if (_blShown) return;
+    _blShown = true;
+    const reason = data.blacklistReason || data.error || 'This account is blacklisted.';
+    document.body.innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+                  background:#09090b;color:#e8eaed;font-family:Inter,-apple-system,'Segoe UI',system-ui,sans-serif">
+        <div style="max-width:520px;background:#121314;border:1px solid #1f1f1f;border-left:3px solid #e04b56;
+                    border-radius:12px;padding:30px 32px">
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#f0959b;font-weight:700">
+            Account blacklisted</div>
+          <h1 style="margin:12px 0 10px;font-size:23px;font-weight:700;letter-spacing:-.02em;color:#fff">
+            You cannot use the dashboard</h1>
+          <p style="margin:0 0 16px;color:#8b8f96;font-size:14px;line-height:1.6">${esc(reason)}</p>
+          <div style="background:#0d0d0f;border:1px solid #1f1f1f;border-radius:9px;padding:14px 16px;
+                      color:#8b8f96;font-size:13px;line-height:1.6">
+            Scans that start and never finish are recorded. A scanner killed once in a while is
+            normal — antivirus, a crash, a PC switched off. Repeatedly is not, and that is what
+            this is.
+          </div>
+          <p style="margin:16px 0 0;color:#5f636a;font-size:12.5px">
+            If this is wrong, open a ticket in Discord. Staff can lift it.</p>
+        </div>
+      </div>`;
   }
 
   function modal({ title, text, input = false, value = '', ok = 'OK', danger = false }) {

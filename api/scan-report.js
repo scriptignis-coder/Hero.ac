@@ -33,14 +33,37 @@ export default wrap(async (req, res) => {
   // the scanner checks the PIN BEFORE scanning:  GET /api/scan-report?pin=ABCD2345
   if (req.method === 'GET') {
     const pin = String(req.query.pin || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id,game`)
+    const rows = pin ? await sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id,game,starts`)
       .catch(() => sb(`scan_pins?pin=eq.${enc(pin)}&select=used,license_id`)) : [];   // before supabase-v30-games.sql
     if (!rows || !rows.length) return send(res, 404, { error: 'unknown pin' });
     if (rows[0].used) return send(res, 410, { error: 'pin already used' });
     if (rows[0].license_id) {
-      const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
+      const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id,owner_discord`);
       if(!licenses?.length) return send(res,403,{error:'license revoked'});
+
+      // Starting another scan is the moment the pattern shows: kill one, start the next. The
+      // previous scans are settled here, and a blacklisted licence cannot start a scan at all.
+      try {
+        const { sweepAbandoned, blacklistOf } = await import('./_abuse.js');
+        const owner = licenses[0].owner_discord;
+        if (owner) {
+          await sweepAbandoned({ ownerDiscord: owner, licenseIds: [rows[0].license_id] });
+          const banned = await blacklistOf(owner);
+          if (banned) return send(res, 403, { error: 'This licence is blacklisted. ' + (banned.reason || '') });
+        }
+      } catch { }
     }
+    // The scanner asks this immediately before it starts, so this is the moment a scan
+    // BEGINS. Stamping it here is what lets the site tell "finished" from "killed half way":
+    // a PIN with a start and no report is a scan somebody stopped. Counting the starts also
+    // shows a PIN that was run again and again, which one crash never looks like.
+    try {
+      await sb(`scan_pins?pin=eq.${enc(pin)}`, { method: 'PATCH', prefer: 'return=minimal', body: {
+        started_at: new Date().toISOString(),
+        starts: (Number(rows[0].starts) || 0) + 1,
+      }});
+    } catch { }                 // before MIGRATION-ABANDONED-SCANS-V36.sql: scans work as before
+
     return send(res, 200, { ok: true, game: gameOf(rows[0].game) });
   }
   if (req.method !== 'POST') throw httpError(405, 'POST only');
