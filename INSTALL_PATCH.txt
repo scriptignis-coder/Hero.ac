@@ -1,0 +1,9 @@
+HeRoShield dashboard style patch (<100 KB)
+
+1. Back up your current website.
+2. Start from HeRoShield UltraSmooth v68 or a compatible existing HeRoShield installation.
+3. Copy dashboard.html and assets/dashboard-colors-v69.css from this ZIP to the same paths on your website, replacing dashboard.html.
+4. Do not delete any other site files.
+5. Hard refresh (Ctrl+F5).
+
+This is a PATCH, not a standalone full website. It only updates the dashboard appearance.

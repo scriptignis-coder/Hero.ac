@@ -1,0 +1,32 @@
+/* HeRoShield v69 — Dashboard color sync with UltraSmooth v68 homepage. Visual-only. */
+:root{--bg:#07090f;--bg-2:#0b0e17;--card:#101522;--card-solid:#101522;--line:rgba(164,183,230,.12);--line-strong:rgba(164,183,230,.23);--text:#f6f8ff;--muted:#a4aec1;--dim:#79849b;--blue:#8595ff;--cyan:#b6c0ff;--violet:#8595ff;--grad:linear-gradient(120deg,#a2afff,#7388f7);--radius:18px}
+body{background:#07090f!important;color:var(--text)!important}
+.bg-glow{background:radial-gradient(ellipse 70% 52% at 48% -14%,rgba(104,123,255,.16),transparent 75%),radial-gradient(ellipse 50% 44% at 96% 54%,rgba(80,109,225,.065),transparent 78%)!important;mask-image:none!important;-webkit-mask-image:none!important}
+.side,.sidebar,.dashboard-sidebar{background:linear-gradient(180deg,#0b0e19,#080b13)!important;border-right:1px solid var(--line)!important}
+.side-link{color:var(--muted)!important;border-radius:12px!important;transition:background .23s ease,color .23s ease,border-color .23s ease!important}
+.side-link:hover{color:#f6f8ff!important;background:rgba(133,149,255,.075)!important}
+.side-link.active{color:#dce2ff!important;background:rgba(133,149,255,.13)!important;box-shadow:inset 3px 0 0 #8595ff!important}
+.side-link.active svg{color:#a2afff!important}
+.brand b{background:linear-gradient(110deg,#e6eaff,#8595ff)!important;background-clip:text!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important}
+.topbar{background:rgba(10,14,24,.95)!important;border-bottom:1px solid var(--line)!important}
+.topbar h1{color:#f6f8ff!important;letter-spacing:-.045em!important}
+.card,.panel,.workspace-card,.workspace-section,.login-card,.modal,.modal-box{background:linear-gradient(155deg,rgba(23,30,47,.96),rgba(10,14,25,.98))!important;border:1px solid rgba(164,182,236,.13)!important;border-radius:18px!important;box-shadow:inset 0 1px rgba(255,255,255,.025)!important}
+.card,.panel,.workspace-card,.workspace-section{transition:border-color .25s ease,box-shadow .25s ease!important}
+.card:hover,.panel:hover,.workspace-card:hover{border-color:rgba(150,168,255,.34)!important;box-shadow:0 10px 34px rgba(0,0,0,.12)!important;transform:none!important}
+.workspace-hero{background:radial-gradient(500px 200px at 0% 0%,rgba(133,149,255,.13),transparent 70%),#101522!important;border-color:var(--line-strong)!important}
+.btn{border-radius:12px!important;transition:background .24s ease,border-color .24s ease,box-shadow .24s ease,transform .24s ease!important}
+.btn-primary{background:linear-gradient(120deg,#a2afff,#7388f7)!important;color:#090e21!important;border:1px solid rgba(222,228,255,.26)!important;box-shadow:0 8px 25px rgba(96,117,255,.16)!important}
+.btn-primary:hover{transform:translateY(-1px)!important;box-shadow:0 12px 32px rgba(96,117,255,.28)!important}
+.btn-ghost{background:rgba(133,149,255,.04)!important;border-color:var(--line-strong)!important;color:var(--text)!important}
+.btn-ghost:hover{background:rgba(133,149,255,.10)!important;border-color:rgba(161,177,255,.44)!important}
+.input,select,textarea,input[type=text],input[type=search],input[type=number]{background:#0b1020!important;border-color:var(--line-strong)!important;color:var(--text)!important;border-radius:11px!important}
+.input:focus,select:focus,textarea:focus,input:focus{border-color:rgba(142,159,255,.65)!important;box-shadow:0 0 0 4px rgba(128,145,255,.10)!important}
+table th,.workspace-table th{color:#a4aec1!important;background:rgba(133,149,255,.035)!important}
+table td,table th,.workspace-table td,.workspace-table th{border-color:var(--line)!important}
+tr:hover td{background:rgba(133,149,255,.035)!important}
+.rp-row{background:#101522!important;border-color:var(--line)!important}
+.gm-opt{background:#101522!important;border-color:var(--line)!important}.gm-opt.on{background:rgba(133,149,255,.12)!important;border-color:rgba(133,149,255,.55)!important}
+.gm-check{color:#a2afff!important}
+.toast{background:#151c2d!important;border-color:var(--line-strong)!important}
+#view>*{animation:hs69fade .28s ease-out both}@keyframes hs69fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#view>*{animation:none!important}.btn,.side-link,.card,.panel{transition:none!important}}
