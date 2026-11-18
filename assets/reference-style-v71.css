@@ -1,0 +1,25 @@
+/* HeRoShield v71 — charcoal / ice-blue visual system, matched to supplied reference */
+:root{color-scheme:dark;--bg:#0d1115;--bg2:#11171c;--bg-2:#11171c;--card:#141a20;--card2:#171f26;--card-solid:#141a20;--panel:#141a20;--line:rgba(155,184,205,.12);--border:rgba(155,184,205,.12);--line-strong:rgba(155,184,205,.22);--text:#e6edf4;--muted:#9aa7b2;--dim:#71808d;--blue:#79a9c9;--blue2:#8db9d6;--cyan:#79a9c9;--violet:#79a9c9;--grad:linear-gradient(135deg,#d9e5ed,#9bbdd4);--blueglow:rgba(100,156,192,.11);--radius:15px;--r:15px}
+html{scroll-behavior:smooth}
+body{background-color:#0d1115!important;color:#e6edf4; -webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:-2;background:radial-gradient(ellipse 60% 36% at 50% -12%,rgba(91,135,164,.13),transparent 80%),linear-gradient(rgba(170,196,213,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(170,196,213,.018) 1px,transparent 1px);background-size:auto,64px 64px,64px 64px}
+.bg{background:radial-gradient(ellipse 58% 34% at 50% -12%,rgba(105,153,184,.14),transparent 80%)!important}
+.nav,.topbar,.side{background:rgba(15,20,25,.87)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-color:rgba(155,184,205,.11)!important}
+.card,.stats,.term,.issue,.notice,.step,.modal,.viewer,.login-card,.hs-lic-panel{background:linear-gradient(145deg,rgba(24,31,37,.93),rgba(17,23,28,.94))!important;border:1px solid rgba(154,184,204,.14)!important;box-shadow:0 18px 60px rgba(0,0,0,.15)!important;border-radius:16px}
+.btn,.btn-w,.btn-g,.btn-primary,.nav-cta a,.back,.hs-lic-button,button{transition:background-color .22s ease,border-color .22s ease,color .22s ease,transform .22s ease,box-shadow .22s ease}
+.btn:hover,.btn-w:hover,.btn-g:hover,.btn-primary:hover,.nav-cta a:hover,.back:hover,.hs-lic-button:hover{transform:translateY(-2px);box-shadow:0 9px 30px rgba(85,143,182,.12)!important}
+.btn-w,.btn-primary,.hs-lic-button{background:#dce7ee!important;color:#15212a!important;border-color:#dce7ee!important}
+.btn-g{background:rgba(178,201,217,.055)!important;border:1px solid rgba(165,194,213,.22)!important;color:#dbe5ed!important}
+input,select,textarea,.input,.hs-lic-input{background:#10171d!important;color:#e6edf4!important;border-color:rgba(155,184,205,.19)!important;border-radius:10px}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(121,169,201,.24);outline-offset:1px}
+a:hover,.side-link:hover{color:#a9cbe1}
+.hero h1,.heading,h1,h2,.h2{letter-spacing:-.045em}
+.hero h1 span,.heading span,.brand span,.brand b{color:#7da9c7!important;background:none!important;-webkit-text-fill-color:initial!important}
+.pill,.eyebrow,.tag{border-color:rgba(127,174,202,.22)!important;color:#b3c5d1!important;background:rgba(112,151,177,.055)!important}
+.side-link.active,.side-link[aria-current=page]{background:rgba(117,159,188,.13)!important;color:#dbe9f2!important;border-color:rgba(117,159,188,.25)!important}
+.status,.ok{color:#7bd3ac}
+/* Unified soft entry motion; no constant shimmer or aggressive transforms */
+@keyframes hs-v71-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.hero,.login-card,.viewer,.issue,.notice{animation:hs-v71-in .55s cubic-bezier(.2,.7,.2,1) both}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+@media(max-width:700px){.hero h1{font-size:clamp(36px,9vw,60px)}.card,.issue,.notice{border-radius:13px}}
