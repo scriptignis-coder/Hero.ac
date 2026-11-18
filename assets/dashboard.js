@@ -1,5 +1,11 @@
 // HeRo Shield dashboard
 (() => {
+  // Load v70 theme without requiring dashboard.html replacement in lightweight patches.
+  if (!document.querySelector('link[href*="hs-unified-v70.css"]')) {
+    const theme = document.createElement('link');
+    theme.rel = 'stylesheet'; theme.href = '/assets/hs-unified-v70.css?v=70';
+    document.head.appendChild(theme);
+  }
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => document.querySelectorAll(s);
 
@@ -490,6 +496,14 @@
       view.innerHTML = `<div class="workspace-hero"><div><h2>License list</h2>
           <p>Every account license: who holds it, what it is and until when. License keys are never displayed — only their hash is stored.</p></div></div>
         <div class="workspace-section">
+          <div class="hs-lookup-card">
+            <div class="hs-lookup-heading"><div><strong>Discord License Lookup</strong><p class="workspace-note">Check whether a Discord user has a license. Staff only.</p></div><span class="hs-lookup-pill">LIVE DATABASE</span></div>
+            <form id="hs-license-lookup-form" class="hs-lookup-form">
+              <input id="hs-license-lookup-id" class="input" type="text" inputmode="numeric" pattern="[0-9]{17,20}" maxlength="20" placeholder="Discord User ID (17–20 digits)" aria-label="Discord User ID" required autocomplete="off">
+              <button class="btn btn-primary" type="submit">Check License</button>
+            </form>
+            <div id="hs-license-lookup-result" aria-live="polite"></div>
+          </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
             ${['all', 'active', 'unclaimed', 'expired', 'revoked'].map((k) => `<button class="btn ${f === k ? 'btn-primary' : 'btn-ghost'} btn-sm" data-licfilter="${k}">${k[0].toUpperCase() + k.slice(1)} <b style="opacity:.7">${counts[k]}</b></button>`).join('')}
           </div>
@@ -508,6 +522,24 @@
             : `<p class="workspace-note">No ${f === 'all' ? '' : f + ' '}licenses.</p>`}
         </div>`;
 
+      const lookupForm = view.querySelector('#hs-license-lookup-form');
+      lookupForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const id = view.querySelector('#hs-license-lookup-id').value.trim();
+        const out = view.querySelector('#hs-license-lookup-result');
+        const button = lookupForm.querySelector('button');
+        if (!/^\d{17,20}$/.test(id)) { out.textContent = 'Enter a valid Discord ID (17–20 digits).'; return; }
+        button.disabled = true;
+        out.innerHTML = '<p class="workspace-note">Checking license database…</p>';
+        try {
+          const result = await api('/api/license-lookup?discord_id=' + encodeURIComponent(id));
+          const label = result.has_active_license ? 'ACTIVE LICENSE FOUND' : 'NO ACTIVE LICENSE';
+          const cls = result.has_active_license ? 'hs-lookup-good' : 'hs-lookup-none';
+          out.innerHTML = `<div class="hs-lookup-result ${cls}"><strong>${label}</strong><p class="workspace-note">Discord ID: ${esc(result.discord_id)}</p>
+            ${(result.licenses || []).map(l => `<div class="hs-lookup-entry"><b>${esc(l.type)}</b> · ${esc(l.relation)} · <b>${esc(l.state)}</b> · ${l.expires_at ? 'Expires ' + fmtDate(l.expires_at) : 'No expiry'}${l.name ? ' · ' + esc(l.name) : ''}</div>`).join('') || '<p class="workspace-note">No license records found for this ID.</p>'}</div>`;
+        } catch(e) { out.textContent = 'Lookup failed: ' + (e.message || 'Unknown error'); }
+        finally { button.disabled = false; }
+      });
       view.querySelectorAll('[data-licfilter]').forEach((b) => b.addEventListener('click', () => {
         state.licFilter = b.dataset.licfilter;
         renderLicenseList(view);

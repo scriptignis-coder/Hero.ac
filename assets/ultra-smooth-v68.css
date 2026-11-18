@@ -1,0 +1,29 @@
+/* HeRoShield v68 — refined motion and visual system; CSS only */
+:root{--bg:#07090f;--bg2:#0b0e17;--card:#101522;--card2:#151c2d;--line:rgba(164,183,230,.12);--line2:rgba(164,183,230,.23);--text:#f6f8ff;--muted:#a4aec1;--blue:#8595ff;--blue2:#b6c0ff;--blueglow:rgba(113,133,255,.15);--r:22px}
+html{scroll-behavior:smooth;scroll-padding-top:94px}body{background:#07090f;color:var(--text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(ellipse 70% 52% at 48% -14%,rgba(104,123,255,.16),transparent 75%),radial-gradient(ellipse 50% 44% at 96% 54%,rgba(80,109,225,.065),transparent 78%)}
+::selection{background:rgba(133,149,255,.32);color:#fff}
+.nav{background:rgba(8,11,19,.76)!important;backdrop-filter:blur(24px) saturate(130%);-webkit-backdrop-filter:blur(24px) saturate(130%);border-bottom:1px solid rgba(195,208,255,.075)!important;box-shadow:0 8px 36px rgba(0,0,0,.12)}
+.nav .wrap{height:78px}.brand{letter-spacing:-.045em}.links a{transition:color .25s ease,background .25s ease,transform .25s ease}.links a:hover{transform:translateY(-1px)}
+.hero{position:relative;padding-top:130px;padding-bottom:95px;isolation:isolate}.hero:before{content:"";position:absolute;inset:12px 8% auto;height:510px;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at center,rgba(103,120,255,.13),transparent 67%);filter:blur(38px)}
+.hero h1{font-size:clamp(3.2rem,7.2vw,7.6rem);line-height:1.04;letter-spacing:-.078em;font-weight:800;text-wrap:balance;filter:drop-shadow(0 16px 42px rgba(68,84,184,.08))}
+.hero h1 em{background:linear-gradient(110deg,#e6eaff 5%,#aebaff 47%,#788eff 95%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .sub{font-size:clamp(1rem,1.4vw,1.18rem);line-height:1.8;color:#aab4c7;max-width:730px}
+.pill{border-radius:999px;padding:10px 17px;background:rgba(128,144,255,.065);border:1px solid rgba(155,171,255,.2);box-shadow:inset 0 1px rgba(255,255,255,.045)}
+.btn,button{transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .28s ease,background .28s ease,filter .28s ease}
+.btn{border-radius:13px;min-height:44px}.btn-w,.btn-b{background:linear-gradient(120deg,#a2afff,#7388f7)!important;border:1px solid rgba(222,228,255,.26)!important;color:#090e21!important;box-shadow:0 12px 36px rgba(96,117,255,.20)}
+.btn-w:hover,.btn-b:hover{transform:translateY(-3px);box-shadow:0 18px 50px rgba(96,117,255,.32);filter:brightness(1.07)}
+.btn-g{border:1px solid rgba(173,187,237,.19);background:rgba(255,255,255,.025)}.btn-g:hover{transform:translateY(-2px);border-color:rgba(161,177,255,.46);background:rgba(124,145,255,.08)}
+.card,.plan,.term,.stats{border:1px solid rgba(164,182,236,.12);background:linear-gradient(155deg,rgba(23,30,47,.88),rgba(10,14,25,.94));border-radius:22px;box-shadow:0 12px 40px rgba(0,0,0,.14),inset 0 1px rgba(255,255,255,.035)}
+.card,.plan{transition:transform .4s cubic-bezier(.2,.8,.2,1),box-shadow .4s ease,border-color .4s ease,background .4s ease;will-change:transform}
+.card:hover,.plan:hover{transform:translateY(-6px);border-color:rgba(150,168,255,.35);box-shadow:0 24px 70px rgba(0,0,0,.23),0 0 32px rgba(94,116,255,.07)}
+.card .ico{border-radius:15px;background:linear-gradient(140deg,rgba(136,153,255,.14),rgba(85,105,228,.04));border:1px solid rgba(161,174,255,.14)}
+.term{overflow:hidden;box-shadow:0 28px 85px rgba(0,0,0,.27),0 0 60px rgba(95,111,255,.045);border-color:rgba(150,170,255,.2)}
+.term-top{background:rgba(255,255,255,.025)}.stats{backdrop-filter:blur(12px)}
+section{scroll-margin-top:90px}.h2{letter-spacing:-.055em;line-height:1.13;text-wrap:balance}.lead{line-height:1.75}
+input,select,textarea{transition:border-color .25s ease,box-shadow .25s ease;background-color:rgba(11,16,29,.9);border-radius:12px}
+input:focus,select:focus,textarea:focus{border-color:rgba(142,159,255,.65)!important;box-shadow:0 0 0 4px rgba(128,145,255,.10);outline:none}
+:focus-visible{outline:2px solid #a5b2ff;outline-offset:4px}
+.rv{transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1)!important}
+@media(max-width:800px){.hero{padding-top:86px;padding-bottom:54px}.hero h1{font-size:clamp(2.8rem,10vw,5rem)}.nav .wrap{height:68px}.card,.plan,.term{border-radius:18px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}

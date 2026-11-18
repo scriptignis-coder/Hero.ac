@@ -1,0 +1,11 @@
+/* Shared premium palette, intentionally scoped to avoid changing functional UI. */
+:root{--hs-v70-bg:#070b16;--hs-v70-panel:#0d1425;--hs-v70-stroke:rgba(117,153,220,.18);--hs-v70-accent:#7286ff}
+html{scroll-behavior:smooth}body{background-color:var(--hs-v70-bg)}
+button,a,input{transition:background-color .22s ease,border-color .22s ease,box-shadow .22s ease,transform .22s ease}
+button:hover:not(:disabled){transform:translateY(-1px)}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid #8cb4ff;outline-offset:3px}
+.hs-lookup-card{background:linear-gradient(135deg,rgba(37,53,93,.52),rgba(12,20,38,.92));border:1px solid var(--hs-v70-stroke);border-radius:18px;padding:22px;margin-bottom:20px;box-shadow:0 14px 40px rgba(0,0,0,.18)}
+.hs-lookup-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}.hs-lookup-heading strong{font-size:18px}.hs-lookup-heading p{margin:6px 0 0}.hs-lookup-pill{font-size:10px;font-weight:750;letter-spacing:.1em;color:#aab7ff;border:1px solid rgba(142,157,255,.28);border-radius:999px;padding:7px 10px;white-space:nowrap}
+.hs-lookup-form{display:flex;gap:10px;flex-wrap:wrap}.hs-lookup-form .input{flex:1;min-width:190px;min-height:42px}.hs-lookup-form button{min-height:42px}.hs-lookup-result{border-radius:12px;margin-top:15px;padding:14px 16px;border:1px solid var(--hs-v70-stroke);background:rgba(5,10,22,.56)}.hs-lookup-good{border-color:rgba(52,211,153,.32)}.hs-lookup-good>strong{color:#6ee7b7}.hs-lookup-none>strong{color:#fbbf72}.hs-lookup-entry{padding:9px 0;border-top:1px solid var(--hs-v70-stroke);line-height:1.6;overflow-wrap:anywhere}
+@media(max-width:620px){.hs-lookup-card{padding:16px}.hs-lookup-heading{flex-wrap:wrap}.hs-lookup-form button{width:100%}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button,a,input{transition:none!important}}
