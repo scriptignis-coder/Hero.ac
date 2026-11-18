@@ -79,9 +79,35 @@ export default wrap(async (req, res) => {
   if (!rows || !rows.length) throw httpError(404, `unknown pin ${pin}`);
 
   if(rows[0].used) throw httpError(410,'pin already used');
+  let selfScan = false;
   if(rows[0].license_id){
-    const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id`);
+    const licenses=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&revoked_at=is.null&select=id,owner_discord`);
     if(!licenses?.length) throw httpError(403,'license revoked');
+
+    // Did the licence holder scan their own PC?
+    //
+    // The scanner reads the Discord account signed in on the machine it checks. When that is
+    // the same account the licence belongs to, nobody was screenshared - the owner pointed a
+    // PIN at themselves.
+    //
+    // That is NOT blocked, and should not be: testing the scanner on your own PC is the first
+    // thing any operator does, and it is their licence. But it is worth recording, because the
+    // same move is how somebody maps the detection: run it on a PC with a cheat, read what
+    // lights up, repeat. Marking it means the pattern is visible instead of invisible.
+    const owner = licenses[0].owner_discord;
+    if (owner) {
+      const onPc = report.DiscordId || report.discordId || null;
+      const discordMatches = !!(onPc && String(owner) === String(onPc));
+
+      // The hardware is checked first, because it is the half that survives signing out of
+      // Discord. The Discord match is only how a machine gets ADDED to the known list the
+      // first time; after that the machine answers for itself.
+      const { isOwnPc, rememberOwnPc } = await import('./_ownpc.js');
+      const machineKnown = await isOwnPc(owner, report);
+
+      selfScan = discordMatches || machineKnown;
+      if (discordMatches) await rememberOwnPc(owner, report);
+    }
   }
   report.Game = gameOf(rows[0].game);   // the game comes from the PIN, not from the player's PC
   const dets = report.Detections || report.detections || [];
@@ -95,10 +121,18 @@ export default wrap(async (req, res) => {
   const bans = await lookupBans(report).catch(() => null);
   if (bans) report.BanHistory = bans;
 
-  await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
-    method: 'PATCH',
-    body: { used: true, result: verdict, report },
-  });
+  // self_scan is written on its own, so a database without the v36 column still saves the report
+  try {
+    await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: { used: true, result: verdict, report, self_scan: selfScan },
+    });
+  } catch {
+    await sb(`scan_pins?id=eq.${rows[0].id}&used=eq.false`, {
+      method: 'PATCH',
+      body: { used: true, result: verdict, report },
+    });
+  }
 
   // Best-effort notification only; never block or invalidate the scanner report.
   if(rows[0].license_id){

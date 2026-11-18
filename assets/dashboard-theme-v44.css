@@ -281,3 +281,11 @@ footer a:hover{color:var(--fg)!important}
 .badge.ban,.verdict-cheating{background:#2a1618!important;border-color:#5c3035!important;color:#ff8d95!important}
 .badge.kick,.verdict-suspicious{background:#2e2412!important;border-color:#5e4a1f!important;color:#f7c15c!important}
 .badge.on,.verdict-clean{background:#132419!important;border-color:#255238!important;color:#6fdb9c!important}
+
+/* A scan the licence holder ran on their own PC. Not an accusation — testing your own
+   scanner is normal — but it is worth seeing, because a run of them is also how somebody
+   works out what the detection catches. */
+.hs-selfscan{
+  display:inline-block;margin-top:5px;font-size:10px;font-weight:700;letter-spacing:.02em;
+  background:#1b1b1d;border:1px solid #2f2f33;color:#8b8f96;border-radius:5px;padding:2px 7px;
+}

@@ -38,7 +38,7 @@ export default wrap(async(req,res)=>{
   if(!ids.length) return send(res,200,{pins:[],licenses:[],quota});
   // light list: no report (a report can be several MB — sending 200 of them made the PIN tab slow)
   const base=`scan_pins?license_id=in.(${ids.map(enc).join(',')})&order=created_at.desc&limit=200&select=`;
-  const pins=await sb(base+'id,pin,player,used,result,game,created_at,license_id')
+  const pins=await sb(base+'id,pin,player,used,result,game,created_at,license_id,self_scan')
    .catch(()=>sb(base+'id,pin,player,used,result,created_at,license_id'));   // before supabase-v30-games.sql
   return send(res,200,{pins:(pins||[]).map(p=>({...p,scanner_licenses:{label:owned.get(p.license_id)?.label||'Scanner'}})),licenses:permitted,quota});
  }

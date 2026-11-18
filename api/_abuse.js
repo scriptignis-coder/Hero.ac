@@ -63,7 +63,7 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
   try {
     started = await sb(`scan_pins?license_id=in.(${licenseIds.map(enc).join(',')})`
       + `&used=eq.false&abandoned_at=is.null&started_at=not.is.null`
-      + `&select=id,pin,player,license_id,started_at,starts,beat_at&limit=80`);
+      + `&select=id,pin,player,license_id,started_at,starts,beat_at,self_scan&limit=80`);
   } catch { return null; }      // before v36: nothing to do
   if (!started?.length) return null;
 
@@ -83,6 +83,7 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
       await sb('hs_abandoned_scans', { method: 'POST', prefer: 'return=minimal', body: {
         pin_id: p.id, pin: p.pin, license_id: p.license_id, owner_discord: String(ownerDiscord),
         player: p.player || null, starts: p.starts || 1, started_at: p.started_at,
+        self_scan: !!p.self_scan,
       }});
     } catch { }
   }

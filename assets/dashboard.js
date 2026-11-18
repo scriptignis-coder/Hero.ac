@@ -764,7 +764,7 @@
             <td class="mono" style="color:var(--cyan);font-size:14px">${esc(p.pin)}</td>
             <td>${esc(p.player) || '-'}${p.discord_check && p.discord_check.user ? ` <span class="badge log" title="${esc(p.discord_check.user.name)}">Discord ✓</span>` : ''}</td>
             <td><span class="badge hs-used ${p.used ? 'used-yes' : 'used-no'}">${p.used ? 'Used' : 'Pending'}</span></td>
-            <td>${hsResultBadge(p.result)}</td>
+            <td>${hsResultBadge(p.result)}${p.self_scan ? '<div class="hs-selfscan" title="The Discord account on the scanned PC is this licence\'s own owner — nobody was screenshared.">own PC</div>' : ''}</td>
             <td class="mono">${fmtDate(p.created_at)}</td>
             <td><div class="actions-cell">
               ${p.used ? `<button class="btn btn-ghost btn-sm" data-viewpin="${esc(p.pin)}">View</button>` : ''}
