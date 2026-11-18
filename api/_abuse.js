@@ -1,4 +1,4 @@
-import { sb, enc } from './_lib.js';
+import { sb, enc, envIds } from './_lib.js';
 
 // Abandoned scans, and the blacklist they can lead to.
 //
@@ -26,7 +26,7 @@ const SILENT_AFTER_SEC = 90;
 const NO_PULSE_AFTER_MIN = 20;
 
 /** Cache the settings for a minute; they are read on nearly every dashboard load. */
-let _set = { at: 0, kill: 1, self: 5 };
+let _set = { at: 0, kill: 1, self: 1 };
 export async function abuseSettings() {
   if (Date.now() - _set.at < 60_000) return _set;
   try {
@@ -35,8 +35,8 @@ export async function abuseSettings() {
       const n = parseInt(rows?.find((r) => r.key === k)?.value ?? String(d), 10);
       return Number.isFinite(n) ? n : d;
     };
-    _set = { at: Date.now(), kill: get('abuse_threshold', 1), self: get('self_scan_limit', 5) };
-  } catch { _set = { at: Date.now(), kill: 1, self: 5 }; }
+    _set = { at: Date.now(), kill: get('abuse_threshold', 1), self: get('self_scan_limit', 1) };
+  } catch { _set = { at: Date.now(), kill: 1, self: 1 }; }
   return _set;
 }
 export async function abuseThreshold() { return (await abuseSettings()).kill; }
@@ -135,6 +135,12 @@ export async function sweepAbandoned({ ownerDiscord, licenseIds }) {
   const byKill = cfg.kill > 0 && killed >= cfg.kill;
   const bySelf = cfg.self > 0 && selfs >= cfg.self;
   if (!byKill && !bySelf) return null;
+
+  // An owner listed in ADMIN_DISCORD_IDS is never blacklisted automatically. With the limits
+  // at 1 the very first test of your own scanner would otherwise lock you out of your own
+  // dashboard, and the person who would have to lift it is the one locked out. An admin can
+  // still be added to the blacklist by hand.
+  try { if (envIds().admin.includes(String(ownerDiscord))) return null; } catch { }
   const total = killed;
 
   // already blacklisted (or an admin lifted it — a lifted row is left alone)

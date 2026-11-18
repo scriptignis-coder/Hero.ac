@@ -1523,7 +1523,7 @@
     const { bg } = await api(`/api/scanner-bg?license_id=${encodeURIComponent(state.guiLicenseId)}`);
     state.scanbg = bg || '';
     const COLORS = ['#3b82f6', '#22d3ee', '#a855f7', '#ef4444', '#22c55e', '#f59e0b', '#ec4899', '#e5e7eb'];
-    if (!state.bgGen) state.bgGen = { name: '', sub: 'think. scan. find.', color: COLORS[0], design: 'tide' };
+    if (!state.bgGen) state.bgGen = { name: '', sub: 'think. scan. find.', color: COLORS[0], design: 'aurora' };
     const G = state.bgGen;
     const genOk = !!window.HSBG;
 

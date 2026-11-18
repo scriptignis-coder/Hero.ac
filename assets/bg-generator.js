@@ -41,124 +41,195 @@
     x.fillStyle = g; x.fillRect(0, 0, W, H);
   }
 
-  function title(x, o, c, y, size) {
+  /**
+   * The name, set once and used by every design.
+   *
+   * Fitted rather than fixed: a six-letter name and a twenty-four-letter one have to end up
+   * looking like the same design, so the size comes down until the word fits the width it was
+   * given. Letterspacing is part of the look, so it is measured with the spacing applied.
+   */
+  function title(x, o, c, cx, y, opt) {
     const name = (o.name || '').trim();
-    if (!name) return;
+    if (!name) return 0;
+    const maxW = (opt && opt.maxW) || W - 80;
+    const weight = (opt && opt.weight) || 800;
+    const track = (opt && opt.track) || '0px';
+    const align = (opt && opt.align) || 'center';
+    let size = (opt && opt.size) || 46;
     x.save();
-    x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.font = `800 ${size}px "Segoe UI", system-ui, sans-serif`;
-    x.shadowColor = mix(c, 0.55); x.shadowBlur = 26;
-    x.fillStyle = '#ffffff';
-    x.fillText(name, W / 2, y);
+    x.textAlign = align; x.textBaseline = 'middle';
+    x.letterSpacing = track;
+    do {
+      x.font = `${weight} ${size}px "Segoe UI", system-ui, sans-serif`;
+      if (x.measureText(name).width <= maxW || size <= 14) break;
+      size -= 2;
+    } while (true);
+    if (opt && opt.glow !== false) { x.shadowColor = mix(c, 0.45); x.shadowBlur = 22; }
+    x.fillStyle = (opt && opt.fill) || '#ffffff';
+    x.fillText(name, cx, y);
+    const wide = x.measureText(name).width;
+    x.restore();
+    return wide;
+  }
+
+  function sub(x, text, c, cx, y, align) {
+    if (!text) return;
+    x.save();
+    x.textAlign = align || 'center'; x.textBaseline = 'middle';
+    x.font = '600 11px "Segoe UI", system-ui, sans-serif';
+    x.letterSpacing = '3px';
+    x.fillStyle = mix(c, 0.8);
+    x.fillText(String(text).toUpperCase(), cx, y);
     x.restore();
   }
 
-  function sub(x, text, c, y) {
-    if (!text) return;
-    x.save();
-    x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.font = '600 12px "Segoe UI", system-ui, sans-serif';
-    x.fillStyle = mix(c, 0.85);
-    x.letterSpacing = '2px';
-    x.fillText(text, W / 2, y);
-    x.restore();
+  /** A soft round light. Used for every glow, so they all look like the same light source. */
+  function blob(x, cx, cy, r, c, a) {
+    const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, mix(c, a));
+    g.addColorStop(0.55, mix(c, a * 0.35));
+    g.addColorStop(1, mix(c, 0));
+    x.fillStyle = g;
+    x.fillRect(cx - r, cy - r, r * 2, r * 2);
   }
 
   const designs = [
-    { id: 'tide',  name: 'Tide',    note: 'Water line under the name' },
-    { id: 'scan',  name: 'Scan',    note: 'Sweeping scan line on a grid' },
-    { id: 'pulse', name: 'Pulse',   note: 'Rings opening behind the name' },
-    { id: 'storm', name: 'Storm',   note: 'Drifting particles' },
-    { id: 'bars',  name: 'Spectrum',note: 'Rising bars along the bottom' },
+    { id: 'aurora',  name: 'Aurora',  note: 'Two slow lights drifting' },
+    { id: 'reveal',  name: 'Reveal',  note: 'A scan line lights the letters as it passes' },
+    { id: 'horizon', name: 'Horizon', note: 'A grid running to the horizon' },
+    { id: 'orbit',   name: 'Orbit',   note: 'Thin arcs turning around the name' },
+    { id: 'console', name: 'Console', note: 'Scan output scrolling behind the name' },
   ];
 
   const painters = {
-    // A wave band that travels sideways; two waves at different speeds so it never looks
-    // like one sliding shape.
-    tide(x, o, c, t) {
+    // Two large soft lights drifting on their own ellipses, added together. Everything else is
+    // flat, so the only movement is light - which is what makes it read as calm, not busy.
+    aurora(x, o, c, t) {
       ground(x, c);
-      title(x, o, c, 126, 46);
-      sub(x, o.sub, c, 162);
-      for (let k = 0; k < 2; k++) {
-        const amp = 12 - k * 4, base = 214 + k * 16, sp = k ? -1 : 1;
+      x.save();
+      x.globalCompositeOperation = 'lighter';
+      blob(x, W * 0.28 + Math.cos(t * TAU) * 60, H * 0.35 + Math.sin(t * TAU) * 40, 210, c, 0.30);
+      blob(x, W * 0.74 + Math.cos(t * TAU + 2.1) * 70, H * 0.68 + Math.sin(t * TAU + 2.1) * 34, 180, c, 0.20);
+      x.restore();
+      x.fillStyle = mix(c, 0.5); x.fillRect(0, H - 1, W, 1);
+      title(x, o, c, 44, H - 76, { align: 'left', maxW: W - 88, size: 44, track: '-0.5px' });
+      sub(x, o.sub, c, 46, H - 42, 'left');
+    },
+
+    // The name is drawn twice: dim, then bright inside a narrow band that crosses the frame.
+    // The light does not pass over the letters, it passes through them.
+    reveal(x, o, c, t) {
+      ground(x, c);
+      x.save();
+      x.globalCompositeOperation = 'lighter';
+      blob(x, W / 2, H / 2, 240, c, 0.10);
+      x.restore();
+
+      const yName = H / 2 - 6;
+      const opt = { size: 50, track: '-1px' };
+      title(x, o, c, W / 2, yName, Object.assign({ fill: 'rgba(255,255,255,0.20)', glow: false }, opt));
+
+      const lx = t * (W + 200) - 100;
+      x.save();
+      x.beginPath(); x.rect(lx - 55, 0, 110, H); x.clip();
+      title(x, o, c, W / 2, yName, Object.assign({ fill: '#ffffff' }, opt));
+      x.restore();
+
+      x.save();
+      x.globalCompositeOperation = 'lighter';
+      const g = x.createLinearGradient(lx - 70, 0, lx + 70, 0);
+      g.addColorStop(0, mix(c, 0)); g.addColorStop(0.5, mix(c, 0.22)); g.addColorStop(1, mix(c, 0));
+      x.fillStyle = g; x.fillRect(lx - 70, 0, 140, H);
+      x.restore();
+      x.fillStyle = mix(c, 0.9); x.fillRect(lx, 0, 1.5, H);
+
+      sub(x, o.sub, c, W / 2, yName + 46);
+    },
+
+    // A grid running away to a horizon, rows travelling towards the viewer. The spacing is
+    // squared so the rows bunch up near the horizon the way perspective makes them.
+    horizon(x, o, c, t) {
+      ground(x, c);
+      const hz = H * 0.60;
+      x.save();
+      x.globalCompositeOperation = 'lighter';
+      blob(x, W / 2, hz, 230, c, 0.26);
+      x.restore();
+
+      x.strokeStyle = mix(c, 0.30); x.lineWidth = 1;
+      for (let i = -9; i <= 9; i++) {
+        x.beginPath(); x.moveTo(W / 2 + i * 14, hz); x.lineTo(W / 2 + i * 150, H); x.stroke();
+      }
+      for (let i = 0; i < 12; i++) {
+        const p = ((i + t) % 12) / 12;
+        const y = hz + (H - hz) * p * p;
+        x.globalAlpha = 0.15 + p * 0.55;
+        x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke();
+      }
+      x.globalAlpha = 1;
+      x.fillStyle = mix(c, 0.85); x.fillRect(0, hz, W, 1);
+
+      title(x, o, c, W / 2, hz - 58, { size: 46, track: '-0.5px' });
+      sub(x, o.sub, c, W / 2, hz - 24);
+    },
+
+    // Thin arcs turning at different speeds. Arcs, not full rings: a broken circle turning is
+    // legible, a complete one looks like it is standing still.
+    orbit(x, o, c, t) {
+      ground(x, c);
+      x.save();
+      x.globalCompositeOperation = 'lighter';
+      blob(x, W / 2, H / 2, 200, c, 0.16);
+      x.restore();
+      const rings = [[150, 1.0, 1.6], [116, -0.7, 2.6], [186, 0.45, 1.0]];
+      for (let i = 0; i < rings.length; i++) {
+        const r = rings[i][0], speed = rings[i][1], span = rings[i][2];
+        const a0 = t * TAU * speed;
         x.beginPath();
-        x.moveTo(0, H);
-        for (let px = 0; px <= W; px += 5) {
-          const a = (px / W) * TAU * (1.5 + k) + sp * t * TAU;
-          x.lineTo(px, base + Math.sin(a) * amp);
-        }
-        x.lineTo(W, H); x.closePath();
-        x.fillStyle = mix(c, k ? 0.10 : 0.18); x.fill();
-        x.strokeStyle = mix(c, k ? 0.35 : 0.8); x.lineWidth = k ? 1 : 2; x.stroke();
+        x.ellipse(W / 2, H / 2, r, r * 0.62, 0, a0, a0 + span);
+        x.strokeStyle = mix(c, 0.55); x.lineWidth = 1.4; x.stroke();
+        const px = W / 2 + Math.cos(a0 + span) * r, py = H / 2 + Math.sin(a0 + span) * r * 0.62;
+        x.beginPath(); x.arc(px, py, 2.6, 0, TAU); x.fillStyle = mix(c, 0.95); x.fill();
       }
+      title(x, o, c, W / 2, H / 2 - 4, { size: 44, track: '-0.5px' });
+      sub(x, o.sub, c, W / 2, H / 2 + 40);
     },
 
-    // A line that crosses the frame once per loop, with a grid behind it. The grid is still:
-    // a moving grid plus a moving line reads as noise.
-    scan(x, o, c, t) {
+    // Lines of scan output scrolling up behind the name. The text is fixed and invented - it is
+    // wallpaper, not a log, and says nothing about the PC it runs on.
+    console(x, o, c, t) {
       ground(x, c);
-      x.strokeStyle = mix(c, 0.10); x.lineWidth = 1;
-      for (let gx = 0; gx <= W; gx += 25) { x.beginPath(); x.moveTo(gx + 0.5, 0); x.lineTo(gx + 0.5, H); x.stroke(); }
-      for (let gy = 0; gy <= H; gy += 25) { x.beginPath(); x.moveTo(0, gy + 0.5); x.lineTo(W, gy + 0.5); x.stroke(); }
-      const lx = t * (W + 120) - 60;
-      const g = x.createLinearGradient(lx - 60, 0, lx + 10, 0);
-      g.addColorStop(0, mix(c, 0)); g.addColorStop(1, mix(c, 0.28));
-      x.fillStyle = g; x.fillRect(lx - 60, 0, 70, H);
-      x.strokeStyle = mix(c, 0.95); x.lineWidth = 2;
-      x.beginPath(); x.moveTo(lx, 0); x.lineTo(lx, H); x.stroke();
-      title(x, o, c, 142, 46);
-      sub(x, o.sub, c, 178);
-    },
-
-    // Rings opening out from behind the name, each one starting where the last is halfway.
-    pulse(x, o, c, t) {
-      ground(x, c);
-      const N = 3;
-      for (let i = 0; i < N; i++) {
-        const p = (t + i / N) % 1;
-        x.beginPath();
-        x.arc(W / 2, H / 2, 30 + p * 210, 0, TAU);
-        x.strokeStyle = mix(c, 0.5 * (1 - p)); x.lineWidth = 2; x.stroke();
-      }
-      title(x, o, c, 140, 48);
-      sub(x, o.sub, c, 178);
-    },
-
-    // Particles drifting up. Positions come from a fixed seed so every frame agrees on which
-    // dot is which, and each one wraps exactly once per loop.
-    storm(x, o, c, t) {
-      ground(x, c);
-      for (let i = 0; i < 60; i++) {
-        const sx = ((i * 97) % 500);
-        const speed = 0.6 + ((i * 37) % 100) / 100;
-        const sy = (((i * 53) % 300) / 300 - t * speed) % 1;
-        const py = (sy < 0 ? sy + 1 : sy) * H;
-        const r = 1 + ((i * 29) % 3) * 0.7;
-        x.beginPath(); x.arc(sx, py, r, 0, TAU);
-        x.fillStyle = mix(c, 0.18 + ((i * 17) % 50) / 160); x.fill();
-      }
-      title(x, o, c, 138, 48);
-      sub(x, o.sub, c, 176);
-    },
-
-    // Bars along the bottom, each on its own phase, so the row never pumps as one block.
-    bars(x, o, c, t) {
-      ground(x, c);
-      const n = 34, bw = W / n;
+      const LINES = [
+        'reading prefetch', 'usn journal   ok', 'signatures   4812', 'shadow copy  scan',
+        'recycle bin   ok', 'service memory', 'drivers       ok', 'usb history',
+        'process list  ok', 'macro check', 'event log     ok', 'strings      1340',
+      ];
+      x.save();
+      x.font = '12px Consolas, "Courier New", monospace';
+      x.textAlign = 'left'; x.textBaseline = 'middle';
+      const n = LINES.length, step = H / 8;
       for (let i = 0; i < n; i++) {
-        const ph = (i * 0.37) % 1;
-        const h = 18 + (Math.sin((t + ph) * TAU) * 0.5 + 0.5) * 70;
-        x.fillStyle = mix(c, 0.22 + (h / 90) * 0.55);
-        x.fillRect(i * bw + 1.5, H - h, bw - 3, h);
+        const p = ((i / n) - t) % 1;
+        const y = (p < 0 ? p + 1 : p) * (H + step) - step / 2;
+        x.fillStyle = mix(c, 0.16 + (i % 3) * 0.05);
+        x.fillText(LINES[i], 26 + (i % 4) * 58, y);
       }
-      title(x, o, c, 120, 46);
-      sub(x, o.sub, c, 156);
+      x.restore();
+      // A tall, very soft plate: a short one shows its own edges and reads as a grey box
+      // sitting on the text rather than as the text being lit from behind.
+      const g = x.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, 'rgba(4,6,10,0)'); g.addColorStop(0.32, 'rgba(4,6,10,0.72)');
+      g.addColorStop(0.5, 'rgba(4,6,10,0.92)'); g.addColorStop(0.68, 'rgba(4,6,10,0.72)');
+      g.addColorStop(1, 'rgba(4,6,10,0)');
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      title(x, o, c, W / 2, H / 2 - 6, { size: 46, track: '-0.5px' });
+      sub(x, o.sub, c, W / 2, H / 2 + 38);
     },
   };
 
   function draw(x, o, t) {
     const c = rgb(o.color);
-    (painters[o.design] || painters.tide)(x, o, c, ((t % 1) + 1) % 1);
+    (painters[o.design] || painters.aurora)(x, o, c, ((t % 1) + 1) % 1);
   }
 
   // ── the GIF ────────────────────────────────────────────────────────────────────────────

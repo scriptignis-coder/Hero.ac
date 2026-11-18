@@ -13,11 +13,11 @@ export default wrap(async (req, res) => {
       sb('hs_blacklist?order=created_at.desc&limit=200&select=*').catch(() => []),
       sb('hs_abandoned_scans?order=noticed_at.desc&limit=100&select=*').catch(() => []),
     ]);
-    let threshold = 1, selfLimit = 5;
+    let threshold = 1, selfLimit = 1;
     try {
       const t = await sb('hs_settings?key=in.(abuse_threshold,self_scan_limit)&select=key,value');
       threshold = parseInt(t?.find((x) => x.key === 'abuse_threshold')?.value ?? '1', 10);
-      selfLimit = parseInt(t?.find((x) => x.key === 'self_scan_limit')?.value ?? '5', 10);
+      selfLimit = parseInt(t?.find((x) => x.key === 'self_scan_limit')?.value ?? '1', 10);
     } catch { }
     return send(res, 200, { blacklist: rows || [], abandoned: recent || [], threshold, selfLimit });
   }
