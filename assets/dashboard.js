@@ -1267,16 +1267,35 @@
           </div>`;
         }).join('');
 
+        // USBSTOR puts a memory stick, an external SSD and the laptop's own card reader in one
+        // list. They answer different questions, so they are shown as three, with the sticks
+        // first: a stick pulled out before a check is the line staff came here to read, and it
+        // was being buried under hardware that never leaves the machine.
+        const usbRow = (x) => rowL(F(x, 'Level') >= 1 ? 'orange' : '',
+          `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> ${F(x, 'Present') ? '<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(47,155,255,.15);color:#8cc8ff;font-size:11px;font-weight:700">plugged in now</span>' : ''}`
+          + `${F(x, 'Why') ? `<div style="color:#ffb35c;font-size:12px;margin-top:2px">${esc(F(x, 'Why'))}</div>` : ''}${F(x, 'Serial') ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">serial ${esc(F(x, 'Serial'))}</div>` : ''}`,
+          esc(F(x, 'LastConnected') || ''));
+        // Reports from before v4.14.5 carry no Kind; everything in them stays a stick, which is
+        // how they were read before, rather than silently moving into a group they never had.
+        const kindOf = (x) => F(x, 'Kind') || 'stick';
+        const group = (kind, title, note) => {
+          const g = items.filter((x) => kindOf(x) === kind);
+          if (!g.length) return '';
+          return `<div style="margin-top:14px"><div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">`
+            + `<b style="color:var(--text);font-size:13.5px">${title}</b><span style="color:var(--dim);font-size:12px">${g.length} · ${note}</span></div>`
+            + rows(g.map(usbRow), '') + '</div>';
+        };
+
         return head('USB drives', items.length,
-            'Every USB stick / external drive Windows remembers, with the last time it was plugged in. Orange = plugged in shortly before the check and pulled out. '
+            'Every storage device Windows remembers attaching, with the last time it was plugged in. Orange = plugged in shortly before the check and pulled out. '
             + 'Cheats are sometimes kept on a USB stick and removed before a screenshare.')
           + goneDrives
           + (ran.length ? rows(ran.map((d) => rowL(F(d, 'Severity') === 2 ? 'red' : 'orange', `<b style="color:var(--text)">${esc(F(d, 'Signature'))}</b><div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">${esc(F(d, 'Path'))}</div>`, esc(F(d, 'When') || ''))), '') + '<div style="height:12px"></div>' : '')
-          + rows(items.map((x) => rowL(F(x, 'Level') >= 1 ? 'orange' : '',
-              `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> ${F(x, 'Present') ? '<span style="margin-left:6px;padding:2px 8px;border-radius:999px;background:rgba(47,155,255,.15);color:#8cc8ff;font-size:11px;font-weight:700">plugged in now</span>' : ''}`
-              + `${F(x, 'Why') ? `<div style="color:#ffb35c;font-size:12px;margin-top:2px">${esc(F(x, 'Why'))}</div>` : ''}${F(x, 'Serial') ? `<div class="mono" style="color:var(--dim);font-size:11px;margin-top:2px">serial ${esc(F(x, 'Serial'))}</div>` : ''}`,
-              esc(F(x, 'LastConnected') || ''))),
-            R('UsbStorage') ? 'No USB drive in Windows\' history.' : 'This report has no USB history — the player used an older scanner (needs v4.7+).');
+          + (items.length
+            ? group('stick', 'USB sticks', 'what a cheat would be carried on')
+              + group('disk', 'External disks & SSDs', 'big drives — a whole game install can live here')
+              + group('reader', 'Card readers & built-in controllers', 'part of the machine, not something carried in')
+            : rows([], R('UsbStorage') ? 'No USB drive in Windows\' history.' : 'This report has no USB history — the player used an older scanner (needs v4.7+).'));
       },
 
       opened: () => {
