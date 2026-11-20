@@ -1428,6 +1428,7 @@
           : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
         // External reports are explicitly labelled: a manual entry is not an API-verified verdict.
         html += `<div class="rp-head" style="margin-top:16px">External scanner reports</div>`;
+        if (/^\d{15,22}$/.test(playerDiscordId)) html += `<div style="margin:8px 0 14px"><a href="/external-report-import.html?discord_id=${encodeURIComponent(playerDiscordId)}" target="_blank" rel="noopener noreferrer" style="color:#cbbaff">Import external report (admin only) ↗</a></div>`;
         html += externalReports.length ? rows(externalReports.map((x) => rowL('orange',
           `<b style="color:var(--text)">${esc(x.source)}</b> ${pill(esc(x.verdict), 'rgba(255,179,92,.14)', '#ffb35c')}`
           + `<div style="color:var(--dim);font-size:12px;margin-top:4px">Staff-submitted · Not verified by HeRoShield or the external provider</div>`
