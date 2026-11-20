@@ -94,3 +94,61 @@ body.hs-scrolled .nav,body.hs-scrolled header{
   .card,.feature,.tier,.plan,.pricing-card{transition:none}
   .card:hover,.feature:hover,.tier:hover,.plan:hover,.pricing-card:hover{transform:none}
 }
+
+
+/* Consolidated stylesheet: assets/site-fx2.css */
+/* A second layer of finish: the things that make a page feel built rather than assembled.
+ * Each one is small, and each one answers something the visitor does — scrolls, points,
+ * reaches a section. Nothing here moves on its own except the one featured price card. */
+
+/* The scroll hairline and the film grain are gone.
+ * The grain was drawn with feTurbulence, which produces RGB noise: over a black page that
+ * reads as a brown cast across everything. Banding is better answered by the page having
+ * real tonal steps, which it now does, than by throwing noise over it. */
+
+/* ── nav links: a rule that grows from the middle ─────────────────────────── */
+.nav a:not(.btn){position:relative}
+.nav a:not(.btn)::after{
+  content:"";position:absolute;left:50%;right:50%;bottom:-6px;height:1.5px;border-radius:2px;
+  background:var(--accent);transition:left .22s cubic-bezier(.22,1,.36,1), right .22s cubic-bezier(.22,1,.36,1);
+}
+.nav a:not(.btn):hover::after{left:0;right:0}
+
+/* ── cards tilt very slightly toward the cursor ───────────────────────────── */
+.card,.feature,.tier,.plan,.pricing-card,.faq-item{
+  transform-style:preserve-3d;will-change:transform;
+}
+.hs-tilt{transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translateY(-3px)!important}
+
+/* ── the plan the page recommends gets a border that travels ──────────────── */
+.tier.featured,.plan.featured,.pricing-card.featured,.tier:last-child{position:relative}
+.tier.featured::after,.plan.featured::after,.pricing-card.featured::after,.tier:last-child::after{
+  content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:conic-gradient(from var(--a,0deg),transparent 0 62%,rgba(59,130,246,.85) 78%,transparent 92%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  animation:hs-rotate 5.5s linear infinite;
+}
+@property --a{syntax:'<angle>';initial-value:0deg;inherits:false}
+@keyframes hs-rotate{to{--a:360deg}}
+
+/* ── headings wipe in, left to right, the first time they are reached ─────── */
+.hs-wipe{
+  background:linear-gradient(90deg,var(--fg-strong) 0 50%,#3a3a40 50% 100%) 100% 0/200% 100% no-repeat;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hs-wipe.hs-seen{animation:hs-wipe-in .85s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes hs-wipe-in{to{background-position:0 0}}
+
+/* ── buttons lean toward the cursor ───────────────────────────────────────── */
+.btn{will-change:transform}
+
+/* ── anchors scroll instead of jumping ────────────────────────────────────── */
+html{scroll-behavior:smooth;scroll-padding-top:86px}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  .tier.featured::after,.plan.featured::after,.pricing-card.featured::after,.tier:last-child::after{animation:none;opacity:.35}
+  .hs-wipe{background:none;-webkit-text-fill-color:currentColor;color:var(--fg-strong)}
+  .hs-tilt{transform:none!important}
+}

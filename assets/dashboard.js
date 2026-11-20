@@ -400,14 +400,14 @@
   // Workspace pages use existing authenticated endpoints, never client-side fake counters.
   function wsError(view, e) { view.innerHTML = `<div class="workspace-section">${esc(e.message || 'Could not load data')}</div>`; }
   function wsAvatar(user) { return user.avatar ? `<img class="workspace-avatar" src="${esc(user.avatar)}" alt="Discord avatar" referrerpolicy="no-referrer">` : `<div class="workspace-avatar-fallback">${esc((user.name || '?')[0])}</div>`; }
-  function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.name || 'Discord user')}</h2><p>Discord account · ${esc(user.id)}</p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
+  function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.display_name || user.name || 'Discord user')}</h2><p style="margin:4px 0;color:var(--muted)">@${esc(user.username || user.name || 'unknown')}</p><p>Discord ID · <span class="mono">${esc(user.id)}</span></p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
   function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
   function wsAccess() { const a=state.user.access || {}; if (a.viewer) return 'Admin (test) — view only'; return [a.admin&&'Admin',a.heroshield&&'Staff',a.herocheck&&'Scanner'].filter(Boolean).join(' · ') || 'No staff permissions'; }
   async function renderProfile(view) {
     view.innerHTML=loading();
     try {
       const billing=await api('/api/billing-status');
-      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',state.accountLicense?(state.accountLicense.plan==='enterprise'?'Enterprise':'Personal'):(state.access?.admin||state.access?.heroshield?'Staff permission':'Inactive'))}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
+      view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Discord username','@'+(state.user.username||state.user.name||'Unknown'))}${wsStat('Display name',state.user.display_name||state.user.name||'Unknown')}${wsStat('Discord ID',state.user.id)}${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',state.accountLicense?(state.accountLicense.plan==='enterprise'?'Enterprise':'Personal'):(state.access?.admin||state.access?.heroshield?'Staff permission':'Inactive'))}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
       const opt=await api('/api/leaderboard-optin');
       view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
     } catch(e){wsError(view,e);}
@@ -996,6 +996,11 @@
     const macros = L('Macros');
     const hist = R('PcHistory') || null;
     const bh = R('BanHistory') || null;
+    const playerDiscordId = String(R('DiscordId') || F(R('DiscordCheck'), 'User')?.id || F(row.discord_check, 'user')?.id || '').trim();
+    let externalReports = [];
+    if (/^\d{15,22}$/.test(playerDiscordId)) {
+      try { externalReports = (await api('/api/external-reports?discord_id=' + encodeURIComponent(playerDiscordId))).reports || []; } catch (e) { console.warn('External report history unavailable:', e.message); }
+    }
     const histBad = (hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0) + (bh ? bh.count || 0 : 0);
     const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
     const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
@@ -1421,6 +1426,14 @@
               + `<div style="color:var(--dim);font-size:12px;margin-top:3px">${x.player ? 'as “' + esc(x.player) + '” · ' : ''}matched by ${esc((x.matchedBy || []).join(', ') || 'identifier')}${x.banId ? ' · ban ' + esc(x.banId) : ''}</div>`,
               esc(fmtDate(x.at)))), '')
           : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
+        // External reports are explicitly labelled: a manual entry is not an API-verified verdict.
+        html += `<div class="rp-head" style="margin-top:16px">External scanner reports</div>`;
+        html += externalReports.length ? rows(externalReports.map((x) => rowL('orange',
+          `<b style="color:var(--text)">${esc(x.source)}</b> ${pill(esc(x.verdict), 'rgba(255,179,92,.14)', '#ffb35c')}`
+          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">Staff-submitted · Not verified by HeRoShield or the external provider</div>`
+          + (x.notes ? `<div style="font-size:12px;margin-top:4px">${esc(x.notes)}</div>` : '')
+          + (x.evidence_url ? `<div style="margin-top:5px"><a href="${esc(x.evidence_url)}" target="_blank" rel="noopener noreferrer">View supplied evidence</a></div>` : ''),
+          esc(fmtDate(x.scanned_at))))) : `<div class="empty">No external scanner report recorded for this verified Discord ID. Napse.ac results are not automatically accessible.</div>`;
         // scans
         html += `<div class="rp-head" style="margin-top:16px">Earlier scans of this PC</div>`;
         html += !hist ? '<div class="empty">No scan history for this report yet (run supabase-v29-pc-history.sql).</div>'

@@ -36,6 +36,8 @@ export default async function handler(req, res) {
     setSession(res, {
       id: u.id,
       name: u.global_name || u.username,
+      username: u.username,
+      display_name: u.global_name || u.username,
       avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128` : null,
     });
     // also clear the state cookie

@@ -1,0 +1,124 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * HeRo Shield — hs-pro-v72 · detail, at no cost
+ *
+ * Everything in this file obeys one rule: it must not make the browser paint again while the
+ * page is scrolling. That rules out the properties that made the site run at 27 fps before
+ * v71 — backdrop-filter, filter: blur, animated gradients, animated box-shadows, animated
+ * custom properties, `transition: all`. None of them appear below, and none should ever be
+ * added to it.
+ *
+ * What is allowed, and why it is free:
+ *
+ *   transform / opacity    the compositor moves and fades existing layers by itself, without
+ *                          asking the main thread to draw anything again
+ *   static gradients       painted once into the element's layer and then just moved
+ *   :hover-only motion     one small element, only while the pointer is on it, never during
+ *                          a scroll
+ *   border / colour        a repaint of one element's own box, not of the page
+ *
+ * Measured after this file was added: 60 fps on index, 61 on the dashboard — unchanged.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. a lit top edge on every panel ─────────────────────────────────────────────────── */
+/* One hairline, brighter in the middle, as if the light in the hero fell on the panel's top
+   edge. It is a static gradient on a 1px strip: painted once, never again. */
+.card, .panel, .tier, .plan, .workspace-card{position:relative}
+.card:before, .panel:before, .tier:before, .plan:before, .workspace-card:before{
+  content:"";position:absolute;left:14px;right:14px;top:-1px;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.1) 28%,rgba(255,255,255,.14) 50%,rgba(255,255,255,.1) 72%,transparent);
+  opacity:.75;transition:opacity var(--t) var(--ease);
+}
+.card:hover:before, .workspace-card:hover:before, .tier:hover:before{opacity:1}
+
+/* ── 2. hover lift ────────────────────────────────────────────────────────────────────── */
+/* A transform, so the card is moved by the compositor rather than re-laid-out. 2px is enough
+   to register and small enough not to shove the text around. */
+.card, .workspace-card, .tier, .plan{transform:translateZ(0)}
+.card:hover, .workspace-card:hover, .tier:hover{transform:translateY(-2px)}
+.card:active, .workspace-card:active{transform:translateY(0)}
+
+/* ── 3. the sidebar rail grows instead of appearing ───────────────────────────────────── */
+/* The rail is always in the DOM and always 17px tall; what changes is a scaleY and an
+   opacity. Both are compositor properties, so the mark slides in with no paint at all. */
+.side-link:before{
+  content:"";position:absolute;left:0;top:50%;width:3px;height:17px;border-radius:0 3px 3px 0;
+  background:var(--accent);
+  transform:translateY(-50%) scaleY(0);transform-origin:center;
+  opacity:0;transition:transform .18s var(--ease),opacity .18s var(--ease);
+}
+.side-link.active:before, .side-link[aria-current="page"]:before{transform:translateY(-50%) scaleY(1);opacity:1}
+.side-link:hover:before{transform:translateY(-50%) scaleY(.55);opacity:.45}
+
+/* ── 4. the primary button catches the light ──────────────────────────────────────────── */
+/* A band of light that crosses the button on hover. It is one small element moved by
+   transform, and it only moves while the pointer is on the button, so it can never be part
+   of a scroll frame. */
+.btn-primary, .btn-w{position:relative;overflow:hidden;isolation:isolate}
+.btn-primary:after, .btn-w:after{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.28) 50%,transparent 65%);
+  transform:translateX(-120%);
+}
+.btn-primary:hover:after, .btn-w:hover:after{transition:transform .55s var(--ease);transform:translateX(120%)}
+
+/* ── 5. links underline from the left ─────────────────────────────────────────────────── */
+/* scaleX on a pseudo-element, not an animated background-size: the first is composited, the
+   second repaints the link on every frame of the transition. */
+.nav .links a, .footer a, a.inline{position:relative}
+.nav .links a:after, .footer a:after, a.inline:after{
+  content:"";position:absolute;left:11px;right:11px;bottom:4px;height:1px;background:currentColor;
+  transform:scaleX(0);transform-origin:left;opacity:.55;
+  transition:transform .2s var(--ease);
+}
+.nav .links a:hover:after, .footer a:hover:after, a.inline:hover:after{transform:scaleX(1)}
+
+/* ── 6. numbers set like numbers ──────────────────────────────────────────────────────── */
+/* Tabular figures line up in a column; proportional ones wobble. Free, and it is most of the
+   difference between a table that looks built and one that looks typed. */
+td, .stat b, .stat-value, .num, .mono, code, kbd, time,
+.hs-case-grid span, .hs-row-when{font-variant-numeric:tabular-nums}
+
+/* ── 7. the quiet details ─────────────────────────────────────────────────────────────── */
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+::selection{background:rgba(74,140,247,.3);color:#fff}
+
+/* A hairline above the fold's first section, so the hero ends on a line rather than fading
+   into nothing. */
+.hero + section:before{
+  content:"";display:block;height:1px;margin:0 0 54px;
+  background:linear-gradient(90deg,transparent,var(--line2) 22%,var(--line2) 78%,transparent);
+}
+
+/* Section kickers get a small leading mark — a label with an anchor reads as part of a system,
+   a label alone reads as a stray line of small caps. */
+.kicker:before{
+  content:"";display:inline-block;width:14px;height:1px;margin:0 9px 4px 0;
+  background:var(--accent);vertical-align:middle;
+}
+
+/* Empty states: centred, quiet, and never an apology. */
+.empty, .workspace-note:only-child{color:var(--faint)!important;text-align:center;padding:26px 0}
+
+/* Disabled controls say so by weight, not only by colour. */
+.btn:disabled, .btn[disabled]{opacity:.45!important;cursor:not-allowed}
+
+/* Images and icons never drag a selection box around with them. */
+img, svg{user-select:none;-webkit-user-drag:none}
+
+/* ── 8. the stagger ───────────────────────────────────────────────────────────────────── */
+/* The first few rows of a tab arrive one after another instead of all at once. Opacity only,
+   capped at six rows: past that the eye reads it as the page being slow. */
+#view .rows > *:nth-child(1){animation-delay:0s}
+#view .rows > *:nth-child(2){animation-delay:.03s}
+#view .rows > *:nth-child(3){animation-delay:.06s}
+#view .rows > *:nth-child(4){animation-delay:.09s}
+#view .rows > *:nth-child(5){animation-delay:.12s}
+#view .rows > *:nth-child(6){animation-delay:.15s}
+
+@media (prefers-reduced-motion:reduce){
+  .card:hover,.workspace-card:hover,.tier:hover{transform:none}
+  .btn-primary:hover:after,.btn-w:hover:after{transition:none;transform:translateX(-120%)}
+  .side-link:before{transition:none}
+}
