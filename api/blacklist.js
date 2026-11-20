@@ -9,10 +9,8 @@ export default wrap(async (req, res) => {
   const user = await requireAccess(req, 'admin');
 
   if (req.method === 'GET') {
-    const search = str(new URL(req.url, 'http://localhost').searchParams.get('discord_id') || '', 32).trim();
-    if (search && !/^\d{15,22}$/.test(search)) throw httpError(400, 'Enter a valid Discord ID');
     const [rows, recent] = await Promise.all([
-      sb(`hs_blacklist?order=created_at.desc&limit=200&select=*${search ? `&discord_id=eq.${enc(search)}` : ''}`),
+      sb('hs_blacklist?order=created_at.desc&limit=200&select=*').catch(() => []),
       sb('hs_abandoned_scans?order=noticed_at.desc&limit=100&select=*').catch(() => []),
     ]);
     let threshold = 1, selfLimit = 1;

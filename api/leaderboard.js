@@ -9,7 +9,7 @@ export function aggregateLeaderboard(optRows, pins, metric='checks', licenses=[]
   const profileMap=new Map((profiles||[]).map(x=>[String(x.discord_id),x]));
   const users=new Map();
   for(const row of pins||[]){
-    if(!row.used || !row.report || typeof row.report !== 'object')continue;
+    if(!row.used || (metric==='findings' && (!row.report || typeof row.report !== 'object')))continue;
     const id=String(licenseOwners.get(String(row.license_id)) || '');
     if(!/^\d{17,20}$/.test(id) || hidden.has(id))continue;
     const profile=profileMap.get(id)||{};
@@ -30,9 +30,25 @@ export default wrap(async (req,res)=>{
   if(!['checks','findings'].includes(metric))throw httpError(400,'Invalid metric');
   const optRows=await sb('leaderboard_optins?opted_in=eq.false&select=discord_id,opted_in&limit=5000').catch(()=>[]);
   // Bounded read; for large sites replace with paginated server-side SQL aggregation.
-  const pins=await sb('scan_pins?used=eq.true&select=used,report,discord_check,license_id&order=created_at.desc&limit=1000');
-  const licenses=await sb('scanner_licenses?select=id,owner_discord&limit=5000');
-  const profiles=await sb('user_access?select=discord_id,name,avatar&limit=5000');
-  res.setHeader('Cache-Control','public, max-age=30');
-  return send(res,200,{metric,entries:aggregateLeaderboard(optRows,pins,metric,licenses,profiles)});
+  // Avoid fetching 1000 potentially multi-MB JSON reports for a simple ranking.
+  // 'checks' only needs metadata. 'findings' uses a bounded recent sample.
+  let pins;
+  try {
+    pins = metric === 'checks'
+      ? await sb('scan_pins?used=eq.true&report=not.is.null&select=used,license_id&order=created_at.desc&limit=1000')
+      : await sb('scan_pins?used=eq.true&report=not.is.null&select=used,license_id,report&order=created_at.desc&limit=100');
+  } catch (error) {
+    // Return a clearly marked degraded response instead of an opaque 500 timeout.
+    res.setHeader('Cache-Control','no-store');
+    return send(res,200,{metric,entries:[],degraded:true,message:'Leaderboard temporarily unavailable; database query timed out.'});
+  }
+  try {
+    const licenses=await sb('scanner_licenses?select=id,owner_discord&limit=5000');
+    const profiles=await sb('user_access?select=discord_id,name,avatar&limit=5000');
+    res.setHeader('Cache-Control','public, max-age=30');
+    return send(res,200,{metric,entries:aggregateLeaderboard(optRows,pins,metric,licenses,profiles),sampled:metric==='findings'});
+  } catch (error) {
+    res.setHeader('Cache-Control','no-store');
+    return send(res,200,{metric,entries:[],degraded:true,message:'Leaderboard temporarily unavailable.'});
+  }
 });

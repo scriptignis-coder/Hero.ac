@@ -106,34 +106,7 @@
     toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200);
   }
 
-  // Small in-memory cache for non-sensitive read-only dashboard lists.
-  // Never cache identity, permissions, blacklist or license status.
-  const hsReadCache = new Map();
-  const hsInflight = new Map();
-  const hsCacheable = (path, opts) =>
-    (!opts.method || opts.method === 'GET') && !opts.body &&
-    /^\/api\/(?:data|pins|audit-logs|scan-report|scan-heartbeat|leaderboard|partners)(?:\?|$)/.test(path);
   async function api(path, opts = {}) {
-    const read = hsCacheable(path, opts);
-    if (!read) {
-      // Changes to records must be visible immediately after a mutation.
-      if ((opts.method || 'GET') !== 'GET') hsReadCache.clear();
-    } else {
-      const cached = hsReadCache.get(path);
-      if (cached && Date.now() - cached.at < 2500) return cached.value;
-      if (hsInflight.has(path)) return hsInflight.get(path);
-    }
-    const request = hsFetchApi(path, opts);
-    if (!read) return request;
-    hsInflight.set(path, request);
-    try {
-      const value = await request;
-      hsReadCache.set(path, { at: Date.now(), value });
-      if (hsReadCache.size > 40) hsReadCache.delete(hsReadCache.keys().next().value);
-      return value;
-    } finally { hsInflight.delete(path); }
-  }
-  async function hsFetchApi(path, opts = {}) {
     const r = await fetch(path, {
       method: opts.method || 'GET',
       headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
@@ -550,46 +523,22 @@
         </div>`;
 
       const lookupForm = view.querySelector('#hs-license-lookup-form');
-      const lookupOutput = view.querySelector('#hs-license-lookup-result');
-      async function runLicenseLookup(id) {
+      lookupForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const id = view.querySelector('#hs-license-lookup-id').value.trim();
+        const out = view.querySelector('#hs-license-lookup-result');
         const button = lookupForm.querySelector('button');
+        if (!/^\d{17,20}$/.test(id)) { out.textContent = 'Enter a valid Discord ID (17–20 digits).'; return; }
         button.disabled = true;
-        lookupOutput.innerHTML = '<p class="workspace-note">Checking license database…</p>';
+        out.innerHTML = '<p class="workspace-note">Checking license database…</p>';
         try {
           const result = await api('/api/license-lookup?discord_id=' + encodeURIComponent(id));
           const label = result.has_active_license ? 'ACTIVE LICENSE FOUND' : 'NO ACTIVE LICENSE';
           const cls = result.has_active_license ? 'hs-lookup-good' : 'hs-lookup-none';
-          lookupOutput.innerHTML = `<div class="hs-lookup-result ${cls}"><strong>${label}</strong><p class="workspace-note">Discord ID: ${esc(result.discord_id)}</p>
-            ${(result.licenses || []).map(l => `<div class="hs-lookup-entry" style="padding:12px 0;border-top:1px solid #273745">
-              <div><b>${esc(l.type)}</b> · ${esc(l.relation)} · <b>${esc(l.state)}</b> · ${l.expires_at ? 'Expires ' + fmtDate(l.expires_at) : 'No expiry'}${l.name ? ' · ' + esc(l.name) : ''}</div>
-              <div class="workspace-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" class="btn btn-sm ${l.state === 'revoked' ? 'btn-primary' : 'btn-danger'}" data-lookup-act="${l.state === 'revoked' ? 'restore' : 'revoke'}" data-lookup-license="${esc(l.id)}">${l.state === 'revoked' ? 'Unrevoke' : 'Revoke'}</button>
-                <button type="button" class="btn btn-sm btn-ghost" data-lookup-act="delete" data-lookup-license="${esc(l.id)}">Delete</button>
-              </div></div>`).join('') || '<p class="workspace-note">No license records found for this ID.</p>'}</div>`;
-          lookupOutput.querySelectorAll('[data-lookup-act]').forEach(btn => btn.addEventListener('click', async () => {
-            const action = btn.dataset.lookupAct;
-            const licenseId = btn.dataset.lookupLicense;
-            if (action === 'delete') {
-              if (!confirm('Permanently delete this license? This cannot be undone.')) return;
-              if (prompt('Type DELETE to confirm permanent deletion:') !== 'DELETE') return;
-            } else if (!confirm(`${action === 'revoke' ? 'Revoke' : 'Restore'} this license?`)) return;
-            btn.disabled = true;
-            try {
-              await api('/api/license-list', { method: 'POST', body: { id: licenseId, action } });
-              toast(action === 'delete' ? 'License deleted' : action === 'revoke' ? 'License revoked' : 'License restored');
-              await renderLicenseList(view);
-              const input = view.querySelector('#hs-license-lookup-id');
-              if (input) { input.value = id; await runLicenseLookup(id); }
-            } catch (e) { toast(e.message, true); btn.disabled = false; }
-          }));
-        } catch(e) { lookupOutput.textContent = 'Lookup failed: ' + (e.message || 'Unknown error'); }
+          out.innerHTML = `<div class="hs-lookup-result ${cls}"><strong>${label}</strong><p class="workspace-note">Discord ID: ${esc(result.discord_id)}</p>
+            ${(result.licenses || []).map(l => `<div class="hs-lookup-entry"><b>${esc(l.type)}</b> · ${esc(l.relation)} · <b>${esc(l.state)}</b> · ${l.expires_at ? 'Expires ' + fmtDate(l.expires_at) : 'No expiry'}${l.name ? ' · ' + esc(l.name) : ''}</div>`).join('') || '<p class="workspace-note">No license records found for this ID.</p>'}</div>`;
+        } catch(e) { out.textContent = 'Lookup failed: ' + (e.message || 'Unknown error'); }
         finally { button.disabled = false; }
-      }
-      lookupForm?.addEventListener('submit', async event => {
-        event.preventDefault();
-        const id = view.querySelector('#hs-license-lookup-id').value.trim();
-        if (!/^\d{17,20}$/.test(id)) { lookupOutput.textContent = 'Enter a valid Discord ID (17–20 digits).'; return; }
-        await runLicenseLookup(id);
       });
       view.querySelectorAll('[data-licfilter]').forEach((b) => b.addEventListener('click', () => {
         state.licFilter = b.dataset.licfilter;
@@ -647,6 +596,7 @@
     view.innerHTML=loading();
     try {
       const d=await api(`/api/leaderboard?metric=${metric}`);
+      if(d.degraded){ view.innerHTML='<div class="workspace-section"><h3>Leaderboard</h3><p>Ranking temporarily unavailable. Please retry later.</p></div>'; return; }
       view.innerHTML=`<div class="workspace-hero"><div><h2>Community Leaderboard</h2><p>Only users who opted in are shown. Findings are not proof of cheating.</p></div></div><div class="workspace-actions"><button class="btn ${metric==='checks'?'btn-primary':'btn-ghost'}" data-rank="checks">Top Checks</button><button class="btn ${metric==='findings'?'btn-primary':'btn-ghost'}" data-rank="findings">Top Findings</button></div><div class="workspace-section"><h3>${metric==='checks'?'Most completed checks':'Most reported findings'}</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Rank</th><th>Discord user</th><th>${metric==='checks'?'Checks':'Findings'}</th></tr></thead><tbody>${(d.entries||[]).map((u,i)=>`<tr><td>#${i+1}</td><td style="display:flex;align-items:center;gap:10px">${u.avatar?`<img src="${esc(u.avatar)}" width="32" height="32" style="border-radius:50%" alt="">`:''}${esc(u.name)}</td><td><b>${fmtNum(u.value)}</b></td></tr>`).join('')||'<tr><td colspan="3">No opted-in results yet.</td></tr>'}</tbody></table></div></div>`;
       view.querySelectorAll('[data-rank]').forEach(b=>b.addEventListener('click',()=>renderRanking(view,b.dataset.rank)));
     }catch(e){wsError(view,e);}
