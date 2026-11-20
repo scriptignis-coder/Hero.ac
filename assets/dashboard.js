@@ -106,7 +106,34 @@
     toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200);
   }
 
+  // Small in-memory cache for non-sensitive read-only dashboard lists.
+  // Never cache identity, permissions, blacklist or license status.
+  const hsReadCache = new Map();
+  const hsInflight = new Map();
+  const hsCacheable = (path, opts) =>
+    (!opts.method || opts.method === 'GET') && !opts.body &&
+    /^\/api\/(?:data|pins|audit-logs|scan-report|scan-heartbeat|leaderboard|partners)(?:\?|$)/.test(path);
   async function api(path, opts = {}) {
+    const read = hsCacheable(path, opts);
+    if (!read) {
+      // Changes to records must be visible immediately after a mutation.
+      if ((opts.method || 'GET') !== 'GET') hsReadCache.clear();
+    } else {
+      const cached = hsReadCache.get(path);
+      if (cached && Date.now() - cached.at < 2500) return cached.value;
+      if (hsInflight.has(path)) return hsInflight.get(path);
+    }
+    const request = hsFetchApi(path, opts);
+    if (!read) return request;
+    hsInflight.set(path, request);
+    try {
+      const value = await request;
+      hsReadCache.set(path, { at: Date.now(), value });
+      if (hsReadCache.size > 40) hsReadCache.delete(hsReadCache.keys().next().value);
+      return value;
+    } finally { hsInflight.delete(path); }
+  }
+  async function hsFetchApi(path, opts = {}) {
     const r = await fetch(path, {
       method: opts.method || 'GET',
       headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,

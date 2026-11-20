@@ -1,0 +1,7 @@
+/* HeRoShield performance pass: keep navigation responsive on mid-range PCs. */
+#view{min-height:120px;contain:layout style;}
+#view .card{will-change:auto!important;}
+#view .card:hover{transform:none!important;}
+#view table{border-collapse:separate;border-spacing:0;}
+#view img{max-width:100%;}
+@media (prefers-reduced-motion: reduce){#view *,#view *::before,#view *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
