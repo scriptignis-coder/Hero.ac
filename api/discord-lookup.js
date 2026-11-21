@@ -46,15 +46,40 @@ export default wrap(async (req, res) => {
     const u = await dget(`/users/${id}`, token);
     if (u) {
       check.user.name = u.global_name || u.username; check.user.username = u.username;
-      check.user.avatar = u.avatar ? `https://cdn.discordapp.com/avatars/${id}/${u.avatar}.png?size=128` : null;
+      // GET /users/{id} works for ANY account: a bot does not have to share a server with
+      // somebody to read their name and avatar. This is why the picture can appear for a
+      // player who has never been in your Discord.
+      check.user.avatar = u.avatar
+        ? `https://cdn.discordapp.com/avatars/${id}/${u.avatar}.${u.avatar.startsWith('a_') ? 'gif' : 'png'}?size=128`
+        // No custom avatar: Discord's own default, worked out from the ID, so the row shows a
+        // real Discord picture instead of an empty square.
+        : `https://cdn.discordapp.com/embed/avatars/${Number((BigInt(id) >> 22n) % 6n)}.png`;
     }
     const mine = (await dget('/users/@me/guilds?limit=200', token)) || [];
     check.botServers = mine.length;
-    const deadline = Date.now() + 20000;
-    for (const g of mine.slice(0, 100)) {
-      if (Date.now() > deadline) break;
-      const m = await dget(`/guilds/${g.id}/members/${id}`, token);
-      if (m && m.joined_at) check.guilds.push({ id: g.id, name: g.name, icon: g.icon || null, joined: m.joined_at });
+
+    // v74 — the membership sweep runs in parallel and on a short leash.
+    //
+    // It used to ask Discord about each server ONE AT A TIME, up to 100 of them, each call
+    // allowed 6 seconds and a 429 adding up to 5 more. The profile - the name and the avatar -
+    // was already in hand after the very first call, but nothing was sent until this loop
+    // finished, so a bot in 60 servers made staff wait half a minute to see a face that had
+    // been ready in 200 ms. Past 20 seconds the dashboard now gives up on the request
+    // entirely, so a slow sweep did not just feel broken, it WAS broken.
+    //
+    // Ten at a time, six seconds in total. Whatever has answered by then is reported, and
+    // `guildsPartial` says plainly that the list is not the whole picture rather than letting
+    // a short list read as "he is in none of your servers".
+    const deadline = Date.now() + 6000;
+    const targets = mine.slice(0, 100);
+    for (let i = 0; i < targets.length; i += 10) {
+      if (Date.now() > deadline) { check.guildsPartial = true; break; }
+      const batch = targets.slice(i, i + 10);
+      const found = await Promise.all(batch.map(async (g) => {
+        const m = await dget(`/guilds/${g.id}/members/${id}`, token);
+        return m && m.joined_at ? { id: g.id, name: g.name, icon: g.icon || null, joined: m.joined_at } : null;
+      }));
+      for (const f of found) if (f) check.guilds.push(f);
     }
   }
   if (!check.user.name) check.user.name = 'Discord user';

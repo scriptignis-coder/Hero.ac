@@ -106,28 +106,54 @@
     toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200);
   }
 
+  // v74 — every request gets a deadline.
+  //
+  // fetch() has no timeout of its own: if the server accepts the connection and then never
+  // answers, the promise simply never settles. Every caller here does `view.innerHTML =
+  // loading()` and then awaits, so one hung request left the spinner turning for the rest of
+  // the session with nothing on screen to say what happened. That is the "spinner that never
+  // stops" - it was never a spinner bug, it was a request with no end.
+  //
+  // 20 seconds is past anything this API does normally and short enough that somebody is
+  // still watching when it gives up.
+  const API_TIMEOUT_MS = 20000;
+
   async function api(path, opts = {}) {
-    const controller = new AbortController();
-    const timeoutMs = path.startsWith('/api/guild-info') ? 5000 : 12000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), opts.timeout || API_TIMEOUT_MS);
     let r;
-    try { r = await fetch(path, {
-      signal: controller.signal,
-      method: opts.method || 'GET',
-      headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-      credentials: 'same-origin',
-    });
+    try {
+      r = await fetch(path, {
+        method: opts.method || 'GET',
+        headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        credentials: 'same-origin',
+        signal: ac.signal,
+      });
     } catch (e) {
-      throw new Error(e.name === 'AbortError' ? `Request timed out after ${timeoutMs / 1000}s: ${path.split('?')[0]}` : (e.message || 'Network error'));
-    } finally { clearTimeout(timeoutId); }
+      // Abort and a dropped connection arrive here the same way, and the difference matters
+      // to whoever is reading it: one means the server is slow, the other that it is gone.
+      const err = new Error(e && e.name === 'AbortError'
+        ? 'The server did not answer within 20 seconds.'
+        : 'Could not reach the server. Check your connection.');
+      err.retryable = true;
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     let data = {};
     try { data = await r.json(); } catch {}
     if (r.status === 401 && !path.includes('/api/me')) { showLogin(); throw new Error('Not logged in'); }
     // A blacklisted account gets 403 on everything, so catching it here means the screen is
     // shown once, from whichever request happened to be first, instead of 20 error toasts.
     if (r.status === 403 && data && data.blacklisted) { showBlacklisted(data); throw new Error('blacklisted'); }
-    if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+    if (!r.ok) {
+      const err = new Error(data.error || `Error ${r.status}`);
+      // 5xx and 429 are worth pressing Retry for; 400 and 404 never are, and offering a
+      // button that cannot help is worse than offering none.
+      err.retryable = r.status >= 500 || r.status === 429;
+      throw err;
+    }
     return data;
   }
 
@@ -300,7 +326,31 @@
     render();
   }
 
+  // v74 — one safety net for every tab.
+  //
+  // Before this, the tabs fell into three groups: a few passed their failure to wsError, a few
+  // showed a bare message with no way out, and MOST had no catch at all - `return renderX(view)`
+  // and nothing else. Those last ones are where the endless spinner came from: the tab sets
+  // `view.innerHTML = loading()`, its API call rejects, the rejection goes nowhere, and the
+  // spinner is still turning an hour later with no error anywhere on screen.
+  //
+  // Rather than add a catch to thirty call sites and miss the thirty-first, `render` is wrapped
+  // once. Whatever a tab throws, the person sees what happened and a Retry that re-runs that
+  // same tab. A tab that handles its own errors is unaffected: it never throws this far.
   async function render() {
+    const tabAtStart = state.tab;
+    try {
+      return await renderTab();
+    } catch (e) {
+      // A login redirect and the blacklist screen have already taken over the page; turning
+      // them into an error card would hide what they are saying.
+      if (e && (e.message === 'Not logged in' || e.message === 'blacklisted')) return;
+      const view = $('#view');
+      if (view) wsError(view, e, () => { state.tab = tabAtStart; render(); });
+    }
+  }
+
+  async function renderTab() {
     const view = $('#view');
     
     if (state.tab === 'teamdirectory') return renderTeamDirectory(view);
@@ -321,20 +371,20 @@
       // show the last list at once, then refresh it in the background
       if (state.pinsResp) { try { await renderPins(view, state.pinsResp); } catch { } }
       else view.innerHTML = loading();
-      try { await renderPins(view); } catch(e) { if (!state.pinsResp) wsError(view,e); }
+      try { await renderPins(view); } catch(e) { if (!state.pinsResp) wsError(view, e, () => renderPins(view)); }
       return;
     }
-    if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view,e); } return; }
-    if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view,e); } return; }
+    if (state.tab === 'discord') { view.innerHTML = loading(); try { await renderDiscordCheck(view); } catch(e) { wsError(view, e, () => renderDiscordCheck(view)); } return; }
+    if (state.tab === 'scannergui') { view.innerHTML = loading(); try { await renderScannerGui(view); } catch(e) { wsError(view, e, () => renderScannerGui(view)); } return; }
     if (state.tab === 'signatures') return renderSignatures(view);
     if (state.tab === 'staff') return renderStaff(view);
     if (state.tab === 'tutorial') return renderTutorial(view);
     if (state.tab === 'troubleshooting') return renderTroubleshooting(view);
     if (state.tab === 'changelogs') return renderChangelogs(view);
-    if (state.tab === 'rolemanager') return renderRoleManager(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
-    if (state.tab === 'partners') return renderPartners(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
-    if (state.tab === 'access') return renderAccess(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
-    if (state.tab === 'auditlogs') return renderAuditLogs(view).catch((e) => { view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; });
+    if (state.tab === 'rolemanager') return renderRoleManager(view);   // v74: errors handled by the wrapper in render()
+    if (state.tab === 'partners') return renderPartners(view);   // v74: errors handled by the wrapper in render()
+    if (state.tab === 'access') return renderAccess(view);   // v74: errors handled by the wrapper in render()
+    if (state.tab === 'auditlogs') return renderAuditLogs(view);   // v74: errors handled by the wrapper in render()
     if (!state.server) {
       view.innerHTML = `<div class="card empty">
         <p style="margin-bottom:16px">You don't have a server yet.</p>
@@ -352,7 +402,9 @@
       else if (state.tab === 'scannergui') await renderScannerGui(view);
       else await renderTable(view, state.tab);
     } catch (e) {
-      view.innerHTML = `<div class="card empty">${esc(e.message)}</div>`;
+      // Re-thrown so the wrapper in render() renders it with a Retry, instead of the bare
+      // message this used to leave on screen.
+      throw e;
     }
   }
 
@@ -406,7 +458,22 @@
   }
 
   // Workspace pages use existing authenticated endpoints, never client-side fake counters.
-  function wsError(view, e) { view.innerHTML = `<div class="workspace-section">${esc(e.message || 'Could not load data')}</div>`; }
+  // v74 — an error the person can act on: what happened, and a way out of it.
+  // `retry` is the function that was being attempted; when one is passed and the error is the
+  // kind that could succeed on a second try, the button re-runs it in place.
+  function wsError(view, e, retry) {
+    const msg = (e && e.message) || 'Could not load data';
+    const can = !!retry && (!e || e.retryable !== false);
+    view.innerHTML = `<div class="workspace-section" style="text-align:center;padding:38px 20px">
+        <div style="font-size:15px;color:var(--text);margin-bottom:6px">Could not load this</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:${can ? '18px' : '0'}">${esc(msg)}</div>
+        ${can ? '<button class="btn btn-primary btn-sm" data-ws-retry>Retry</button>' : ''}
+      </div>`;
+    if (can) view.querySelector('[data-ws-retry]').addEventListener('click', () => {
+      view.innerHTML = loading();
+      retry();
+    });
+  }
   function wsAvatar(user) { return user.avatar ? `<img class="workspace-avatar" src="${esc(user.avatar)}" alt="Discord avatar" referrerpolicy="no-referrer">` : `<div class="workspace-avatar-fallback">${esc((user.name || '?')[0])}</div>`; }
   function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.display_name || user.name || 'Discord user')}</h2><p style="margin:4px 0;color:var(--muted)">@${esc(user.username || user.name || 'unknown')}</p><p>Discord ID · <span class="mono">${esc(user.id)}</span></p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
   function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
@@ -418,7 +485,7 @@
       view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Discord username','@'+(state.user.username||state.user.name||'Unknown'))}${wsStat('Display name',state.user.display_name||state.user.name||'Unknown')}${wsStat('Discord ID',state.user.id)}${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',state.accountLicense?(state.accountLicense.plan==='enterprise'?'Enterprise':'Personal'):(state.access?.admin||state.access?.heroshield?'Staff permission':'Inactive'))}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
       const opt=await api('/api/leaderboard-optin');
       view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
-    } catch(e){wsError(view,e);}
+    } catch(e){wsError(view, e, () => renderProfile(view));}
   }
   async function renderSubscription(view) {
     view.innerHTML=loading();
@@ -445,7 +512,7 @@
         ${scannerLicenses.map(l=>`<div class="workspace-card" style="margin:12px 0"><strong>${esc(l.label)}</strong><p class="workspace-note">${l.revoked_at?'Revoked':'Active'} · Created ${fmtDate(l.created_at)}</p><div class="workspace-actions"><code>${lic?.role==='owner'?esc(l.license_key):'••••••••'}</code>${lic?.role==='owner'?`<button class="btn btn-ghost btn-sm" data-copypin="${esc(l.license_key)}">Copy</button>`:''}${!l.revoked_at?`<button class="btn btn-primary btn-sm" data-use-license="${esc(l.id)}">View Scan PINs</button>`:''}</div></div>`).join('')||'<p class="workspace-note">No separate scanner PIN licenses assigned.</p>'}</div>`;
       if(window.hsLicenseTimer) clearInterval(window.hsLicenseTimer);
       const tick=()=>{const el=view.querySelector('#hs-license-countdown');if(!el)return;const t=Number(el.dataset.expiry);if(!t)return;const ms=t-Date.now();if(ms<=0){el.textContent='Expired';return;}const sec=Math.floor(ms/1000);el.textContent=`${Math.floor(sec/86400)}d ${String(Math.floor(sec%86400/3600)).padStart(2,'0')}h ${String(Math.floor(sec%3600/60)).padStart(2,'0')}m ${String(sec%60).padStart(2,'0')}s`;};tick();window.hsLicenseTimer=setInterval(tick,1000);
-    } catch(e){wsError(view,e);}
+    } catch(e){wsError(view, e, () => renderSubscription(view));}
   }
   async function renderEnterprise(view) {
     view.innerHTML=loading();
@@ -472,7 +539,7 @@
         try {await api('/api/licenses',{method:'POST',body:{action:'remove',identity:button.dataset.enterpriseRemove}});toast('Member removed');await renderEnterprise(view);}
         catch(e){toast(e.message,true);}
       }));
-    } catch(e){wsError(view,e);}
+    } catch(e){wsError(view, e, () => renderEnterprise(view));}
   }
   async function renderEnterpriseManagement(view) {
     view.innerHTML=loading();
@@ -482,7 +549,7 @@
       view.querySelectorAll('[data-rename-enterprise]').forEach(btn=>btn.addEventListener('click',async()=>{
         try{const id=btn.dataset.renameEnterprise;const name=view.querySelector('[data-rename-input="'+id+'"]').value.trim();await api('/api/enterprise-management',{method:'POST',body:{id,name}});toast('Enterprise renamed');await renderEnterpriseManagement(view);}catch(e){toast(e.message,true);}
       }));
-    }catch(e){wsError(view,e);}
+    }catch(e){wsError(view, e, () => renderEnterpriseManagement(view));}
   }
   async function renderLicenseList(view) {
     view.innerHTML = loading();
@@ -563,7 +630,7 @@
           await renderLicenseList(view);
         } catch (e) { toast(e.message, true); b.disabled = false; }
       }));
-    } catch (e) { wsError(view, e); }
+    } catch (e) { wsError(view, e, () => renderLicenseList(view)); }
   }
 
   async function renderWebhooks(view) {
@@ -581,7 +648,7 @@
         <p class="workspace-note">Only you can manage this webhook. Scan summaries are delivered for completed authorized scans.</p></div>`;
       view.querySelector('#hs-webhook-form').addEventListener('submit',async ev=>{ev.preventDefault();try{await api('/api/client-webhook',{method:'POST',body:{url:view.querySelector('#hs-webhook-url').value.trim(),enabled:view.querySelector('#hs-webhook-enabled').checked}});toast('Webhook saved');renderWebhooks(view);}catch(e){toast(e.message,true);}});
       view.querySelector('#hs-webhook-remove')?.addEventListener('click',async()=>{try{await api('/api/client-webhook',{method:'DELETE'});toast('Webhook removed');renderWebhooks(view);}catch(e){toast(e.message,true);}});
-    }catch(e){wsError(view,e);}
+    }catch(e){wsError(view, e, () => renderWebhooks(view));}
   }
   async function renderAnalytics(view) {
     view.innerHTML=loading();
@@ -590,7 +657,7 @@
       const d=await api(`/api/data?server=${encodeURIComponent(state.server)}&type=overview`);
       const days=d.days||[],max=Math.max(1,...days.map(x=>Number(x.count)||0));
       view.innerHTML=`<div class="workspace-hero"><div><h2>Server Analytics</h2><p>Live statistics from your selected server</p></div></div><div class="workspace-grid">${wsStat('Detections',fmtNum(d.stats?.detections))}${wsStat('Active bans',fmtNum(d.stats?.bans))}${wsStat('Unique players',fmtNum(d.stats?.players))}</div><div class="workspace-section"><h3>Last 7 days</h3><div class="bars">${days.map(x=>`<div class="bar-col"><b>${fmtNum(x.count)}</b><div class="bar" style="height:${Math.round(Number(x.count||0)/max*100)}%"></div><small>${esc(x.day)}</small></div>`).join('')}</div></div><div class="workspace-section"><h3>Top detection reasons</h3>${(d.top||[]).length?d.top.map(x=>`<div class="top-row"><span>${esc(x.reason)}</span><b>${fmtNum(x.n)}</b></div>`).join(''):'<p class="workspace-note">No detections recorded.</p>'}</div>`;
-    }catch(e){wsError(view,e);}
+    }catch(e){wsError(view, e, () => renderAnalytics(view));}
   }
   async function renderScanActivity(view) {
     view.innerHTML=loading();
@@ -598,7 +665,7 @@
       const {pins:all=[]}=await api('/api/pins');
       const used=all.filter(p=>p.used).length;
       view.innerHTML=`<div class="workspace-hero"><div><h2>Scan Activity</h2><p>Your authorized screenshare scan sessions</p></div></div><div class="workspace-grid">${wsStat('Recent PINs',all.length)}${wsStat('Used PINs',used)}${wsStat('Available PINs',all.length-used)}</div><div class="workspace-section"><h3>Recent sessions</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Server</th><th>PIN</th><th>Player</th><th>Status</th><th>Created</th></tr></thead><tbody>${all.slice(0,40).map(p=>`<tr><td>${esc(p.scanner_licenses?.label||'Scanner')}</td><td class="mono">${esc(p.pin)}</td><td>${esc(p.player||'—')}</td><td>${p.used?'Used':'Available'}</td><td>${fmtDate(p.created_at)}</td></tr>`).join('')||'<tr><td colspan="5">No scans yet</td></tr>'}</tbody></table></div><div class="workspace-actions"><button class="btn btn-primary" data-go="pins">Manage scan PINs</button></div></div>`;
-    }catch(e){wsError(view,e);}
+    }catch(e){wsError(view, e, () => renderScanActivity(view));}
   }
   async function renderRanking(view,metric='checks') {
     view.innerHTML=loading();
@@ -607,7 +674,7 @@
       if(d.degraded){ view.innerHTML='<div class="workspace-section"><h3>Leaderboard</h3><p>Ranking temporarily unavailable. Please retry later.</p></div>'; return; }
       view.innerHTML=`<div class="workspace-hero"><div><h2>Community Leaderboard</h2><p>Only users who opted in are shown. Findings are not proof of cheating.</p></div></div><div class="workspace-actions"><button class="btn ${metric==='checks'?'btn-primary':'btn-ghost'}" data-rank="checks">Top Checks</button><button class="btn ${metric==='findings'?'btn-primary':'btn-ghost'}" data-rank="findings">Top Findings</button></div><div class="workspace-section"><h3>${metric==='checks'?'Most completed checks':'Most reported findings'}</h3><div style="overflow-x:auto"><table class="workspace-table"><thead><tr><th>Rank</th><th>Discord user</th><th>${metric==='checks'?'Checks':'Findings'}</th></tr></thead><tbody>${(d.entries||[]).map((u,i)=>`<tr><td>#${i+1}</td><td style="display:flex;align-items:center;gap:10px">${u.avatar?`<img src="${esc(u.avatar)}" width="32" height="32" style="border-radius:50%" alt="">`:''}${esc(u.name)}</td><td><b>${fmtNum(u.value)}</b></td></tr>`).join('')||'<tr><td colspan="3">No opted-in results yet.</td></tr>'}</tbody></table></div></div>`;
       view.querySelectorAll('[data-rank]').forEach(b=>b.addEventListener('click',()=>renderRanking(view,b.dataset.rank)));
-    }catch(e){wsError(view,e);}
+    }catch(e){wsError(view, e, () => renderRanking(view));}
   }
 
   // ---------- views ----------
@@ -962,7 +1029,21 @@
     if (!state.reports[pin]) {
       view.innerHTML = loading();
       try { state.reports[pin] = (await api(`/api/pins?pin=${encodeURIComponent(pin)}`)).pin; }
-      catch (e) { view.innerHTML = `<button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:14px">← Back to PINs</button><div class="card empty">${esc(e.message)}</div>`; return; }
+      catch (e) {
+        // The Results view is the one people wait on, so it gets the full treatment: what
+        // happened, a Retry that fetches the report again, and the way back to the list.
+        view.innerHTML = `<button class="btn btn-ghost btn-sm" data-go="pins" style="margin-bottom:14px">← Back to PINs</button>
+          <div class="card empty" style="text-align:center;padding:34px 20px">
+            <div style="font-size:15px;color:var(--text);margin-bottom:6px">Could not open this report</div>
+            <div style="color:var(--muted);font-size:13px;margin-bottom:18px">${esc(e.message)}</div>
+            <button class="btn btn-primary btn-sm" data-report-retry>Retry</button>
+          </div>`;
+        view.querySelector('[data-report-retry]').addEventListener('click', () => {
+          delete state.reports[pin];          // without this the failure is cached and Retry does nothing
+          renderPinReport(view, pin, tab, q);
+        });
+        return;
+      }
     }
     const row = state.reports[pin];
     const r = row && row.report ? row.report : {};
@@ -1004,6 +1085,21 @@
     const macros = L('Macros');
     const hist = R('PcHistory') || null;
     const bh = R('BanHistory') || null;
+    const histBad = (hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0) + (bh ? bh.count || 0 : 0);
+    const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
+    const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
+    const uOrange = usbs.filter((x) => F(x, 'Level') >= 1).length + dets.filter((d) => F(d, 'Method') === 21).length;
+    const jRed2 = jumps.filter((x) => F(x, 'Level') === 2).length, jOrange2 = jumps.filter((x) => F(x, 'Level') === 1).length;
+    const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
+    const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
+    const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
+    const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
+
+    // NOTE: this block must stay AFTER `recent` is declared, just above.
+    // It used to sit twenty lines earlier and read `recent` there. `const` is hoisted but
+    // left uninitialised until its own line runs, so reading it early does not give undefined
+    // - it throws "Cannot access 'recent' before initialization". That threw while a report
+    // was being built, so the Results view never finished and the spinner turned for ever.
     // PC checker activity comes from the HeRoShield scan evidence, not staff imports.
     // A tool-name match is only a candidate; never fabricate a provider verdict.
     const checkerNames = ['Ocean.ac', 'Napse.ac', 'Echo AntiCheat', 'Paladin Anticheat',
@@ -1014,7 +1110,6 @@
       'Registry Explorer', 'PECmd', 'AmcacheParser', 'AppCompatCacheParser',
       'Timeline Explorer', 'Chainsaw', 'Hayabusa', 'Velociraptor', 'KAPE',
       'FTK Imager', 'Autopsy'];
-    const recent = L('RecentFiles');
     const checkerEvidence = [...executed, ...recent].flatMap(entry => {
       const raw = [F(entry, 'Name'), F(entry, 'Path'), F(entry, 'FileName'),
         F(entry, 'Executable'), F(entry, 'CommandLine')].filter(Boolean).join(' ');
@@ -1025,15 +1120,6 @@
         return normalized.length >= 5 && haystack.includes(normalized);
       }).map(name => ({ name, raw: raw.slice(0, 280) }));
     }).filter((item, index, all) => all.findIndex(x => x.name === item.name && x.raw === item.raw) === index);
-    const histBad = (hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0) + (bh ? bh.count || 0 : 0);
-    const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
-    const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
-    const uOrange = usbs.filter((x) => F(x, 'Level') >= 1).length + dets.filter((d) => F(d, 'Method') === 21).length;
-    const jRed2 = jumps.filter((x) => F(x, 'Level') === 2).length, jOrange2 = jumps.filter((x) => F(x, 'Level') === 1).length;
-    const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
-    const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
-    const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
-    const conns = L('NetworkConnections'), fw = L('FirewallRules');
     const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
     const browserDownloads = Array.isArray(R('BrowserDownloads')) ? R('BrowserDownloads') : [];
     const events = L('EventLogEntries').filter((e) => !(F(e, 'Category') === 'ServiceInstall' && /microsoft|system32\\drivers|\\windows\\/i.test(F(e, 'Message') || '')));
@@ -2583,14 +2669,14 @@
     if (t.dataset.live) return startLive(t.dataset.live, t.dataset.name);
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
-    if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin).catch(e => wsError($('#view'), e));
+    if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
     if (t.dataset.lookuppin !== undefined) {
       const code = ($('#pin-lookup').value || '').trim().toUpperCase();
       if (!code) return toast('Enter a PIN', true);
       const found = (state.pins || []).find((p) => p.pin === code);
       if (!found) return toast('No PIN like that on this server', true);
       if (!(found.used && found.report)) return toast('No result yet for ' + code + ' — the player has not finished the scan', true);
-      return renderPinReport($('#view'), code).catch(e => wsError($('#view'), e));
+      return renderPinReport($('#view'), code);
     }
     if (t.dataset.sgsave !== undefined) {
       if (!state.scannewbg) return toast('Choose an image first', true);
