@@ -107,12 +107,20 @@
   }
 
   async function api(path, opts = {}) {
-    const r = await fetch(path, {
+    const controller = new AbortController();
+    const timeoutMs = path.startsWith('/api/guild-info') ? 5000 : 12000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let r;
+    try { r = await fetch(path, {
+      signal: controller.signal,
       method: opts.method || 'GET',
       headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       credentials: 'same-origin',
     });
+    } catch (e) {
+      throw new Error(e.name === 'AbortError' ? `Request timed out after ${timeoutMs / 1000}s: ${path.split('?')[0]}` : (e.message || 'Network error'));
+    } finally { clearTimeout(timeoutId); }
     let data = {};
     try { data = await r.json(); } catch {}
     if (r.status === 401 && !path.includes('/api/me')) { showLogin(); throw new Error('Not logged in'); }
@@ -2574,14 +2582,14 @@
     if (t.dataset.live) return startLive(t.dataset.live, t.dataset.name);
     if (t.dataset.proof) return openProof(t.dataset.proof, t.dataset.name);
     if (t.dataset.go) return go(t.dataset.go);
-    if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin);
+    if (t.dataset.viewpin) return renderPinReport($('#view'), t.dataset.viewpin).catch(e => wsError($('#view'), e));
     if (t.dataset.lookuppin !== undefined) {
       const code = ($('#pin-lookup').value || '').trim().toUpperCase();
       if (!code) return toast('Enter a PIN', true);
       const found = (state.pins || []).find((p) => p.pin === code);
       if (!found) return toast('No PIN like that on this server', true);
       if (!(found.used && found.report)) return toast('No result yet for ' + code + ' — the player has not finished the scan', true);
-      return renderPinReport($('#view'), code);
+      return renderPinReport($('#view'), code).catch(e => wsError($('#view'), e));
     }
     if (t.dataset.sgsave !== undefined) {
       if (!state.scannewbg) return toast('Choose an image first', true);
