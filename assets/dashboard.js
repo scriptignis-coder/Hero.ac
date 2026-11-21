@@ -17,7 +17,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', licenselist: 'License list', filecheck: 'File Check', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', licenselist: 'License list', filecheck: 'File Check', signatures: 'My Strings', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   // The verdict on a PIN, in one word and one colour. The scanner writes 'cheating',
   // 'clean' or 'suspicious'; staff read the table fastest when the word matches the colour
@@ -301,7 +301,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenselist:'heroshield', filecheck:'herocheck'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenselist:'heroshield', filecheck:'herocheck', signatures:'herocheck'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -366,7 +366,10 @@
     // Server analytics are intentionally not exposed in scanner-only mode.
     // FiveM server management is not part of this scanner-only workspace.
     // v32: Discord check and Signatures pages were removed — the scan reads the Discord servers by itself and the scanner has its own signatures
-    if (state.tab === 'discord' || state.tab === 'signatures') state.tab = 'pins';
+    // v79 — Signatures is a page again. It was being bounced to Scan PINs, which left the
+    // operator's own detection rules with no way in at all. Discord still redirects: that one
+    // really did move into the report.
+    if (state.tab === 'discord') state.tab = 'pins';
     if (state.tab === 'scanner') return renderScanner(view);
     if (state.tab === 'pins') {
       // show the last list at once, then refresh it in the background
@@ -479,6 +482,16 @@
   function wsHero(user, sub) { return `<div class="workspace-hero">${wsAvatar(user)}<div><h2>${esc(user.display_name || user.name || 'Discord user')}</h2><p style="margin:4px 0;color:var(--muted)">@${esc(user.username || user.name || 'unknown')}</p><p>Discord ID · <span class="mono">${esc(user.id)}</span></p>${sub ? `<p>${sub}</p>` : ''}</div></div>`; }
   function wsStat(label, value) { return `<div class="workspace-card"><small>${esc(label)}</small><strong>${esc(value)}</strong></div>`; }
   function wsAccess() { const a=state.user.access || {}; if (a.viewer) return 'Admin (test) — view only'; return [a.admin&&'Admin',a.heroshield&&'Staff',a.herocheck&&'Scanner'].filter(Boolean).join(' · ') || 'No staff permissions'; }
+
+  // The name and logo beside the shield, from the operator's saved appearance.
+  function applyBrand() {
+    const p = (window.HSAppearance && window.HSAppearance.read()) || {};
+    const t = document.querySelector('.brand span, .brand b, .brand');
+    if (t && p.brand) t.textContent = p.brand;
+    const img = document.querySelector('.brand img');
+    if (img && p.logo) img.src = p.logo;
+  }
+
   async function renderProfile(view) {
     view.innerHTML=loading();
     try {
@@ -486,6 +499,99 @@
       view.innerHTML=wsHero(state.user,'Your connected Discord identity')+`<div class="workspace-grid">${wsStat('Discord username','@'+(state.user.username||state.user.name||'Unknown'))}${wsStat('Display name',state.user.display_name||state.user.name||'Unknown')}${wsStat('Discord ID',state.user.id)}${wsStat('Staff permissions',wsAccess())}${wsStat('Scanner access',(state.access?.herocheck || state.access?.admin)?'Granted':'Not granted')}${wsStat('Access time', state.user?.expires_at ? (Date.parse(state.user.expires_at) > Date.now() ? 'Until ' + fmtDate(state.user.expires_at) : 'Expired') : 'Lifetime')}${wsStat('License',state.accountLicense?(state.accountLicense.plan==='enterprise'?'Enterprise':'Personal'):(state.access?.admin||state.access?.heroshield?'Staff permission':'Inactive'))}</div><div class="workspace-section"><h3>Account details</h3><p class="workspace-note">Your profile and avatar come from your authenticated Discord session. Permissions are managed by the HeRoShield administrator; a purchase does not grant staff privileges.</p><div class="workspace-actions"><button class="btn btn-primary" data-go="subscription">View license</button><button class="btn btn-ghost" data-go="pins">Scan PINs</button><a class="btn btn-ghost" href="/api/auth/logout">Log out</a></div></div>`;
       const opt=await api('/api/leaderboard-optin');
       view.innerHTML+=`<div class="workspace-section"><h3>Profile settings</h3><p class="workspace-note">Your name and avatar sync from Discord. Control whether your profile appears in the public leaderboard.</p><label style="display:flex;gap:12px;align-items:center"><input type="checkbox" id="profile-optin" ${opt.opted_in?'checked':''}> Show my Discord name/avatar on the leaderboard</label><div class="workspace-actions"><button class="btn btn-primary" data-saveprofile>Save settings</button></div></div>`;
+      // ── Appearance ──────────────────────────────────────────────────────────────────
+      // The operator's own colour, name and picture. It is kept in this browser rather than
+      // on the server: it changes nothing a teammate sees, so there is nothing to sync and
+      // nothing that can fail. The brand line at the top of the sidebar updates live.
+      const A = window.HSAppearance;
+      if (A) {
+        const pref = A.read() || {};
+        const cur = (A.PRESETS.find((p) => p.id === pref.preset) || A.PRESETS[0]);
+        // insertAdjacentHTML, not innerHTML +=. The second one re-parses everything already
+        // on the page, which silently throws away every listener attached before it — that is
+        // why the colour buttons below did nothing the first time this was written.
+        view.insertAdjacentHTML('beforeend', `<div class="workspace-section"><h3>Appearance</h3>
+          <p class="workspace-note">Your colour, your name, your logo. Saved in this browser — your staff keep their own.</p>
+
+          <label style="display:block;margin:16px 0 8px;font-size:13px;color:var(--muted)">Colour</label>
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            ${A.PRESETS.map((p) => `<button data-ap-preset="${p.id}" title="${esc(p.name)}"
+                 style="width:30px!important;height:30px!important;min-width:0!important;padding:0!important;
+                        border-radius:50%!important;background:${p.accent}!important;cursor:pointer;
+                        border:2px solid ${(pref.accent || cur.accent) === p.accent ? '#fff' : 'transparent'}!important;
+                        box-shadow:0 0 0 1px var(--line2)"></button>`).join('')}
+            <input type="color" data-ap-custom value="${esc(pref.accent || cur.accent)}"
+                   title="Any colour" style="width:34px;height:30px;padding:0;border:none;background:none;cursor:pointer">
+          </div>
+
+          <label style="display:block;margin:18px 0 8px;font-size:13px;color:var(--muted)">
+            Background — <span data-ap-depthlabel>${pref.depth > 0.5 ? 'lighter' : 'black'}</span></label>
+          <input type="range" data-ap-depth min="0" max="1" step="0.1" value="${pref.depth || 0}" style="width:220px">
+
+          <label style="display:block;margin:18px 0 8px;font-size:13px;color:var(--muted)">Name beside the logo</label>
+          <input class="input" data-ap-name maxlength="24" placeholder="HeRo Shield" value="${esc(pref.brand || '')}" style="max-width:320px">
+
+          <label style="display:block;margin:16px 0 8px;font-size:13px;color:var(--muted)">Logo</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <img data-ap-logopreview src="${esc(pref.logo || '/assets/hero-icon.png')}" alt=""
+                 style="width:38px;height:38px;border-radius:9px;object-fit:cover;background:var(--s2)">
+            <button class="btn btn-ghost btn-sm" data-ap-logopick>Choose an image</button>
+            ${pref.logo ? '<button class="btn btn-ghost btn-sm" data-ap-logoclear>Remove</button>' : ''}
+            <input type="file" accept="image/*" hidden data-ap-logofile>
+          </div>
+
+          <div class="workspace-actions" style="margin-top:18px">
+            <button class="btn btn-primary" data-ap-save>Save appearance</button>
+            <button class="btn btn-ghost" data-ap-reset>Back to default</button>
+          </div></div>`);
+
+        const draft = { ...pref };
+        const live = () => A.apply(draft);
+        const q = (sel) => view.querySelector(sel);
+
+        view.querySelectorAll('[data-ap-preset]').forEach((b) => b.addEventListener('click', () => {
+          const p = A.PRESETS.find((x) => x.id === b.dataset.apPreset);
+          draft.preset = p.id; draft.accent = p.accent; draft.ground = p.ground;
+          view.querySelectorAll('[data-ap-preset]').forEach((o) => o.style.setProperty(
+            'border-color', o.dataset.apPreset === p.id ? '#fff' : 'transparent', 'important'));
+          q('[data-ap-custom]').value = p.accent;
+          live();
+        }));
+        q('[data-ap-custom]').addEventListener('input', (e) => {
+          draft.accent = e.target.value;
+          view.querySelectorAll('[data-ap-preset]').forEach((o) => o.style.setProperty('border-color', 'transparent', 'important'));
+          live();
+        });
+        q('[data-ap-depth]').addEventListener('input', (e) => {
+          draft.depth = parseFloat(e.target.value);
+          q('[data-ap-depthlabel]').textContent = draft.depth > 0.5 ? 'lighter' : 'black';
+          live();
+        });
+        q('[data-ap-logopick]').addEventListener('click', () => q('[data-ap-logofile]').click());
+        q('[data-ap-logofile]').addEventListener('change', (e) => {
+          const f = e.target.files[0];
+          if (!f) return;
+          // 512 KB: it is stored as a data URL in this browser, and localStorage is small.
+          if (f.size > 512 * 1024) return toast('Pick an image under 512 KB', true);
+          const fr = new FileReader();
+          fr.onload = () => { draft.logo = String(fr.result); q('[data-ap-logopreview]').src = draft.logo; };
+          fr.readAsDataURL(f);
+        });
+        q('[data-ap-logoclear]')?.addEventListener('click', () => {
+          delete draft.logo;
+          q('[data-ap-logopreview]').src = '/assets/hero-icon.png';
+        });
+        q('[data-ap-save]').addEventListener('click', () => {
+          draft.brand = q('[data-ap-name]').value.trim();
+          A.save(draft);
+          applyBrand();
+          toast('Appearance saved');
+        });
+        q('[data-ap-reset]').addEventListener('click', () => {
+          A.reset(); applyBrand(); renderProfile(view); toast('Back to the default look');
+        });
+      }
+
     } catch(e){wsError(view, e, () => renderProfile(view));}
   }
   async function renderSubscription(view) {
@@ -1088,6 +1194,42 @@
       .rp-cat .n.green { background:rgba(16,185,129,.15); color:#34d399 } .rp-cat .n.yellow { background:rgba(234,179,8,.14); color:#facc15 }
       .rp-cat .n.purple { background:rgba(168,85,247,.15); color:#c084fc } .rp-cat .n.blue { background:rgba(59,130,246,.15); color:#93c5fd }
       .rp-sep { height:1px; background:var(--line); margin:8px 4px }
+      /* v81 - PC & accounts: the map and the two panels beside it. Static only: no
+         backdrop-filter, no blur, no animated gradient, so a scroll never repaints. */
+      .hs-acc-wrap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start }
+      @media (max-width:1180px) { .hs-acc-wrap { grid-template-columns:minmax(0,1fr) } }
+      .hs-acc-col { display:flex; flex-direction:column; gap:14px; min-width:0 }
+      .hs-pane { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 15px; min-width:0 }
+      .hs-pane.map { display:flex; flex-direction:column; justify-content:center; padding:18px }
+      .hs-pane.warn { border-color:rgba(244,63,94,.28) }
+      .hs-pane-h { display:flex; align-items:center; gap:8px; font:700 13.5px var(--font); color:var(--text); margin:0 0 12px }
+      .hs-pane-h span { font-weight:600; font-size:11.5px; color:var(--dim); background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:999px; padding:1px 8px }
+      .hs-map { position:relative; width:100%; max-width:420px; margin:0 auto; aspect-ratio:1 }
+      .hs-map svg { position:absolute; inset:0; width:100%; height:100% }
+      .hs-map svg circle.hs-map-ring { fill:none; stroke:var(--line); stroke-width:.35; stroke-dasharray:1.4 2.2 }
+      .hs-map svg line.hs-map-link { stroke-width:.3; opacity:.45 }
+      .hs-map-pc { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center;
+        display:flex; flex-direction:column; align-items:center; gap:2px; width:min(62%,200px) }
+      .hs-map-core { width:58px; height:58px; border-radius:50%; display:grid; place-items:center; font:800 14px var(--font);
+        letter-spacing:.5px; color:#fff; background:var(--accent,#4a8cf7); box-shadow:0 0 0 7px var(--accent-ring,rgba(74,140,247,.18)); margin-bottom:8px }
+      .hs-map-pc b { font-size:13.5px; color:var(--text) }
+      .hs-map-pc span { font-size:11.5px; color:var(--muted); line-height:1.45 }
+      .hs-map-vpn { color:#ffb35c !important; font-weight:600 }
+      .hs-map-node { position:absolute; transform:translate(-50%,-50%); width:38px; height:38px; border-radius:50%;
+        border:2px solid; background:var(--card); display:grid; place-items:center; overflow:hidden }
+      .hs-map-node img { width:100%; height:100%; object-fit:cover }
+      .hs-map-node em { font-style:normal; font-weight:700; font-size:14px; color:var(--text) }
+      .hs-map-key { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:12px; font-size:11.5px; color:var(--muted) }
+      .hs-map-key i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle }
+      .hs-srv { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:11px;
+        background:rgba(255,255,255,.025); border:1px solid var(--line); border-left:3px solid var(--line) }
+      .hs-srv.red { border-left-color:#f43f5e } .hs-srv.orange { border-left-color:#f59e0b }
+      .hs-srv > img, .hs-srv > em { width:38px; height:38px; border-radius:12px; flex:none; object-fit:cover; background:#5865f2;
+        display:grid; place-items:center; font-style:normal; font-weight:700; color:#fff }
+      .hs-srv > div { flex:1; min-width:0 }
+      .hs-srv b { color:var(--text); font-size:14px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+      .hs-srv-why { color:var(--muted); font-size:12px; margin-top:2px }
+      .hs-srv-id { color:var(--dim); font-size:11px; margin-top:2px }
       .rp-head { display:flex; align-items:center; gap:10px; margin:2px 0 14px; font:600 17px var(--font) }
       .rp-head .cnt { color:var(--dim); font-weight:500; font-size:13px }
       .rp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px }
@@ -1433,24 +1575,22 @@
     // anything: the order was historical, not meaningful. Named groups say what each run of
     // buttons is FOR, so somebody who wants "what ran on this PC" knows to look under
     // EXECUTION instead of reading all twenty-six.
-    const cats = [
+    const catsRaw = [
       { group: 'Detections' },
       ['overview', 'Overview', '', 'blue'],
       ['detects', 'Detects', dets.length, 'red'],
       ['timeline', 'Timeline 24h', tRed ? tRed + ' cheat' : tOrange ? tOrange + ' check' : timeline.length || '–', tRed ? 'red' : tOrange ? 'orange' : 'blue'],
       ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
       ['warnings', 'Warnings', warns.length, 'orange'],
-      ['mystrings', 'My Strings', myStrings.length, 'orange'],
-      ['dma', 'DMA', dma.length, dma.length ? 'red' : 'blue'],
+      R('Hardware') ? ['dma', 'DMA', dma.length, dma.length ? 'red' : 'blue'] : null,
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
       ['entropy', 'Entropy', entropy.length, 'purple'],
       ['fivem', gName, fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
-      ['discord', 'Discord', discRed ? discRed + ' cheat' : discOrange ? discOrange + ' check' : dc ? guilds.length : '–', discRed ? 'red' : discOrange || !dc ? 'orange' : 'blue'],
       { group: 'Execution' },
-      ['bam', 'BAM', bam.length, 'red'],
-      ['datausage', 'Data usage', dataUse.length, 'orange'],
-      ['pcasvc', 'PcaSvc', pca.length, 'blue'],
-      ['hollows', 'Hollows Hunter', hollows.length, hollows.length ? 'red' : 'blue'],
+      bam.length      ? ['bam', 'BAM', bam.length, 'red'] : null,
+      dataUse.length  ? ['datausage', 'Data usage', dataUse.length, 'orange'] : null,
+      pca.length      ? ['pcasvc', 'PcaSvc', pca.length, 'blue'] : null,
+      R('Memory')     ? ['hollows', 'Hollows Hunter', hollows.length, hollows.length ? 'red' : 'blue'] : null,
       ['exec', 'Programs that ran', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
@@ -1466,15 +1606,22 @@
       ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['events', 'Event log', events.length, 'blue'],
       ['deleted', 'Deleted files', deleted.length, deleted.length ? 'red' : 'blue'],
-      ['dnshistory', 'DNS history', dns.length, 'blue'],
+      dns.length ? ['dnshistory', 'DNS history', dns.length, 'blue'] : null,
       ['browserhistory', 'Browser history', browserHistory.length, 'blue'],
       ['browserdownloads', 'Browser downloads', browserDownloads.length, 'blue'],
       { group: 'Session' },
       ['pc', 'PC & accounts', '', 'blue'],
     ];
+    // A tab the scanner collected nothing for is left out rather than shown empty: "DMA: 0"
+    // reads as "we looked and there is no DMA board", which is a different claim from "this
+    // scanner does not read hardware", and only one of them is true for an older report.
+    const cats = catsRaw.filter(Boolean);
+
     tab = tab || (dets.length ? 'detects' : 'overview');
     // Player history was removed; an old link or a remembered tab must not open a blank pane.
     if (tab === 'pchistory') tab = 'overview';
+    // v81 - the Discord tab is gone. Its one useful half (the cheat servers) is in PC & accounts.
+    if (tab === 'discord') tab = 'pc';
     if (!cats.some((c) => Array.isArray(c) && c[0] === tab)) tab = 'overview';
     const total = dets.length + warns.length + susp.length + entropy.length;
 
@@ -1538,74 +1685,6 @@
       entropy: () => head('Entropy', entropy.length, 'Programs whose content is packed / encrypted (entropy > 7.2 of 8) and unsigned — cheats do this to hide their strings.')
         + rows(fl(entropy, 'Path', 'Kind').map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
 
-      discord: () => {
-        const ago = (d) => (d ? fmtDate(d) : '?');
-        const icon = (g) => (discordIcon(g) ? `<img src="${esc(discordIcon(g))}" alt="" onerror="this.outerHTML='<div class=&quot;gi&quot;>${esc(((g && g.name) || '?')[0])}</div>'">` : `<div class="gi">${esc(((g && g.name) || '?')[0])}</div>`);
-        const gcard = (g, c, tag, sub = '') => `<div class="rp-card ${c}"><div class="rp-guild">${icon(g)}
-            <div style="flex:1;min-width:0"><div class="rp-title" style="padding:0">${esc(g.name || 'Unknown server')}</div><div class="mono" style="color:var(--dim);font-size:11px">${esc(g.id || (g.inv ? 'invite discord.gg/' + g.inv : ''))}${g.owner ? ' · owner' : ''}</div>
-            ${sub ? `<div style="color:var(--muted);font-size:12px;margin-top:4px">${sub}</div>` : ''}</div>
-            ${tag ? `<span class="rp-tag">${tag}</span>` : ''}</div></div>`;
-        const legend = state.cheatServers.length ? `Red = in your cheat-server list (${state.cheatServers.length}). Orange = the server name looks like a cheat shop.` : 'Read automatically from the player\'s PC. Orange = the server name looks like a cheat shop.';
-
-        // 1) servers he LEFT — from the PC (Discord / browser cache) and from his earlier checks
-        const leftCards = [
-          ...pastCheat.map((x) => gcard({ id: x.id, name: x.name, inv: x.inv, icon: x.icon }, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
-            `Not in it any more — found on this PC (${esc(x.src.slice(0, 3).join(', '))}) · last seen ${esc(ago(x.last))}${x.first && x.first !== x.last ? ' · first seen ' + esc(ago(x.first)) : ''}`)),
-          ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => gcard(x, x.listed ? 'red' : 'orange', x.listed ? 'LEFT · CHEAT SERVER' : 'LEFT · looks like cheat',
-            byId ? `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — may still be in it` : `He was in it at his check of ${esc(ago(x.at))} (PIN ${esc(x.pin)}) — left since`)),
-        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
-        const leftSection = head('Cheat servers he LEFT', leftCards.length, 'Leaving a server does not erase it: Discord and the browsers keep the server icons, invite pages and channel links on the PC, and earlier checks keep his old server list.')
-          + grid(leftCards, L('DiscordTraces').length || history.length ? 'No cheat server found in his past servers.' : 'No Discord traces on the PC (cache cleared, or an older scanner) and no earlier check.');
-
-        // 2) all servers he was in before but not now (not cheat-looking)
-        const otherRows = [
-          ...[...leftList.filter((x) => !x.listed && !x.nameHit)].map((x) => rowL('', `<span style="display:inline-flex;align-items:center;gap:10px">${x.icon ? `<img src="https://cdn.discordapp.com/icons/${esc(x.id)}/${esc(x.icon)}.png?size=32" alt="" onerror="this.style.visibility='hidden'" style="width:24px;height:24px;border-radius:50%">` : ''}<b style="color:var(--text)">${esc(x.name)}</b> <span class="mono" style="color:var(--dim)">${esc(x.id)}</span></span>`, 'left after ' + esc(ago(x.at)))),
-          ...pastOther.filter((x) => !leftSince.has(x.id)).map((x) => rowL('', `<span style="display:inline-flex;align-items:center;gap:10px">${x.icon ? `<img src="https://cdn.discordapp.com/icons/${esc(x.id)}/${esc(x.icon)}.png?size=32" alt="" onerror="this.style.visibility='hidden'" style="width:24px;height:24px;border-radius:50%">` : `<span style="width:24px;height:24px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${esc(((x.name || '?')[0] || '?').toUpperCase())}</span>`}${x.name ? `<b style="color:var(--text)">${esc(x.name)}</b>` : '<span style="color:var(--dim)">Unknown name</span>'} <span class="mono" style="color:var(--dim)">${esc(x.id)}</span></span>`, 'seen on PC ' + esc(ago(x.last)))),
-        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
-        const otherSection = `<div style="height:18px"></div>` + head('Other servers he is not in now', otherRows.length, 'Servers seen on the PC or in earlier checks that he is not in today. Without a name = only the server ID is known (open discord.com/channels/ID if you share it).')
-          + rows(otherRows.slice(0, 300), 'None.');
-
-        const joinedSection = joinedSince.length ? `<div style="height:18px"></div>` + head('Joined since his last check', joinedSince.length, `Servers he is in now but was not in at his check of ${esc(ago(lastHist.discord_check.at || lastHist.created_at))}.`)
-          + grid(joinedSince.filter((g) => match(g.name, g.id)).map((g) => gcard(g, cheatIds.has(String(g.id)) ? 'red' : CHEAT_NAME.test(g.name || '') ? 'orange' : 'grey', 'NEW')), '') : '';
-
-        const lookupBox = (title, tag, note) => `<div class="rp-card ${dc ? 'blue' : 'orange'}" style="margin-bottom:16px"><div class="rp-top"><div class="rp-ic">${IC.disc}</div>
-            <div class="rp-title">${title}</div><span class="rp-tag">${tag}</span></div>
-            <div class="rp-txt">${note}</div>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <input id="disc-id" class="input mono" style="flex:1;min-width:220px" placeholder="Discord ID (17–20 digits)" value="${esc((dc && dc.source === 'id' && dc.user && dc.user.id) || localDiscord || '')}">
-              <button class="btn btn-primary" data-dlookup>Check this Discord</button></div>
-            ${localDiscord ? `<div class="rp-txt" style="margin-top:8px">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}
-            <div class="rp-txt" style="color:var(--dim);margin-top:8px">Servers he is in and left are read from the PC (Discord & browser cache) — no login needed. With the ID, the site also gets his profile and checks every server <b>your bot</b> is in. Optional: the player can still log in at <span class="mono">${esc(location.origin)}/verify?pin=${esc(pin)}</span> for his full server list.</div></div>`;
-        // v76 — no ID box here.
-        //
-        // It asked staff to type an id that the scanner had already read off the PC, and the
-        // list under it filled with hundreds of "Unknown name" rows — server ids with no name,
-        // which tell nobody anything. The account itself, with its picture and its name, is in
-        // PC & accounts now, one button per account. This tab is for the SERVERS.
-        if (!dc) return `<p style="color:var(--dim);font-size:12.5px;margin:0 0 14px">${legend}</p>`
-          + leftSection + otherSection;
-
-        const u = dc.user || {};
-        const mismatch = localDiscord && u.id && String(localDiscord) !== String(u.id);
-        const nowCards = [
-          ...cheatGuilds.map((g) => gcard(g, 'red', 'IN NOW · CHEAT SERVER', g.joined ? `Joined ${esc(ago(g.joined))}` : '')),
-          ...nameGuilds.map((g) => gcard(g, 'orange', 'IN NOW · looks like cheat', g.joined ? `Joined ${esc(ago(g.joined))}` : '')),
-          ...guilds.filter((g) => !cheatIds.has(String(g.id)) && !CHEAT_NAME.test(g.name || '')).map((g) => gcard(g, 'grey', '')),
-        ].filter((h) => match(h.replace(/<[^>]+>/g, ' ')));
-        return `<div class="rp-card ${discRed ? 'red' : discOrange ? 'orange' : 'green'}" style="margin-bottom:16px"><div class="rp-guild">
-            ${u.avatar ? `<img src="${esc(u.avatar)}" alt="" style="border-radius:50%">` : `<div class="gi">${IC.disc}</div>`}
-            <div style="flex:1"><div class="rp-title" style="padding:0">${esc(u.name)} <span style="color:var(--dim);font-weight:400">@${esc(u.username)}</span></div>
-              <div class="mono" style="color:var(--dim);font-size:11.5px">${esc(u.id)} · account created ${esc((u.created || '').slice(0, 10))} · ${dc.source === 'id' ? 'checked by ID' : 'connected'} ${fmtDate(dc.at)}</div></div>
-            <span class="rp-tag">${discRed ? discRed + ' cheat server' + (discRed > 1 ? 's' : '') + ' (now + left)' : discOrange ? discOrange + ' to check' : 'No cheat servers'}</span></div>
-            ${mismatch ? `<div class="rp-txt" style="color:#fbbf24">⚠ The Discord logged in on the PC (${esc(localDiscord)}) is NOT the one ${dc.source === 'id' ? 'checked here' : 'connected here'} — the player may be hiding his main account.</div>` : ''}
-          </div>
-          ${dc.source === 'id' ? lookupBox('Checked by Discord ID', dc.bot ? `${dc.botServers} bot servers checked` : 'No bot set', dc.bot ? 'Profile and the servers your bot is in were checked. Check another ID:' : 'Set DISCORD_BOT_TOKEN on Render to get his profile and the servers your bot is in. The PC traces below work without it.') : ''}
-          <p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>
-          ${head(dc.source === 'id' ? 'Servers he is in (servers your bot is in)' : 'Servers he is in now', guilds.length)}
-          ${grid(nowCards, dc.source === 'id' ? 'He is in none of the servers your bot is in.' : 'The player is in no servers.')}
-          <div style="height:18px"></div>${leftSection}${joinedSection}${otherSection}`;
-      },
-
       fivem: () => {
         const lvC = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : 'green');
         const lvT = (x) => (F(x, 'Level') === 2 ? 'CHEAT' : F(x, 'Level') === 1 ? 'Check' : 'OK');
@@ -1630,15 +1709,6 @@
       exec: () => head('Execution history', executed.length, 'Programs Windows recorded running (Prefetch, BAM, PCA, UserAssist, ShimCache) — even if deleted since.')
         + rows(executed.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
           rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), `${esc(F(e, 'LastRun'))} · ${esc(F(e, 'Source'))}`)), 'No execution history — it may have been wiped.'),
-
-      mystrings: () => head('My Strings', myStrings.length,
-          'Files caught by a string YOU added, not by the list that ships with the scanner. These are your own rules earning their keep.')
-        + rows(myStrings.filter((d) => match(F(d, 'File'), F(d, 'Path'))).map((d) =>
-          rowL(F(d, 'Severity') === 2 ? 'red' : 'orange',
-            `<b style="color:var(--text)">${esc(F(d, 'Signature'))}</b>`
-            + `<div class="mono" style="color:var(--dim);font-size:11.5px;margin-top:3px;word-break:break-all">${esc(F(d, 'Path') || F(d, 'File'))}</div>`,
-            esc(F(d, 'When') || ''))),
-          'Nothing matched a string of your own. Add them under Scanner → signatures.'),
 
       dma: () => head('DMA & cheat hardware', dma.length,
           'A DMA board reads the game\'s memory from a second PC, so nothing cheat-like ever runs on this one. It is found by the device it leaves behind, not by a file.')
@@ -2002,16 +2072,113 @@
           </div>`;
         };
 
-        const accounts = head('Discord accounts used on this PC', accs.length,
-            'Every Discord account this PC has signed into — not only the one open now. Signing out does not remove an account from this list. '
-            + 'Blue = signed in right now. Orange = signed out but used on this PC, which is the account worth checking. Press Check to run your bot on it.')
-          + (accs.length
+        // ── v81 · the map ────────────────────────────────────────────────────────────────
+        // Everything this PC is tied to, drawn around the PC itself: the Discord accounts that
+        // signed in on it (inner ring) and the cheat servers those accounts are — or were — in
+        // (outer ring). It is the same data as the list beside it. The picture is there so the
+        // shape is read in one look: one account and nothing around it is a different machine
+        // from three accounts with two cheat shops orbiting them.
+        //
+        // Nothing here is decorative. A ring with no dots means the scan found nothing to put
+        // on it, and it says so in words underneath.
+        const net = R('Net') || {};
+        const warnSeen = new Set();
+        const gIcon = (id, icon) => (id && icon ? `https://cdn.discordapp.com/icons/${id}/${icon}.png?size=64` : '');
+        const warnServers = [
+          ...cheatGuilds.map((g) => ({ id: String(g.id), name: g.name || 'Unknown server', icon: discordIcon(g), listed: true, where: 'In it right now' })),
+          ...nameGuilds.map((g) => ({ id: String(g.id), name: g.name || 'Unknown server', icon: discordIcon(g), listed: false, where: 'In it right now' })),
+          ...pastCheat.map((x) => ({ id: x.id, inv: x.inv, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
+            where: 'Left it — the traces are still on the PC' + (x.last ? ' · last seen ' + fmtDate(x.last) : '') })),
+          ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => ({ id: x.id, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
+            where: `Still in it at his check of ${fmtDate(x.at)} (PIN ${x.pin})` })),
+        ].filter((s) => { const k = s.id || 'inv:' + (s.inv || ''); if (!k || warnSeen.has(k)) return !!k && false; warnSeen.add(k); return true; })
+         .sort((a, b) => (b.listed ? 1 : 0) - (a.listed ? 1 : 0));
+
+        // Node positions: polar, in percent of the square, so the map scales with the column
+        // and needs no measuring at runtime.
+        const polar = (r, i, n, off) => {
+          const a = ((off + (360 / Math.max(n, 1)) * i) - 90) * Math.PI / 180;
+          return [50 + r * Math.cos(a), 50 + r * Math.sin(a)];
+        };
+        const ringNodes = (list, r, off, cls) => list.map((x, i) => {
+          const [cx, cy] = polar(r, i, list.length, off);
+          return { x: cx, y: cy, cls, ...x };
+        });
+        const mapNodes = [
+          ...ringNodes(accs.map((a) => {
+            const pr = (state.dprofiles || {})[a.id] || {};
+            return { label: pr.display || a.id, img: pr.avatar || '', kind: a.current ? 'acc-now' : 'acc-old' };
+          }), 30, 18, 'acc'),
+          ...ringNodes(warnServers.slice(0, 10).map((s) => ({ label: s.name, img: s.icon, kind: s.listed ? 'srv-red' : 'srv-orange' })), 44, 55, 'srv'),
+        ];
+        const COL = { 'acc-now': 'var(--accent,#4a8cf7)', 'acc-old': '#f59e0b', 'srv-red': '#f43f5e', 'srv-orange': '#f59e0b' };
+        const radar = `<div class="hs-map">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle cx="50" cy="50" r="44" class="hs-map-ring"></circle>
+            <circle cx="50" cy="50" r="30" class="hs-map-ring"></circle>
+            <circle cx="50" cy="50" r="16" class="hs-map-ring"></circle>
+            ${mapNodes.map((n) => `<line x1="50" y1="50" x2="${n.x.toFixed(2)}" y2="${n.y.toFixed(2)}" class="hs-map-link" style="stroke:${COL[n.kind]}"></line>`).join('')}
+          </svg>
+          <div class="hs-map-pc">
+            <div class="hs-map-core">PC</div>
+            <b>This PC</b>
+            <span>${esc((S('Os') || 'Windows') + (S('WinBuild') ? ' · ' + S('WinBuild') : ''))}</span>
+            <span>${net.country
+              ? esc(net.country) + (net.vpn ? '' : '')
+              : '<i style="color:var(--dim);font-style:normal">Country unknown</i>'}</span>
+            ${net.vpn ? `<span class="hs-map-vpn">${esc(net.vpnKind || 'VPN or proxy')}</span>` : ''}
+          </div>
+          ${mapNodes.map((n) => `<span class="hs-map-node ${n.cls}" title="${esc(n.label)}"
+              style="left:${n.x.toFixed(2)}%;top:${n.y.toFixed(2)}%;border-color:${COL[n.kind]}">
+              ${n.img ? `<img src="${esc(n.img)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()">` : `<em>${esc(((n.label || '?').trim()[0] || '?').toUpperCase())}</em>`}
+            </span>`).join('')}
+        </div>
+        <div class="hs-map-key">
+          <span><i style="background:var(--accent,#4a8cf7)"></i>Signed in now</span>
+          <span><i style="background:#f59e0b"></i>Used before / to check</span>
+          <span><i style="background:#f43f5e"></i>Cheat server</span>
+        </div>
+        ${!mapNodes.length ? '<p class="rp-txt" style="text-align:center;color:var(--dim)">Nothing is tied to this PC yet — no Discord account was found on it and no cheat server was traced.</p>' : ''}`;
+
+        // ── the two panels on the right ──────────────────────────────────────────────────
+        const onPc = `<div class="hs-pane">
+          <div class="hs-pane-h">On this PC<span>${accs.length}</span></div>
+          ${accs.length
             ? `<div style="display:flex;flex-direction:column;gap:8px">${accs.map(accRow).join('')}</div>`
-              + (extra ? `<div class="rp-txt" style="color:#fbbf24;margin-top:10px">⚠ ${extra} other Discord account${extra > 1 ? 's have' : ' has'} been used on this PC besides the one signed in now.</div>` : '')
-            : `<p style="color:var(--dim);font-size:12.5px">No Discord account list on this PC — Discord is not installed, or the player used an older scanner (needs v4.11+).</p>`)
-          + (notUsers.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin-top:10px">
-              ${notUsers.length} other ID${notUsers.length > 1 ? 's' : ''} found in Discord's storage ${notUsers.length > 1 ? 'are' : 'is'} not a user account
-              (a server or a channel). Not shown.</p>` : '')
+              + (extra ? `<div class="rp-txt" style="color:#fbbf24;margin-top:10px">${extra} other Discord account${extra > 1 ? 's have' : ' has'} been used on this PC besides the one signed in now.</div>` : '')
+            : `<p style="color:var(--dim);font-size:12.5px;margin:0">No Discord account on this PC — Discord is not installed, or the player used an older scanner (needs v4.11+).</p>`}
+          ${notUsers.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin:10px 0 0">
+              ${notUsers.length} other ID${notUsers.length > 1 ? 's' : ''} in Discord's storage ${notUsers.length > 1 ? 'are' : 'is'} not a user account
+              (a server or a channel). Not shown.</p>` : ''}
+        </div>`;
+
+        // v81 — this replaces the Discord tab. That tab listed hundreds of servers, almost all
+        // of them harmless, and the two that mattered were lost in the middle. Only the ones
+        // worth a word to the player are here: in your own cheat-server list, or named like a
+        // cheat shop. Each row says plainly whether he is in it now or left it, because those
+        // are two different conversations.
+        const srvRow = (s) => `<div class="hs-srv ${s.listed ? 'red' : 'orange'}">
+          ${s.icon ? `<img src="${esc(s.icon)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()">`
+            : `<em>${esc(((s.name || '?').trim()[0] || '?').toUpperCase())}</em>`}
+          <div>
+            <b>${esc(s.name)}</b>
+            <div class="hs-srv-why">${esc(s.where)}</div>
+            <div class="mono hs-srv-id">${esc(s.id || (s.inv ? 'discord.gg/' + s.inv : ''))}</div>
+          </div>
+          <span class="rp-tag">${s.listed ? 'ON YOUR LIST' : 'NAME LOOKS LIKE A CHEAT'}</span>
+        </div>`;
+        const warnPane = `<div class="hs-pane ${warnServers.length ? 'warn' : ''}">
+          <div class="hs-pane-h">Warning — Discord servers<span>${warnServers.length}</span></div>
+          ${warnServers.length
+            ? `<div style="display:flex;flex-direction:column;gap:8px">${warnServers.map(srvRow).join('')}</div>`
+              + `<p class="rp-txt" style="color:var(--dim);margin:10px 0 0">Red = a server in your own cheat-server list. Orange = the name alone looks like a cheat shop — read it before you act on it. Leaving a server does not erase it: Discord and the browsers keep the icons, invite pages and channel links on the PC.</p>`
+            : `<p style="color:var(--dim);font-size:12.5px;margin:0">${L('DiscordTraces').length || history.length
+                ? 'No cheat server found — not in one now, and none in what the PC remembers.'
+                : 'No Discord traces on this PC (cache cleared, or an older scanner) and no earlier check.'}</p>`}
+        </div>`;
+
+        const accounts = head('Accounts', accs.length, 'The accounts on this PC, and the Discord servers worth a word.')
+          + `<div class="hs-acc-wrap"><div class="hs-pane map">${radar}</div><div class="hs-acc-col">${onPc}${warnPane}</div></div>`
           + `<div style="height:18px"></div>` + head('Game accounts', 0, 'Steam, Rockstar Social Club and Epic accounts read from the PC.')
           + `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
               ${gameAcc('Steam', 'SteamAccounts', 'No Steam account on this PC.')}
@@ -2031,7 +2198,10 @@
           <div class="rp-card blue"><div class="rp-head" style="font-size:15px">Other</div>${kv([
             ['Discord signed in now', localDiscord], ['Discord accounts seen', String(accs.length)],
             ['Discord checked here', dc && dc.user ? `${dc.user.name} · ${dc.user.id}` : 'not checked'],
-            ['Browsers', L('Browsers').join(', ')], ['USB devices', L('UsbDevices').join(', ')]])}</div>
+            ['Browsers', L('Browsers').join(', ')], ['USB devices', L('UsbDevices').join(', ')],
+            ['Connected from', net.country ? net.country + (net.countryCode ? ' (' + net.countryCode + ')' : '') : 'unknown'],
+            ['Connection', net.vpn ? (net.vpnKind || 'VPN or proxy') : net.countryCode ? 'home / normal address' : '-'],
+            ['Network', net.isp || '-'], ['Address (last part removed)', net.ip || '-']])}</div>
         </div>`;
       },
     };
@@ -2046,7 +2216,8 @@
           <h4>${IC.shield.replace('<svg', '<svg style="width:18px;height:18px;color:var(--cyan)"')} Detection Results</h4>
           <div class="sub">${total} total logs found</div>
           ${cats.map((c) => c === 'sep' ? '<div class="rp-sep"></div>'
-            : c && c.group ? `<div class="rp-group">${esc(c.group)}</div>`
+            : c && c.group ? (cats[cats.indexOf(c) + 1] && !cats[cats.indexOf(c) + 1].group
+                ? `<div class="rp-group">${esc(c.group)}</div>` : '')
             : `<button class="rp-cat ${c[0] === tab ? 'on' : ''}" data-rtab="${c[0]}">
             <span class="dot" style="background:${{ red: '#f43f5e', orange: '#f59e0b', green: '#10b981', yellow: '#eab308', purple: '#a855f7', blue: '#3b82f6' }[c[3]]}"></span>${c[1]}
             ${c[2] !== '' ? `<span class="n ${c[2] && c[2] !== 0 && c[2] !== '–' ? c[3] : ''}">${esc(c[2])}</span>` : ''}</button>`).join('')}
@@ -2060,13 +2231,13 @@
     view.querySelectorAll('[data-dcheck]').forEach((b) => b.addEventListener('click', async (ev) => {
       const id = String(b.dataset.dcheck || '').replace(/\D/g, '');
       if (!/^\d{17,20}$/.test(id)) return toast('Not a Discord ID', true);
-      if (dc && dc.user && String(dc.user.id) === id) return renderPinReport(view, pin, 'discord');
+      if (dc && dc.user && String(dc.user.id) === id) return renderPinReport(view, pin, 'pc');
       ev.target.disabled = true; ev.target.textContent = 'Checking…';
       try {
         await api('/api/discord-lookup', { method: 'POST', body: { pin, id } });
         if (state.reports) delete state.reports[pin];
         if (state.discHist) delete state.discHist[id];
-        renderPinReport(view, pin, 'discord');
+        renderPinReport(view, pin, 'pc');
       } catch (e) { toast(e.message, true); ev.target.disabled = false; ev.target.textContent = 'Check this account'; }
     }));
     view.querySelector('[data-dlookup]')?.addEventListener('click', async (ev) => {
@@ -2077,7 +2248,7 @@
         await api('/api/discord-lookup', { method: 'POST', body: { pin, id } });
         if (state.reports) delete state.reports[pin];   // reload the updated report
         if (state.discHist) delete state.discHist[id];
-        renderPinReport(view, pin, 'discord');
+        renderPinReport(view, pin, 'pc');
       } catch (e) { toast(e.message, true); ev.target.disabled = false; ev.target.textContent = 'Check this Discord'; }
     });
     const qi = view.querySelector('[data-rpq]');

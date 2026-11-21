@@ -110,6 +110,16 @@ export default wrap(async (req, res) => {
     }
   }
   report.Game = gameOf(rows[0].game);   // the game comes from the PIN, not from the player's PC
+
+  // v81 — the connection the report arrived on. The scanner posts from the player's own PC, so
+  // this request is the one place his country is knowable. Best effort: a failure leaves the
+  // country null and the dashboard shows Unknown rather than inventing one. The address itself
+  // is stored only with its last part dropped (see _geo.js).
+  try {
+    const { geoOf } = await import('./_geo.js');
+    report.Net = await geoOf(req);
+  } catch { }
+
   const dets = report.Detections || report.detections || [];
   const verdict = report.Verdict || report.verdict
     || (dets.some((d) => d.Severity === 2 || d.Severity === 'High') ? 'cheating' : dets.length ? 'suspicious' : 'clean');
