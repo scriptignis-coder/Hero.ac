@@ -2010,7 +2010,16 @@
         // an answer is shown (so the list is not empty while the request is in flight); one
         // Discord has denied is dropped to the footnote below, where it is called what it is.
         const known = (a) => (state.dprofiles || {})[a.id];
-        const accs = allIds.filter((a) => { const p = known(a); return !p || p.found !== false; });
+        // v81.2 - a bot is not an account.
+        //
+        // Discord's desktop cache holds the ids of every bot in every server the player opened:
+        // ProBot, the verification bot, the server's own utility bots. To Discord they are user
+        // objects, so they survived the found-check and were shown as "accounts used on this
+        // PC" - with a picture and a name, which made them look more real than the real ones.
+        // Nobody signs into a bot. Discord marks them, so they are dropped here and counted in
+        // the footnote with the ids that are not users at all.
+        const accs = allIds.filter((a) => { const p = known(a); return !p || (p.found !== false && !p.bot); });
+        const bots = allIds.filter((a) => { const p = known(a); return p && p.bot; });
         const notUsers = allIds.filter((a) => { const p = known(a); return p && p.found === false; });
         // Did we ever get a real answer? If not, the names and pictures are missing because the
         // site could not ask Discord, not because the accounts are not there. The panel says so
@@ -2162,6 +2171,9 @@
               The names and pictures could not be loaded: the site could not ask Discord who these IDs are.
               Set <b class="mono">DISCORD_BOT_TOKEN</b> on the server, and make sure <b class="mono">/api/discord-profiles</b> is deployed.
               The IDs below are what the scanner read off the PC — they are correct with or without the bot.</p>` : ''}
+          ${bots.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin:10px 0 0">
+              ${bots.length} Discord bot${bots.length > 1 ? 's' : ''} (${esc(bots.map((b) => (known(b) || {}).display || b.id).slice(0, 4).join(', '))}${bots.length > 4 ? '…' : ''})
+              also left ${bots.length > 1 ? 'their ids' : 'its id'} in the cache. A bot is not an account — not shown.</p>` : ''}
           ${notUsers.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin:10px 0 0">
               ${notUsers.length} other ID${notUsers.length > 1 ? 's' : ''} in Discord's storage ${notUsers.length > 1 ? 'are' : 'is'} not a user account
               (a server or a channel). Not shown.</p>` : ''}

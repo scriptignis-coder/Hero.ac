@@ -47,6 +47,12 @@ async function profile(id, token) {
     ? {
         id,
         username: u.username || null,
+        // Discord says so itself. A bot is a user object like any other, which is why bot ids
+        // out of the desktop cache looked exactly like accounts: ProBot and the server's own
+        // verification bot were listed as "accounts used on this PC". They are not accounts,
+        // nobody signs into them, and they say nothing about the player. The dashboard drops
+        // every row carrying this flag.
+        bot: !!(u.bot || u.system),
         display: u.global_name || u.username || null,
         avatar: u.avatar
           ? `https://cdn.discordapp.com/avatars/${id}/${u.avatar}.${u.avatar.startsWith('a_') ? 'gif' : 'png'}?size=96`
