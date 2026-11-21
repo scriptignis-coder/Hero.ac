@@ -17,7 +17,7 @@
     settings: 'Configuration', stream: 'Multi Stream', servers: 'My servers',
     rolemanager: 'Permission Manager', scanner: 'Download scanner', pins: 'Scan PINs', signatures: 'Signatures', staff: 'Staff team', access: 'Access', partners: 'Partners',
     discord: 'Discord check', scannergui: 'Scanner GUI', tutorial: 'Tutorial', changelogs: 'Changelogs',
-    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', licenselist: 'License list', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
+    auditlogs: 'Activity logs', enterprisemanagement: 'Enterprise Management', licenselist: 'License list', filecheck: 'File Check', webhooks: 'Webhooks', troubleshooting: 'Troubleshooting', profile: 'My Profile', subscription: 'My License', enterprise: 'Enterprise', analytics: 'Analytics', scanactivity: 'Scan Activity', ranking: 'Leaderboard', quicktools: 'Quick Tools', teamdirectory: 'Team Directory',
   };
   // The verdict on a PIN, in one word and one colour. The scanner writes 'cheating',
   // 'clean' or 'suspicious'; staff read the table fastest when the word matches the colour
@@ -301,7 +301,7 @@
     overview:'heroshield', detections:'heroshield', bans:'heroshield',
     players:'heroshield', logs:'heroshield', stream:'heroshield', settings:'heroshield',
     scanner:'herocheck', pins:'herocheck', signatures:'herocheck', discord:'herocheck', scannergui:'herocheck',
-    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenselist:'heroshield'
+    analytics:'heroshield', scanactivity:'herocheck', access:'admin', partners:'admin', rolemanager:'admin', staff:'admin', teamdirectory:'admin', auditlogs:'heroshield', enterprisemanagement:'heroshield', licenselist:'heroshield', filecheck:'herocheck'
   };
   function canAccess(tab) {
     if (tab === 'enterprise') return state.accountLicense?.plan === 'enterprise' && state.accountLicense?.role === 'owner';
@@ -359,6 +359,7 @@
     if (state.tab === 'enterprise') return renderEnterprise(view);
     if (state.tab === 'enterprisemanagement') return renderEnterpriseManagement(view);
     if (state.tab === 'licenselist') return renderLicenseList(view);
+    if (state.tab === 'filecheck') return renderFileCheck(view);
     if (state.tab === 'webhooks') return renderWebhooks(view);
     if (state.tab === 'ranking') return renderRanking(view);
     if (state.tab === 'scanactivity') return renderScanActivity(view);
@@ -631,6 +632,122 @@
         } catch (e) { toast(e.message, true); b.disabled = false; }
       }));
     } catch (e) { wsError(view, e, () => renderLicenseList(view)); }
+  }
+
+
+  // ── File Check ────────────────────────────────────────────────────────────────────────
+  // Drop a file, get a verdict. The file never leaves this machine: everything below runs in
+  // the browser, which is the only honest way to offer this — staff drop files they were sent
+  // by strangers in here, and quietly uploading those would be a worse betrayal than any bug.
+  async function renderFileCheck(view) {
+    if (!window.HSFileCheck) { wsError(view, new Error('File Check could not load (assets/file-check.js).')); return; }
+    const r = state.fileCheck || null;
+
+    const tint = { cheat: 'var(--bad,#f0556c)', suspicious: 'var(--warn,#efb152)', clean: 'var(--ok,#3ecf8e)' };
+    const label = { cheat: 'CHEAT', suspicious: 'SUSPICIOUS', clean: 'NOTHING FOUND' };
+    const kb = (n) => n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(1) + ' KB';
+    const tile = (k, v, mono) => `<div class="workspace-card"><small>${esc(k)}</small>`
+      + `<strong class="${mono ? 'mono' : ''}" style="${mono ? 'font-size:12px;word-break:break-all;font-weight:500' : ''}">${esc(v)}</strong></div>`;
+
+    view.innerHTML = `<div class="workspace-hero"><div><h2>File Check</h2>
+        <p>Drop a program and find out what it does. The file is read here, in your browser —
+           it is never uploaded, so you can check anything a player sends you.</p></div></div>
+
+      <div class="workspace-section">
+        <div id="fc-drop" style="border:1.5px dashed var(--line2);border-radius:14px;padding:38px 20px;text-align:center;cursor:pointer;transition:border-color .16s,background .16s">
+          <div style="font-size:15px;color:var(--text);margin-bottom:5px">Drag a file here, or click to choose</div>
+          <div style="color:var(--dim);font-size:12.5px">.exe · .dll · .sys · .asi · .jar — up to 256 MB</div>
+          <input id="fc-file" type="file" hidden>
+        </div>
+        <div id="fc-progress" style="display:none;margin-top:14px">
+          <div style="color:var(--muted);font-size:13px" id="fc-step">Reading…</div>
+          <div style="height:4px;border-radius:999px;background:var(--s2,#11151c);margin-top:8px;overflow:hidden">
+            <div id="fc-bar" style="height:100%;width:0;background:var(--accent,#4a8cf7);transition:width .15s linear"></div></div>
+        </div>
+      </div>
+
+      ${r ? `
+      <div class="workspace-section" style="border-left:3px solid ${tint[r.verdict]}">
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+          <h3 style="margin:0;color:${tint[r.verdict]}">${label[r.verdict]}</h3>
+          <span style="color:var(--muted);font-size:13px">${esc(r.name)} · ${esc(kb(r.size))}</span>
+        </div>
+        ${r.why.map((x) => `<p class="workspace-note" style="margin:6px 0 0">${esc(x)}</p>`).join('')}
+        ${r.knownAs ? `<p class="workspace-note" style="margin:6px 0 0;color:var(--bad,#f0556c)">Known to you as: ${esc(r.knownAs)}</p>` : ''}
+      </div>
+
+      <div class="workspace-section">
+        <h3>File information</h3>
+        <div class="grid-2" style="gap:10px">
+          ${tile('File name', r.name)}
+          ${tile('Size', kb(r.size))}
+          ${tile('SHA-256', r.sha256 || '—', true)}
+          ${tile('SHA-1', r.sha1 || '—', true)}
+          ${tile('MD5', r.md5 || '—', true)}
+          ${tile('Windows program', r.isPe ? `yes · ${r.importCount} imported functions` : 'no')}
+        </div>
+      </div>
+
+      <div class="workspace-section">
+        <h3>What it is wired to do</h3>
+        <p class="workspace-note" style="margin:0 0 10px">Read from the import table — the list of Windows
+          functions the compiler wrote into the file. Renaming the file does not change it.</p>
+        ${r.does.length
+          ? `<ul style="margin:0;padding-left:18px;color:var(--text);font-size:13.5px;line-height:1.85">
+               ${r.does.map((d) => `<li>${esc(d)}</li>`).join('')}
+               ${r.target ? `<li>names the game process <b>${esc(r.target)}</b></li>` : ''}</ul>`
+          : `<p class="workspace-note" style="margin:0">It never opens, reads or writes another program, and loads no driver.</p>`}
+      </div>
+
+      ${r.markers.length ? `<div class="workspace-section">
+        <h3>Names found inside it</h3>
+        <p class="workspace-note" style="margin:0 0 10px">A lead, not proof: blocklists, anti-cheats and saved
+          web pages contain these words too.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${r.markers.map((m) => `<span class="badge warn">${esc(m.brand || m.needle)}</span>`).join('')}
+        </div></div>` : ''}
+      ` : ''}`;
+
+    const drop = view.querySelector('#fc-drop');
+    const input = view.querySelector('#fc-file');
+    const prog = view.querySelector('#fc-progress');
+    const bar = view.querySelector('#fc-bar');
+    const stepEl = view.querySelector('#fc-step');
+
+    const run = async (file) => {
+      if (!file) return;
+      // 256 MB: past that the browser has to hold the whole file plus its string view in
+      // memory, and the tab is killed rather than slowed.
+      if (file.size > 256 * 1024 * 1024) return toast('That file is over 256 MB', true);
+      prog.style.display = '';
+      try {
+        // The operator's own signature list, so an exact hash match can be named. Fetched
+        // once; a failure here only costs the naming, not the analysis.
+        if (!state.fcSigs) { try { state.fcSigs = (await api('/api/scanner-sigs')).signatures || []; } catch { state.fcSigs = []; } }
+        state.fileCheck = await window.HSFileCheck.analyze(file, (p, l) => {
+          bar.style.width = Math.round(p * 100) + '%';
+          stepEl.textContent = l;
+        }, state.fcSigs);
+        renderFileCheck(view);
+      } catch (e) {
+        prog.style.display = 'none';
+        toast(e.message || 'Could not read that file', true);
+      }
+    };
+
+    drop.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => run(input.files[0]));
+    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.style.borderColor = 'var(--accent,#4a8cf7)';
+      drop.style.background = 'var(--s2,#11151c)';
+    }));
+    ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.style.borderColor = '';
+      drop.style.background = '';
+    }));
+    drop.addEventListener('drop', (e) => run(e.dataTransfer && e.dataTransfer.files[0]));
   }
 
   async function renderWebhooks(view) {
@@ -1102,24 +1219,96 @@
     // was being built, so the Results view never finished and the spinner turned for ever.
     // PC checker activity comes from the HeRoShield scan evidence, not staff imports.
     // A tool-name match is only a candidate; never fabricate a provider verdict.
-    const checkerNames = ['Ocean.ac', 'Napse.ac', 'Echo AntiCheat', 'Paladin Anticheat',
-      'AnyDesk', 'TeamViewer', 'RustDesk', 'UltraViewer', 'Supremo', 'AeroAdmin',
-      'Chrome Remote Desktop', 'Quick Assist', 'Process Hacker', 'System Informer',
-      'Process Explorer', 'Autoruns', 'Everything', 'LastActivityView', 'USBDeview',
-      'ExecutedProgramsList', 'WinPrefetchView', 'ShellBagsView', 'BrowsingHistoryView',
-      'Registry Explorer', 'PECmd', 'AmcacheParser', 'AppCompatCacheParser',
-      'Timeline Explorer', 'Chainsaw', 'Hayabusa', 'Velociraptor', 'KAPE',
-      'FTK Imager', 'Autopsy'];
-    const checkerEvidence = [...executed, ...recent].flatMap(entry => {
-      const raw = [F(entry, 'Name'), F(entry, 'Path'), F(entry, 'FileName'),
-        F(entry, 'Executable'), F(entry, 'CommandLine')].filter(Boolean).join(' ');
+    // Each tool, with the strings it actually leaves ON DISK.
+    //
+    // This used to be a list of display names matched literally, and it found nothing — ever.
+    // "Ocean.ac" is a domain; the files it writes are Ocean.exe, .oceancache and
+    // OceanGraper.sys, and none of those contains the letters "oceanac". The section said
+    // "no PC checker trace" on a machine that had run Ocean twenty minutes earlier.
+    //
+    // Every needle below is a real file, folder or driver name. They are deliberately long and
+    // specific: a short or ordinary word here would match somebody's holiday photos and put a
+    // false accusation in a report, which costs far more than missing a tool.
+    const checkerNames = [
+      { name: 'Ocean.ac',        needles: ['oceanac', 'oceangraper', 'oceancache', 'oceanscanner'] },
+      { name: 'Napse.ac',        needles: ['napseac', 'napsescanner', 'napsecache'] },
+      { name: 'Echo AntiCheat',  needles: ['echoanticheat'] },
+      { name: 'Paladin',         needles: ['paladinanticheat'] },
+      { name: 'AnyDesk',         needles: ['anydesk'] },
+      { name: 'TeamViewer',      needles: ['teamviewer'] },
+      { name: 'RustDesk',        needles: ['rustdesk'] },
+      { name: 'UltraViewer',     needles: ['ultraviewer'] },
+      { name: 'Supremo',         needles: ['supremoremote', 'supremohelper'] },
+      { name: 'AeroAdmin',       needles: ['aeroadmin'] },
+      { name: 'Chrome Remote Desktop', needles: ['remotedesktophost', 'chromeremotedesktop'] },
+      { name: 'Quick Assist',    needles: ['quickassist'] },
+      { name: 'Process Hacker',  needles: ['processhacker'] },
+      { name: 'System Informer', needles: ['systeminformer'] },
+      { name: 'Process Explorer',needles: ['procexp64', 'procexp.exe', 'processexplorer'] },
+      { name: 'Autoruns',        needles: ['autoruns'] },
+      { name: 'Everything',      needles: ['everything.exe', 'everything64.dll', 'everything.db'] },
+      { name: 'LastActivityView',needles: ['lastactivityview'] },
+      { name: 'USBDeview',       needles: ['usbdeview'] },
+      { name: 'ExecutedProgramsList', needles: ['executedprogramslist'] },
+      { name: 'WinPrefetchView', needles: ['winprefetchview'] },
+      { name: 'ShellBagsView',   needles: ['shellbagsview'] },
+      { name: 'BrowsingHistoryView', needles: ['browsinghistoryview'] },
+      { name: 'Registry Explorer', needles: ['registryexplorer'] },
+      { name: 'PECmd',           needles: ['pecmd.exe'] },
+      { name: 'AmcacheParser',   needles: ['amcacheparser'] },
+      { name: 'AppCompatCacheParser', needles: ['appcompatcacheparser'] },
+      { name: 'Timeline Explorer', needles: ['timelineexplorer'] },
+      { name: 'Chainsaw',        needles: ['chainsaw.exe'] },
+      { name: 'Hayabusa',        needles: ['hayabusa'] },
+      { name: 'Velociraptor',    needles: ['velociraptor'] },
+      { name: 'KAPE',            needles: ['kape.exe', 'gkape.exe'] },
+      { name: 'FTK Imager',      needles: ['ftkimager'] },
+      { name: 'Autopsy',         needles: ['autopsy64', 'autopsy.exe'] },
+    ];
+    // v74 — one entry per tool, not one per matching line.
+    //
+    // The old shape produced a row for every file that happened to contain the name, so a
+    // single copy of Ocean.ac could fill the section with eight near-identical lines and
+    // staff had to read all of them to learn one fact. What they actually need per tool is
+    // three things: is it installed, did it run, and when was it last seen.
+    //
+    // Each half of the corpus means something different and is kept apart on purpose:
+    //   ExecutedPrograms  Windows' own record that the program RAN
+    //   RecentFiles       the file was opened or touched, which is not the same thing
+    // Nothing is inferred beyond that, and no provider verdict is ever invented: whether
+    // Ocean.ac called somebody a cheater is not in this PC's files, so it stays Unknown.
+    const INSTALL_DIR = /\\(program files|program files \(x86\)|appdata\\local\\programs|appdata\\roaming)\\/i;
+    const checkerHits = [
+      ...executed.map((e) => ({ e, ran: true })),
+      ...recent.map((e) => ({ e, ran: false })),
+    ].flatMap(({ e, ran }) => {
+      const path = String(F(e, 'Path') || F(e, 'Executable') || '');
+      const raw = [F(e, 'Name'), path, F(e, 'FileName'), F(e, 'CommandLine')].filter(Boolean).join(' ');
       if (!raw) return [];
-      return checkerNames.filter(name => {
-        const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const haystack = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return normalized.length >= 5 && haystack.includes(normalized);
-      }).map(name => ({ name, raw: raw.slice(0, 280) }));
-    }).filter((item, index, all) => all.findIndex(x => x.name === item.name && x.raw === item.raw) === index);
+      const haystack = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return checkerNames.filter((t) => t.needles.some((n) => {
+        const needle = n.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return needle.length >= 6 && haystack.includes(needle);
+      })).map((t) => ({ name: t.name, ran, path, raw: raw.slice(0, 280), when: F(e, 'When') || F(e, 'LastRun') || '' }));
+    });
+
+    // Fold the hits into one record per tool.
+    const checkerTools = [...new Map(checkerHits.map((h) => [h.name, null])).keys()].map((name) => {
+      const mine = checkerHits.filter((h) => h.name === name);
+      const ran = mine.filter((h) => h.ran);
+      const dates = mine.map((h) => h.when).filter(Boolean).sort();
+      return {
+        name,
+        executed: ran.length > 0,
+        installed: mine.some((h) => INSTALL_DIR.test(h.path)),
+        lastSeen: dates.length ? dates[dates.length - 1] : '',
+        paths: [...new Set(mine.map((h) => h.path).filter(Boolean))].slice(0, 4),
+        sample: mine[0].raw,
+      };
+    }).sort((a, b) => (b.executed - a.executed) || a.name.localeCompare(b.name));
+
+    // kept for anything still reading the old name
+    const checkerEvidence = checkerTools;
     const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
     const browserDownloads = Array.isArray(R('BrowserDownloads')) ? R('BrowserDownloads') : [];
     const events = L('EventLogEntries').filter((e) => !(F(e, 'Category') === 'ServiceInstall' && /microsoft|system32\\drivers|\\windows\\/i.test(F(e, 'Message') || '')));
@@ -1536,12 +1725,20 @@
               + `<div style="color:var(--dim);font-size:12px;margin-top:3px">${x.player ? 'as “' + esc(x.player) + '” · ' : ''}matched by ${esc((x.matchedBy || []).join(', ') || 'identifier')}${x.banId ? ' · ban ' + esc(x.banId) : ''}</div>`,
               esc(fmtDate(x.at)))), '')
           : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
-        html += `<div class="rp-head" style="margin-top:16px">PC checker activity — local scan evidence</div>`;
-        html += checkerEvidence.length ? rows(checkerEvidence.map(x => rowL('orange',
-          `<b style="color:var(--text)">${esc(x.name)}</b> ${pill('Trace found', 'rgba(255,179,92,.14)', '#ffb35c')}`
-          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">${esc(x.raw)}</div>`
-          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">Provider verdict: Unknown · Local trace only; execution and cheating are not confirmed</div>`, '')))
-          : `<div class="empty">No recognizable PC checker trace in this HeRoShield report. Ocean.ac/Napse.ac results cannot be retrieved without an accessible local report or authorized integration.</div>`;
+        html += `<div class="rp-head" style="margin-top:16px">PC Checker History</div>`;
+        html += `<div style="color:var(--dim);font-size:12.5px;margin:-4px 0 10px;line-height:1.55">
+            Other PC-check and forensic tools this machine has seen, read from Windows' own
+            execution records. It says what was <b>installed</b> and what actually <b>ran</b> —
+            never what another tool concluded, because that is not written anywhere on this PC.</div>`;
+        html += checkerTools.length ? rows(checkerTools.map((x) => rowL(x.executed ? 'orange' : '',
+          `<b style="color:var(--text)">${esc(x.name)}</b>`
+          + (x.installed ? pill('Installed', 'rgba(74,140,247,.14)', '#8cc8ff') : '')
+          + (x.executed ? pill('Executed', 'rgba(255,179,92,.14)', '#ffb35c')
+                        : pill('Seen on disk', 'rgba(255,255,255,.06)', 'var(--muted)'))
+          + (x.paths.length ? `<div class="mono" style="color:var(--dim);font-size:11.5px;margin-top:5px;word-break:break-all">${x.paths.map(esc).join('<br>')}</div>` : '')
+          + `<div style="color:var(--dim);font-size:12px;margin-top:5px">Verdict from that tool: <b style="color:var(--muted)">Unknown</b> — it is not stored on this PC</div>`,
+          x.lastSeen ? 'last seen ' + esc(x.lastSeen) : '')))
+          : `<div class="empty">No other PC-check or forensic tool found on this machine.</div>`;
         // scans
         html += `<div class="rp-head" style="margin-top:16px">Earlier scans of this PC</div>`;
         html += !hist ? '<div class="empty">No scan history for this report yet (run supabase-v29-pc-history.sql).</div>'
@@ -1641,17 +1838,50 @@
 
         const accRow = (a) => {
           const isChecked = checkedId && a.id === checkedId;
-          const lvl = a.current ? 'blue' : 'orange';
-          return `<div class="rp-card ${lvl}" style="padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <span class="hs-acc-ic" style="width:30px;height:30px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;flex:none">${IC.disc}</span>
-            <div style="flex:1;min-width:180px">
-              <b class="mono" style="color:var(--text);font-size:13.5px">${esc(a.id)}</b>
-              <div style="color:var(--dim);font-size:11.5px;margin-top:2px">${esc(a.sources.join(' · ') || 'Discord')}${isChecked && dc.user.username ? ` · <b style="color:var(--text)">@${esc(dc.user.username)}</b>` : ''}</div>
+          // The profile, when the bot has already told us who this is. Until it answers the
+          // row still renders - with the id and a placeholder - because a list that appears
+          // only after a network call reads as a page that is broken.
+          const p = (state.dprofiles || {})[a.id] || null;
+          const name = p && p.display ? p.display : (isChecked && dc.user && dc.user.name) || null;
+          const handle = p && p.username ? p.username : (isChecked && dc.user && dc.user.username) || null;
+          const pfp = p && p.avatar ? p.avatar : null;
+          const gone = p && p.found === false;
+          return `<div class="rp-card ${a.current ? 'blue' : 'orange'}" style="padding:12px 14px;display:flex;align-items:center;gap:13px;flex-wrap:wrap">
+            ${pfp
+              ? `<img src="${esc(pfp)}" alt="" referrerpolicy="no-referrer" loading="lazy"
+                      style="width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover;background:#1b1f27">`
+              : `<span class="hs-acc-ic" style="width:40px;height:40px;border-radius:50%;background:#5865f2;display:inline-flex;align-items:center;justify-content:center;flex:none">${IC.disc}</span>`}
+            <div style="flex:1;min-width:200px">
+              <b style="color:var(--text);font-size:14.5px">${esc(name || 'Discord account')}</b>
+              ${handle ? `<span style="color:var(--muted);font-size:13px;margin-left:6px">@${esc(handle)}</span>` : ''}
+              ${gone ? `<span style="color:#ffb35c;font-size:12px;margin-left:6px">account no longer exists</span>` : ''}
+              <div class="mono" style="color:var(--dim);font-size:11.5px;margin-top:3px">${esc(a.id)}
+                · ${esc(a.sources.join(' · ') || 'Discord')}${p && p.created ? ' · made ' + esc(fmtDate(p.created)) : ''}</div>
             </div>
             <span class="rp-tag">${a.current ? 'SIGNED IN NOW' : 'SIGNED OUT — used on this PC'}</span>
             <button class="btn ${isChecked ? '' : 'btn-primary'}" data-dcheck="${esc(a.id)}" style="padding:6px 12px;font-size:12px">${isChecked ? 'Checked — open' : 'Check this account'}</button>
           </div>`;
         };
+
+        // Ask the bot for every id at once, then redraw. One request for the whole list rather
+        // than one per row, and it is fired only when there is something new to look up.
+        {
+          state.dprofiles = state.dprofiles || {};
+          const need = accs.map((a) => a.id).filter((id) => !(id in state.dprofiles));
+          if (need.length) {
+            api(`/api/discord-profiles?ids=${need.join(',')}`)
+              .then((r) => {
+                // Mark every id we asked about, so a failed lookup is not asked again on
+                // every redraw: an unknown account is an answer, not a reason to retry.
+                for (const id of need) state.dprofiles[id] = (r.profiles || {})[id] || { id, found: false };
+                // Redraw only if this same report is still the thing on screen. `view` is
+                // reused by every tab, so without this a slow lookup could overwrite whatever
+                // the person moved on to.
+                if (view.isConnected && view.querySelector(`[data-dcheck="${need[0]}"]`)) renderPinReport(view, pin, tab, q);
+              })
+              .catch(() => { for (const id of need) state.dprofiles[id] = { id, found: false }; });
+          }
+        }
 
         const gameAcc = (label, list, note) => {
           const items = L(list);
