@@ -36,7 +36,10 @@ export default wrap(async (req, res) => {
       if (!/^\d{15,22}$/.test(id)) throw httpError(400, 'Invalid server ID');
       added.push({ owner_discord: user.id, guild_id: id, name: str(b.name, 100) || null, icon: null, invite: null });
     }
-    const parts = String(b.links || '').split(/[\s,]+/).filter(Boolean).slice(0, 50);
+    // Separators pasted along with the links ("link /// link", "link, link") are not failed
+    // links: a token with no letter or digit in it is punctuation, and listing it back as a
+    // failure makes a paste that worked perfectly look half broken.
+    const parts = String(b.links || '').split(/[\s,]+/).filter((x) => /[A-Za-z0-9]/.test(x)).slice(0, 50);
     for (const p of parts) {
       if (/^\d{15,22}$/.test(p)) { added.push({ owner_discord: user.id, guild_id: p, name: null, icon: null, invite: null }); continue; }
       const code = codeOf(p);
