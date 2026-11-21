@@ -996,11 +996,26 @@
     const macros = L('Macros');
     const hist = R('PcHistory') || null;
     const bh = R('BanHistory') || null;
-    const playerDiscordId = String(R('DiscordId') || F(R('DiscordCheck'), 'User')?.id || F(row.discord_check, 'user')?.id || '').trim();
-    let externalReports = [];
-    if (/^\d{15,22}$/.test(playerDiscordId)) {
-      try { externalReports = (await api('/api/external-reports?discord_id=' + encodeURIComponent(playerDiscordId))).reports || []; } catch (e) { console.warn('External report history unavailable:', e.message); }
-    }
+    // PC checker activity comes from the HeRoShield scan evidence, not staff imports.
+    // A tool-name match is only a candidate; never fabricate a provider verdict.
+    const checkerNames = ['Ocean.ac', 'Napse.ac', 'Echo AntiCheat', 'Paladin Anticheat',
+      'AnyDesk', 'TeamViewer', 'RustDesk', 'UltraViewer', 'Supremo', 'AeroAdmin',
+      'Chrome Remote Desktop', 'Quick Assist', 'Process Hacker', 'System Informer',
+      'Process Explorer', 'Autoruns', 'Everything', 'LastActivityView', 'USBDeview',
+      'ExecutedProgramsList', 'WinPrefetchView', 'ShellBagsView', 'BrowsingHistoryView',
+      'Registry Explorer', 'PECmd', 'AmcacheParser', 'AppCompatCacheParser',
+      'Timeline Explorer', 'Chainsaw', 'Hayabusa', 'Velociraptor', 'KAPE',
+      'FTK Imager', 'Autopsy'];
+    const checkerEvidence = [...executed, ...recent].flatMap(entry => {
+      const raw = [F(entry, 'Name'), F(entry, 'Path'), F(entry, 'FileName'),
+        F(entry, 'Executable'), F(entry, 'CommandLine')].filter(Boolean).join(' ');
+      if (!raw) return [];
+      return checkerNames.filter(name => {
+        const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const haystack = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return normalized.length >= 5 && haystack.includes(normalized);
+      }).map(name => ({ name, raw: raw.slice(0, 280) }));
+    }).filter((item, index, all) => all.findIndex(x => x.name === item.name && x.raw === item.raw) === index);
     const histBad = (hist ? (hist.cheating || 0) + (hist.hwidChanged ? 1 : 0) : 0) + (bh ? bh.count || 0 : 0);
     const maRed = macros.filter((x) => F(x, 'Level') === 2).length, maOrange = macros.filter((x) => F(x, 'Level') === 1).length;
     const tRed = timeline.filter((x) => F(x, 'Level') === 2).length, tOrange = timeline.filter((x) => F(x, 'Level') === 1).length;
@@ -1426,14 +1441,12 @@
               + `<div style="color:var(--dim);font-size:12px;margin-top:3px">${x.player ? 'as “' + esc(x.player) + '” · ' : ''}matched by ${esc((x.matchedBy || []).join(', ') || 'identifier')}${x.banId ? ' · ban ' + esc(x.banId) : ''}</div>`,
               esc(fmtDate(x.at)))), '')
           : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
-        // External reports are explicitly labelled: a manual entry is not an API-verified verdict.
-        html += `<div class="rp-head" style="margin-top:16px">External scanner reports</div>`;
-        html += externalReports.length ? rows(externalReports.map((x) => rowL('orange',
-          `<b style="color:var(--text)">${esc(x.source)}</b> ${pill(esc(x.verdict), 'rgba(255,179,92,.14)', '#ffb35c')}`
-          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">Staff-submitted · Not verified by HeRoShield or the external provider</div>`
-          + (x.notes ? `<div style="font-size:12px;margin-top:4px">${esc(x.notes)}</div>` : '')
-          + (x.evidence_url ? `<div style="margin-top:5px"><a href="${esc(x.evidence_url)}" target="_blank" rel="noopener noreferrer">View supplied evidence</a></div>` : ''),
-          esc(fmtDate(x.scanned_at))))) : `<div class="empty">No external scanner report recorded for this verified Discord ID. Napse.ac results are not automatically accessible.</div>`;
+        html += `<div class="rp-head" style="margin-top:16px">PC checker activity — local scan evidence</div>`;
+        html += checkerEvidence.length ? rows(checkerEvidence.map(x => rowL('orange',
+          `<b style="color:var(--text)">${esc(x.name)}</b> ${pill('Trace found', 'rgba(255,179,92,.14)', '#ffb35c')}`
+          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">${esc(x.raw)}</div>`
+          + `<div style="color:var(--dim);font-size:12px;margin-top:4px">Provider verdict: Unknown · Local trace only; execution and cheating are not confirmed</div>`, '')))
+          : `<div class="empty">No recognizable PC checker trace in this HeRoShield report. Ocean.ac/Napse.ac results cannot be retrieved without an accessible local report or authorized integration.</div>`;
         // scans
         html += `<div class="rp-head" style="margin-top:16px">Earlier scans of this PC</div>`;
         html += !hist ? '<div class="empty">No scan history for this report yet (run supabase-v29-pc-history.sql).</div>'
