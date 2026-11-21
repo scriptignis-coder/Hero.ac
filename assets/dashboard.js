@@ -1481,7 +1481,7 @@
     const cheatGuilds = guilds.filter((g) => cheatIds.has(String(g.id)));
     const localDiscord = R('DiscordId');
     // ---- Discord history: servers he was in and LEFT (PC cache + his earlier checks) ----
-    const CHEAT_NAME = /\b(cheats?|cheating|hacks?|hacking|hacker|mod ?menus?|executors?|injectors?|spoofers?|hwid|aimbot|triggerbot|silent ?aim|bypass|undetected|eulen|red ?engine|skript(?:\.gg)?|hx ?software|tz ?project|lumia|macho|susano|lynx ?menu|desudo|brutan|kiddions?|cherax|2take1|stand ?menu|ozark|phaze|gosth|keyser|nightfall|hammafia|lua ?(?:menu|executor)|fivem ?(?:menu|mods? ?menu))\b/i;
+    const CHEAT_NAME = /\b(cheats?|cheating|hacks?|hacking|hacker|mod ?menus?|executors?|injectors?|spoofers?|hwid|aimbot|triggerbot|silent ?aim|bypass|undetected|eulen|red ?engine|skript(?:\.gg)?|hx ?software|tz ?project|lumia|macho|susano|lynx ?menu|desudo|brutan|kiddions?|cherax|2take1|stand ?menu|ozark|phaze|gosth|keyser|nightfall|hammafia|lua ?(?:menu|executor)|fivem ?(?:menu|mods? ?menu)|unlock ?all|cheat ?(?:shop|store|market|hub)|fivem ?cheats?|gta ?(?:v ?)?cheats?|recovery ?(?:menu|service)|d3ad ?space|external ?menu|injector ?shop|paid ?(?:menu|cheat)|private ?(?:menu|cheat)|hack ?(?:shop|dev|devs|developers?))\b/i;
     const curIds = new Set(guilds.map((g) => String(g.id)));
     const invCode = (u) => ((/(?:discord(?:app)?\.gg|invite)\/([A-Za-z0-9-]+)/i.exec(u || '') || [])[1] || '').toLowerCase();
     const cheatByInvite = new Map(state.cheatServers.filter((c) => c.invite).map((c) => [invCode(c.invite), c]));
@@ -2012,6 +2012,10 @@
         const known = (a) => (state.dprofiles || {})[a.id];
         const accs = allIds.filter((a) => { const p = known(a); return !p || p.found !== false; });
         const notUsers = allIds.filter((a) => { const p = known(a); return p && p.found === false; });
+        // Did we ever get a real answer? If not, the names and pictures are missing because the
+        // site could not ask Discord, not because the accounts are not there. The panel says so
+        // rather than showing a column of bare ids with no explanation.
+        const noBot = allIds.length > 0 && allIds.every((a) => { const p = known(a); return p && p.found === null; });
         const checkedId = dc && dc.user && dc.user.id ? String(dc.user.id) : '';
         const extra = accs.filter((a) => !a.current).length;
 
@@ -2052,13 +2056,20 @@
               .then((r) => {
                 // Mark every id we asked about, so a failed lookup is not asked again on
                 // every redraw: an unknown account is an answer, not a reason to retry.
-                for (const id of need) state.dprofiles[id] = (r.profiles || {})[id] || { id, found: false };
+                // v81.1 - "Discord says this is not a user" and "we could not ask Discord" are
+                // NOT the same answer, and treating them as one emptied the whole list: with no
+                // bot token on the server every id came back unanswered, was written down as
+                // found:false, and every real account was filed under "not a user account".
+                // found:false is now written ONLY when the bot really answered (r.bot) and
+                // Discord had no such user. Otherwise found stays null - unknown - and the row
+                // is shown with its id, which is what the scanner actually proved.
+                for (const id of need) state.dprofiles[id] = (r.profiles || {})[id] || { id, found: r.bot ? false : null };
                 // Redraw only if this same report is still the thing on screen. `view` is
                 // reused by every tab, so without this a slow lookup could overwrite whatever
                 // the person moved on to.
                 if (view.isConnected && view.querySelector(`[data-dcheck="${need[0]}"]`)) renderPinReport(view, pin, tab, q);
               })
-              .catch(() => { for (const id of need) state.dprofiles[id] = { id, found: false }; });
+              .catch(() => { for (const id of need) state.dprofiles[id] = { id, found: null }; });
           }
         }
 
@@ -2147,6 +2158,10 @@
             ? `<div style="display:flex;flex-direction:column;gap:8px">${accs.map(accRow).join('')}</div>`
               + (extra ? `<div class="rp-txt" style="color:#fbbf24;margin-top:10px">${extra} other Discord account${extra > 1 ? 's have' : ' has'} been used on this PC besides the one signed in now.</div>` : '')
             : `<p style="color:var(--dim);font-size:12.5px;margin:0">No Discord account on this PC — Discord is not installed, or the player used an older scanner (needs v4.11+).</p>`}
+          ${noBot ? `<p class="rp-txt" style="color:#ffb35c;margin:10px 0 0">
+              The names and pictures could not be loaded: the site could not ask Discord who these IDs are.
+              Set <b class="mono">DISCORD_BOT_TOKEN</b> on the server, and make sure <b class="mono">/api/discord-profiles</b> is deployed.
+              The IDs below are what the scanner read off the PC — they are correct with or without the bot.</p>` : ''}
           ${notUsers.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin:10px 0 0">
               ${notUsers.length} other ID${notUsers.length > 1 ? 's' : ''} in Discord's storage ${notUsers.length > 1 ? 'are' : 'is'} not a user account
               (a server or a channel). Not shown.</p>` : ''}
