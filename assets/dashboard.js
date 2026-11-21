@@ -1014,6 +1014,7 @@
       'Registry Explorer', 'PECmd', 'AmcacheParser', 'AppCompatCacheParser',
       'Timeline Explorer', 'Chainsaw', 'Hayabusa', 'Velociraptor', 'KAPE',
       'FTK Imager', 'Autopsy'];
+    const recent = L('RecentFiles');
     const checkerEvidence = [...executed, ...recent].flatMap(entry => {
       const raw = [F(entry, 'Name'), F(entry, 'Path'), F(entry, 'FileName'),
         F(entry, 'Executable'), F(entry, 'CommandLine')].filter(Boolean).join(' ');
@@ -1032,7 +1033,7 @@
     const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
     const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
-    const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
+    const conns = L('NetworkConnections'), fw = L('FirewallRules');
     const browserHistory = Array.isArray(R('BrowserSearchHistory')) ? R('BrowserSearchHistory') : [];
     const browserDownloads = Array.isArray(R('BrowserDownloads')) ? R('BrowserDownloads') : [];
     const events = L('EventLogEntries').filter((e) => !(F(e, 'Category') === 'ServiceInstall' && /microsoft|system32\\drivers|\\windows\\/i.test(F(e, 'Message') || '')));
