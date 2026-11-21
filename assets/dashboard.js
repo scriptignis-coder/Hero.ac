@@ -1209,6 +1209,26 @@
     const jRed2 = jumps.filter((x) => F(x, 'Level') === 2).length, jOrange2 = jumps.filter((x) => F(x, 'Level') === 1).length;
     const hRed = hw.filter((x) => F(x, 'Level') === 2).length, hOrange = hw.filter((x) => F(x, 'Level') === 1).length;
     const mRed = memory.filter((x) => F(x, 'Level') === 2).length, mOrange = memory.filter((x) => F(x, 'Level') === 1).length;
+    // v77 — the sources Windows records a program from, split out.
+    //
+    // They were all poured into one "Execution history" list, which hid what each one MEANS.
+    // BAM says a program ran and when, to the second. DPS/DusmSvc says how much network a
+    // program used — a cheat that talks to a server shows up there and nowhere else. PcaSvc
+    // keeps compatibility records that survive a delete. Dnscache says which hostnames this PC
+    // looked up. Four different kinds of proof, each worth its own tab.
+    const bySource = (re) => executed.filter((e) => re.test(String(F(e, 'Source') || '')));
+    const bam      = bySource(/^bam$|background activity/i);
+    const dataUse  = bySource(/dusm|data usage|^dps$/i);
+    const pca      = bySource(/pca/i);
+    const dns      = bySource(/dns/i);
+    // DMA boards and the hardware that pretends to be a mouse: the Kind the scanner already
+    // writes for each device, filtered to the ones that cheat.
+    const dma      = hw.filter((x) => /dma|fpga|pcie|squirrel|captain|lambda/i.test(String(F(x, 'Kind') || '') + ' ' + String(F(x, 'Name') || '')));
+    // Hits that came from a string the OPERATOR wrote, rather than from the shipped list.
+    const myStrings = dets.filter((d) => (F(d, 'Features') || []).some((f) => /operator string/i.test(String(f))));
+    // Processes whose memory does not match the file they were loaded from.
+    const hollows  = memory.filter((x) => /hollow|unbacked|unmapped|replaced|injected/i.test(
+                       String(F(x, 'Kind') || '') + ' ' + String(F(x, 'Detail') || '') + ' ' + String(F(x, 'Name') || '')));
     const startup = L('StartupEntries'), tasks = L('ScheduledTasks'), drivers = L('LoadedDrivers');
     const recent = L('RecentFiles'), conns = L('NetworkConnections'), fw = L('FirewallRules');
 
@@ -1407,19 +1427,31 @@
     const match = (...xs) => !qf || xs.some((x) => String(Array.isArray(x) ? x.join(' ') : x || '').toLowerCase().includes(qf));
     const fl = (list, ...keys) => list.filter((o) => match(...(typeof o === 'string' ? [o] : keys.map((k) => F(o, k)))));
 
+    // v76 — the nav is grouped.
+    //
+    // Twenty-six buttons in one column with two unlabelled gaps gave staff no way to find
+    // anything: the order was historical, not meaningful. Named groups say what each run of
+    // buttons is FOR, so somebody who wants "what ran on this PC" knows to look under
+    // EXECUTION instead of reading all twenty-six.
     const cats = [
+      { group: 'Detections' },
       ['overview', 'Overview', '', 'blue'],
       ['detects', 'Detects', dets.length, 'red'],
       ['timeline', 'Timeline 24h', tRed ? tRed + ' cheat' : tOrange ? tOrange + ' check' : timeline.length || '–', tRed ? 'red' : tOrange ? 'orange' : 'blue'],
-      ['pchistory', 'Player history', bh && bh.count ? bh.count + ' ban' + (bh.count > 1 ? 's' : '') : hist ? (hist.seen ? hist.seen + ' scan' + (hist.seen > 1 ? 's' : '') : 'new PC') : '–', histBad ? 'red' : hist && hist.suspicious ? 'orange' : hist && hist.seen ? 'blue' : 'green'],
       ['integrity', 'Integrity', `${passed}/${integrity.length}`, 'green'],
       ['warnings', 'Warnings', warns.length, 'orange'],
+      ['mystrings', 'My Strings', myStrings.length, 'orange'],
+      ['dma', 'DMA', dma.length, dma.length ? 'red' : 'blue'],
       ['suspicious', 'Suspicious', susp.length, 'yellow'],
       ['entropy', 'Entropy', entropy.length, 'purple'],
       ['fivem', gName, fivemBad ? fivemBad + ' cheat' : fivem.filter((x) => F(x, 'Kind') !== 'Folder').length, fivemBad ? 'red' : fivemLook ? 'orange' : 'green'],
       ['discord', 'Discord', discRed ? discRed + ' cheat' : discOrange ? discOrange + ' check' : dc ? guilds.length : '–', discRed ? 'red' : discOrange || !dc ? 'orange' : 'blue'],
-      'sep',
-      ['exec', 'Execution', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
+      { group: 'Execution' },
+      ['bam', 'BAM', bam.length, 'red'],
+      ['datausage', 'Data usage', dataUse.length, 'orange'],
+      ['pcasvc', 'PcaSvc', pca.length, 'blue'],
+      ['hollows', 'Hollows Hunter', hollows.length, hollows.length ? 'red' : 'blue'],
+      ['exec', 'Programs that ran', flaggedRuns.length || executed.length, flaggedRuns.length ? 'red' : 'blue'],
       ['persist', 'Startup & tasks', startup.filter((x) => F(x, 'Suspicious')).length + tasks.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['drivers', 'Drivers', drivers.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['network', 'Network', conns.filter((x) => F(x, 'Suspicious')).length + fw.length, 'orange'],
@@ -1428,16 +1460,22 @@
       ['macros', 'Macros & recoil', maRed ? maRed + ' cheat' : maOrange ? maOrange + ' check' : (R('Macros') ? macros.length || '0' : '–'), maRed ? 'red' : maOrange ? 'orange' : 'blue'],
       ['hardware', 'Cheat hardware', hRed ? hRed + ' cheat' : hOrange ? hOrange + ' check' : (R('Hardware') ? '0' : '–'), hRed ? 'red' : hOrange ? 'orange' : 'blue'],
       ['memory', 'Service memory', mRed ? mRed + ' cheat' : mOrange ? mOrange + ' check' : memory.length || '–', mRed ? 'red' : mOrange ? 'orange' : 'blue'],
+      { group: 'Artifacts' },
       ['journal', 'File journal', jRed ? jRed + ' cheat' : jOrange ? jOrange + ' check' : journal.length || '–', jRed ? 'red' : jOrange ? 'orange' : 'blue'],
       ['files', 'Files & mods', deleted.length + recent.filter((x) => F(x, 'Flagged')).length + mods.length, 'blue'],
       ['cmds', 'Commands', cmds.filter((x) => F(x, 'Suspicious')).length, 'orange'],
       ['events', 'Event log', events.length, 'blue'],
+      ['deleted', 'Deleted files', deleted.length, deleted.length ? 'red' : 'blue'],
+      ['dnshistory', 'DNS history', dns.length, 'blue'],
+      ['browserhistory', 'Browser history', browserHistory.length, 'blue'],
+      ['browserdownloads', 'Browser downloads', browserDownloads.length, 'blue'],
+      { group: 'Session' },
       ['pc', 'PC & accounts', '', 'blue'],
-      'sep',
-      ['browserhistory', 'Browser Search History', browserHistory.length, 'blue'],
-      ['browserdownloads', 'Browser Downloads', browserDownloads.length, 'blue'],
     ];
     tab = tab || (dets.length ? 'detects' : 'overview');
+    // Player history was removed; an old link or a remembered tab must not open a blank pane.
+    if (tab === 'pchistory') tab = 'overview';
+    if (!cats.some((c) => Array.isArray(c) && c[0] === tab)) tab = 'overview';
     const total = dets.length + warns.length + susp.length + entropy.length;
 
     // Read only the browser data explicitly included in this PIN's report.
@@ -1538,8 +1576,14 @@
               <button class="btn btn-primary" data-dlookup>Check this Discord</button></div>
             ${localDiscord ? `<div class="rp-txt" style="margin-top:8px">Discord ID read from the PC: <b class="mono">${esc(localDiscord)}</b></div>` : ''}
             <div class="rp-txt" style="color:var(--dim);margin-top:8px">Servers he is in and left are read from the PC (Discord & browser cache) — no login needed. With the ID, the site also gets his profile and checks every server <b>your bot</b> is in. Optional: the player can still log in at <span class="mono">${esc(location.origin)}/verify?pin=${esc(pin)}</span> for his full server list.</div></div>`;
-        if (!dc) return lookupBox('Discord check by ID', 'No login needed', 'Type the player\'s Discord ID (or keep the one read from his PC) and click Check.')
-          + `<p style="color:var(--dim);font-size:12.5px;margin:-4px 0 14px">${legend}</p>` + leftSection + otherSection;
+        // v76 — no ID box here.
+        //
+        // It asked staff to type an id that the scanner had already read off the PC, and the
+        // list under it filled with hundreds of "Unknown name" rows — server ids with no name,
+        // which tell nobody anything. The account itself, with its picture and its name, is in
+        // PC & accounts now, one button per account. This tab is for the SERVERS.
+        if (!dc) return `<p style="color:var(--dim);font-size:12.5px;margin:0 0 14px">${legend}</p>`
+          + leftSection + otherSection;
 
         const u = dc.user || {};
         const mismatch = localDiscord && u.id && String(localDiscord) !== String(u.id);
@@ -1586,6 +1630,65 @@
       exec: () => head('Execution history', executed.length, 'Programs Windows recorded running (Prefetch, BAM, PCA, UserAssist, ShimCache) — even if deleted since.')
         + rows(executed.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
           rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), `${esc(F(e, 'LastRun'))} · ${esc(F(e, 'Source'))}`)), 'No execution history — it may have been wiped.'),
+
+      mystrings: () => head('My Strings', myStrings.length,
+          'Files caught by a string YOU added, not by the list that ships with the scanner. These are your own rules earning their keep.')
+        + rows(myStrings.filter((d) => match(F(d, 'File'), F(d, 'Path'))).map((d) =>
+          rowL(F(d, 'Severity') === 2 ? 'red' : 'orange',
+            `<b style="color:var(--text)">${esc(F(d, 'Signature'))}</b>`
+            + `<div class="mono" style="color:var(--dim);font-size:11.5px;margin-top:3px;word-break:break-all">${esc(F(d, 'Path') || F(d, 'File'))}</div>`,
+            esc(F(d, 'When') || ''))),
+          'Nothing matched a string of your own. Add them under Scanner → signatures.'),
+
+      dma: () => head('DMA & cheat hardware', dma.length,
+          'A DMA board reads the game\'s memory from a second PC, so nothing cheat-like ever runs on this one. It is found by the device it leaves behind, not by a file.')
+        + rows(dma.filter((x) => match(F(x, 'Name'), F(x, 'Kind'))).map((x) =>
+          rowL(F(x, 'Level') === 2 ? 'red' : 'orange',
+            `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> <span style="color:var(--dim)">${esc(F(x, 'Kind'))}</span>`
+            + (F(x, 'Detail') ? `<div style="color:var(--dim);font-size:12px;margin-top:3px">${esc(F(x, 'Detail'))}</div>` : ''),
+            esc(F(x, 'When') || ''))),
+          R('Hardware') ? 'No DMA board or spoofing hardware on this PC.' : 'This report has no hardware scan (older scanner).'),
+
+      bam: () => head('BAM — what Windows timestamped', bam.length,
+          'The Background Activity Moderator records the last time each program ran, to the second. It is kept per user and survives the file being deleted.')
+        + rows(bam.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
+          rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), esc(F(e, 'LastRun') || ''))),
+          'No BAM records in this report.'),
+
+      datausage: () => head('Data usage', dataUse.length,
+          'How much network each program used, from Windows\' own counter. A cheat that talks to a licence server appears here even when every file it came from is gone.')
+        + rows(dataUse.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
+          rowL(F(e, 'Flagged') ? 'red' : '',
+            `${esc(F(e, 'Path') || F(e, 'Name'))}${F(e, 'Detail') ? `<div style="color:var(--dim);font-size:12px;margin-top:3px">${esc(F(e, 'Detail'))}</div>` : ''}`,
+            esc(F(e, 'LastRun') || ''))),
+          'No network usage records in this report.'),
+
+      pcasvc: () => head('PcaSvc', pca.length,
+          'Program Compatibility Assistant records. Windows keeps them so it can offer compatibility help later, which means they outlive the program itself.')
+        + rows(pca.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
+          rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Path') || F(e, 'Name')), esc(F(e, 'LastRun') || ''))),
+          'No PcaSvc records in this report.'),
+
+      dnshistory: () => head('DNS history', dns.length,
+          'Hostnames this PC looked up. A cheat loader has to reach its server by name, and the lookup is cached here even when the program is gone.')
+        + rows(dns.filter((e) => match(F(e, 'Name'), F(e, 'Path'))).slice(0, 500).map((e) =>
+          rowL(F(e, 'Flagged') ? 'red' : '', esc(F(e, 'Name') || F(e, 'Path')), esc(F(e, 'LastRun') || ''))),
+          'No DNS records in this report — the cache is cleared on every reboot.'),
+
+      hollows: () => head('Hollowed processes', hollows.length,
+          'A process whose memory no longer matches the file it was started from: something replaced the code after it loaded. That is injection, and it leaves nothing on disk.')
+        + rows(hollows.filter((x) => match(F(x, 'Name'), F(x, 'Detail'))).map((x) =>
+          rowL(F(x, 'Level') === 2 ? 'red' : 'orange',
+            `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b>`
+            + (F(x, 'Detail') ? `<div style="color:var(--dim);font-size:12px;margin-top:3px">${esc(F(x, 'Detail'))}</div>` : ''),
+            esc(F(x, 'When') || ''))),
+          R('Memory') ? 'No hollowed or injected process found.' : 'This report has no memory scan (older scanner).'),
+
+      deleted: () => head('Deleted files', deleted.length,
+          'Files that were on this PC and are not any more. Windows remembers the name and when it went, which is usually minutes before a check.')
+        + rows(deleted.filter((x) => match(F(x, 'Name'), F(x, 'Path'))).slice(0, 500).map((x) =>
+          rowL(F(x, 'Flagged') ? 'red' : '', esc(F(x, 'Path') || F(x, 'Name')), esc(F(x, 'When') || ''))),
+          'Nothing recorded as deleted.'),
 
       persist: () => head('Starts with Windows', startup.length) + rows(fl(startup, 'Name', 'Command', 'Location').map((x) =>
           rowL(F(x, 'Suspicious') ? 'orange' : '', `<b style="color:var(--text)">${esc(F(x, 'Name'))}</b> &nbsp;${esc(F(x, 'Command'))}`, esc(F(x, 'Location')))), 'No startup entries.')
@@ -1725,20 +1828,12 @@
               + `<div style="color:var(--dim);font-size:12px;margin-top:3px">${x.player ? 'as “' + esc(x.player) + '” · ' : ''}matched by ${esc((x.matchedBy || []).join(', ') || 'identifier')}${x.banId ? ' · ban ' + esc(x.banId) : ''}</div>`,
               esc(fmtDate(x.at)))), '')
           : `<div class="empty">No ban found for this player (${esc((bh.lookedUp || []).join(', '))} checked).</div>`;
-        html += `<div class="rp-head" style="margin-top:16px">PC Checker History</div>`;
-        html += `<div style="color:var(--dim);font-size:12.5px;margin:-4px 0 10px;line-height:1.55">
-            Other PC-check and forensic tools this machine has seen, read from Windows' own
-            execution records. It says what was <b>installed</b> and what actually <b>ran</b> —
-            never what another tool concluded, because that is not written anywhere on this PC.</div>`;
-        html += checkerTools.length ? rows(checkerTools.map((x) => rowL(x.executed ? 'orange' : '',
-          `<b style="color:var(--text)">${esc(x.name)}</b>`
-          + (x.installed ? pill('Installed', 'rgba(74,140,247,.14)', '#8cc8ff') : '')
-          + (x.executed ? pill('Executed', 'rgba(255,179,92,.14)', '#ffb35c')
-                        : pill('Seen on disk', 'rgba(255,255,255,.06)', 'var(--muted)'))
-          + (x.paths.length ? `<div class="mono" style="color:var(--dim);font-size:11.5px;margin-top:5px;word-break:break-all">${x.paths.map(esc).join('<br>')}</div>` : '')
-          + `<div style="color:var(--dim);font-size:12px;margin-top:5px">Verdict from that tool: <b style="color:var(--muted)">Unknown</b> — it is not stored on this PC</div>`,
-          x.lastSeen ? 'last seen ' + esc(x.lastSeen) : '')))
-          : `<div class="empty">No other PC-check or forensic tool found on this machine.</div>`;
+        // v76 — the PC-checker block was removed from Player history.
+        //
+        // It was answering a question nobody had asked in the middle of the one they had:
+        // this tab is "what do we know about THIS player", and a list of forensic tools
+        // installed on the machine is a different subject. The detection still runs — the
+        // tools show up under PC & accounts, where machine facts belong.
         // scans
         html += `<div class="rp-head" style="margin-top:16px">Earlier scans of this PC</div>`;
         html += !hist ? '<div class="empty">No scan history for this report yet (run supabase-v29-pc-history.sql).</div>'
@@ -1832,7 +1927,21 @@
         }
         if (localDiscord && /^\d{17,20}$/.test(String(localDiscord)) && !byId.has(String(localDiscord)))
           byId.set(String(localDiscord), { id: String(localDiscord), current: true, sources: ['Discord'] });
-        const accs = [...byId.values()].sort((x, y) => (y.current ? 1 : 0) - (x.current ? 1 : 0));
+        const allIds = [...byId.values()].sort((x, y) => (y.current ? 1 : 0) - (x.current ? 1 : 0));
+
+        // v75.1 — an id Discord says is not a user is not an account.
+        //
+        // Discord's local storage is full of 17-20 digit snowflakes that are NOT accounts:
+        // guild ids, channel ids, message ids. A few of them used to reach this list, and the
+        // result was a column of "Discord account — account no longer exists" rows with no
+        // picture, burying the one real second account among them.
+        //
+        // The bot settles it: ask Discord, and keep what it confirms. An id still waiting on
+        // an answer is shown (so the list is not empty while the request is in flight); one
+        // Discord has denied is dropped to the footnote below, where it is called what it is.
+        const known = (a) => (state.dprofiles || {})[a.id];
+        const accs = allIds.filter((a) => { const p = known(a); return !p || p.found !== false; });
+        const notUsers = allIds.filter((a) => { const p = known(a); return p && p.found === false; });
         const checkedId = dc && dc.user && dc.user.id ? String(dc.user.id) : '';
         const extra = accs.filter((a) => !a.current).length;
 
@@ -1867,7 +1976,7 @@
         // than one per row, and it is fired only when there is something new to look up.
         {
           state.dprofiles = state.dprofiles || {};
-          const need = accs.map((a) => a.id).filter((id) => !(id in state.dprofiles));
+          const need = allIds.map((a) => a.id).filter((id) => !(id in state.dprofiles));
           if (need.length) {
             api(`/api/discord-profiles?ids=${need.join(',')}`)
               .then((r) => {
@@ -1900,6 +2009,9 @@
             ? `<div style="display:flex;flex-direction:column;gap:8px">${accs.map(accRow).join('')}</div>`
               + (extra ? `<div class="rp-txt" style="color:#fbbf24;margin-top:10px">⚠ ${extra} other Discord account${extra > 1 ? 's have' : ' has'} been used on this PC besides the one signed in now.</div>` : '')
             : `<p style="color:var(--dim);font-size:12.5px">No Discord account list on this PC — Discord is not installed, or the player used an older scanner (needs v4.11+).</p>`)
+          + (notUsers.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin-top:10px">
+              ${notUsers.length} other ID${notUsers.length > 1 ? 's' : ''} found in Discord's storage ${notUsers.length > 1 ? 'are' : 'is'} not a user account
+              (a server or a channel). Not shown.</p>` : '')
           + `<div style="height:18px"></div>` + head('Game accounts', 0, 'Steam, Rockstar Social Club and Epic accounts read from the PC.')
           + `<div class="rp-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
               ${gameAcc('Steam', 'SteamAccounts', 'No Steam account on this PC.')}
@@ -1933,7 +2045,9 @@
         <aside class="rp-side">
           <h4>${IC.shield.replace('<svg', '<svg style="width:18px;height:18px;color:var(--cyan)"')} Detection Results</h4>
           <div class="sub">${total} total logs found</div>
-          ${cats.map((c) => c === 'sep' ? '<div class="rp-sep"></div>' : `<button class="rp-cat ${c[0] === tab ? 'on' : ''}" data-rtab="${c[0]}">
+          ${cats.map((c) => c === 'sep' ? '<div class="rp-sep"></div>'
+            : c && c.group ? `<div class="rp-group">${esc(c.group)}</div>`
+            : `<button class="rp-cat ${c[0] === tab ? 'on' : ''}" data-rtab="${c[0]}">
             <span class="dot" style="background:${{ red: '#f43f5e', orange: '#f59e0b', green: '#10b981', yellow: '#eab308', purple: '#a855f7', blue: '#3b82f6' }[c[3]]}"></span>${c[1]}
             ${c[2] !== '' ? `<span class="n ${c[2] && c[2] !== 0 && c[2] !== '–' ? c[3] : ''}">${esc(c[2])}</span>` : ''}</button>`).join('')}
         </aside>

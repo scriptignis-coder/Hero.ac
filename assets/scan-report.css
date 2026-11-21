@@ -270,3 +270,15 @@ body{margin:0;font-family:Inter,-apple-system,"Segoe UI",system-ui,sans-serif}
 }
 .lv-suspicious .sr-cheat{background:#2e2412;border-color:#5e4a1f;color:#f7c15c}
 .lv-clean .sr-cheat{background:#132419;border-color:#255238;color:#6fdb9c}
+
+/* v76 — group headings in the report nav.
+   Quiet by design: they are signposts for the buttons under them, not items to be read. */
+.rp-group{
+  margin:18px 0 7px;padding:0 4px;
+  font:600 10px/1 ui-monospace,Menlo,Consolas,monospace;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint,#657085);
+  display:flex;align-items:center;gap:8px;
+}
+.rp-group:first-child{margin-top:4px}
+.rp-group:after{content:"";flex:1;height:1px;background:var(--line,#1b212c)}
