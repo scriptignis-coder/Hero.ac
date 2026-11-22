@@ -1194,6 +1194,18 @@
       .rp-cat .n.green { background:rgba(16,185,129,.15); color:#34d399 } .rp-cat .n.yellow { background:rgba(234,179,8,.14); color:#facc15 }
       .rp-cat .n.purple { background:rgba(168,85,247,.15); color:#c084fc } .rp-cat .n.blue { background:rgba(59,130,246,.15); color:#93c5fd }
       .rp-sep { height:1px; background:var(--line); margin:8px 4px }
+      /* v81.5 - the Signatures page: drop target and the result of a dropped file. */
+      .sig-drop { border:1.5px dashed var(--line-strong,var(--line)); border-radius:14px; padding:26px 18px; text-align:center;
+        cursor:pointer; display:flex; flex-direction:column; gap:6px; align-items:center; transition:border-color .15s, background .15s }
+      .sig-drop:hover, .sig-drop.over { border-color:var(--accent,#4a8cf7); background:rgba(74,140,247,.06) }
+      .sig-drop b { color:var(--text); font-size:14.5px }
+      .sig-drop span { color:var(--muted); font-size:12.5px }
+      .sig-hit { margin-top:12px; padding:13px 14px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.025) }
+      .sig-hit-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:7px }
+      .sig-hit-top b { color:var(--text); font-size:14px }
+      .sig-hit-hash { color:var(--dim); font-size:11.5px; word-break:break-all; line-height:1.6 }
+      .sig-hit-add { display:flex; gap:9px; margin-top:11px; flex-wrap:wrap }
+      .sig-hit-add .input { flex:1; min-width:150px }
       /* v81 - PC & accounts: the map and the two panels beside it. Static only: no
          backdrop-filter, no blur, no animated gradient, so a scroll never repaints. */
       .hs-acc-wrap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start }
@@ -2722,33 +2734,233 @@
         <b style="color:var(--cyan)">v${ver}</b><div style="margin-top:6px;color:var(--muted)">${text}</div></div>`).join('');
   }
 
+  // ── Signatures ────────────────────────────────────────────────────────────────────────
+  //
+  // A signature is what the scanner looks for. Three ways to make one, because operators get
+  // their cheats in three different states:
+  //
+  //   drop the file   you have the cheat itself. The hash is computed here, in the browser -
+  //                   the file is never uploaded anywhere. That is the strongest signature
+  //                   there is: a hash matches the exact build and nothing else, and it still
+  //                   matches after the player renames the file.
+  //   type it         you only know the name: "Eulen", eulen.exe. Weaker, but it is what you
+  //                   have when the cheat was deleted before you arrived.
+  //   import          a list from somebody else, or your own backup.
+  //
+  // Export is there because a list you cannot take with you is a list you are renting. JSON
+  // round-trips exactly; CSV is for reading in Excel.
   async function renderSignatures(view) {
     const { signatures } = await api('/api/signatures');
+    const H = (s) => esc(s == null ? '' : String(s));
     view.innerHTML = `
       <div class="card panel" style="margin-bottom:18px">
-        <h3>Add a cheat signature</h3>
-        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">The scanner pulls this list live — add a cheat and every check catches it. Pick the game: a FiveM cheat is not looked for in a Minecraft scan (spoofers / loaders → All games).</p>
+        <h3>Drop the cheat here</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
+          The hash is worked out <b>in your browser</b> — the file is never uploaded, not to this site and not anywhere else.
+          A hash signature catches the exact build even after the player renames it.</p>
+        <div id="sig-drop" class="sig-drop">
+          <b>Drag a cheat file here</b>
+          <span>or <button class="btn btn-ghost btn-sm" data-sigpick>choose a file</button> — several at once is fine</span>
+          <input type="file" id="sig-file" multiple hidden>
+        </div>
+        <div id="sig-drop-out"></div>
+      </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Write one yourself</h3>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
+          The scanner pulls this list live — add a cheat and every check from then on looks for it.
+          Pick the game: a FiveM cheat is not looked for in a Minecraft scan (spoofers and loaders → All games).</p>
         <div class="set-grid" style="display:grid;gap:10px">
           <input id="sig-name" class="input" placeholder="Cheat name (e.g. Eulen)">
           <input id="sig-files" class="input" placeholder="File names: eulen.exe, eulen.dll">
+          <input id="sig-hashes" class="input mono" placeholder="Hashes (SHA-256, SHA-1 or MD5), comma separated">
+          <input id="sig-domains" class="input" placeholder="Domains: eulencheats.com, cdn.eulen.cc">
           <input id="sig-feats" class="input" placeholder="Features: Aimbot, No recoil, ESP">
-          <div style="display:flex;gap:10px">
-            <select id="sig-game" class="input" style="flex:1" title="Which game this cheat is for"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
-            <select id="sig-sev" class="input" style="flex:1"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <select id="sig-game" class="input" style="flex:1;min-width:150px" title="Which game this cheat is for"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
+            <select id="sig-sev" class="input" style="flex:1;min-width:120px"><option value="high">High (cheating)</option><option value="medium">Medium</option><option value="low">Low</option></select>
             <button class="btn btn-primary" data-addsig>Add</button>
           </div>
         </div>
+        <p style="color:var(--dim);font-size:12.5px;margin:10px 0 0">A signature needs at least one of: a file name, a hash or a domain. The name alone matches nothing.</p>
       </div>
+
+      <div class="card panel" style="margin-bottom:18px">
+        <h3>Import and export</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-ghost btn-sm" data-sigimport>Import a file (JSON or CSV)</button>
+          <input type="file" id="sig-import" accept=".json,.csv,.txt" hidden>
+          <button class="btn btn-ghost btn-sm" data-sigexport="json" ${signatures.length ? '' : 'disabled'}>Export JSON</button>
+          <button class="btn btn-ghost btn-sm" data-sigexport="csv" ${signatures.length ? '' : 'disabled'}>Export CSV</button>
+        </div>
+        <details style="margin-top:12px">
+          <summary style="cursor:pointer;color:var(--muted);font-size:13px">Or paste a list</summary>
+          <p style="color:var(--dim);font-size:12.5px;margin:8px 0">One per line: <span class="mono">name, file.exe, &lt;hash&gt;, domain.com</span> — order does not matter, each piece is recognised by its shape.</p>
+          <textarea id="sig-paste" class="input mono" rows="6" placeholder="Eulen, eulen.exe, eulencheats.com&#10;RedEngine, redengine.exe"></textarea>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px" data-sigpaste>Add these</button>
+        </details>
+      </div>
+
       <div class="card panel"><h3>Signatures (${signatures.length})</h3>
-        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Game</th><th>Files</th><th>Features</th><th>Severity</th><th></th></tr></thead>
-          <tbody>${signatures.map((s) => `<tr><td><b>${esc(s.name)}</b></td>
-            <td>${(s.games || []).length ? (s.games || []).map((g) => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:6px">${gameIcon(g, 12)}${esc(gameOf(g).name)}</span>`).join('') : '<span style="color:var(--dim)">All games</span>'}</td>
-            <td class="mono">${esc((s.file_names || []).join(', '))}</td>
-            <td>${(s.features || []).map((f) => `<span class="cat">${esc(f)}</span>`).join(' ')}</td>
-            <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${esc(s.severity)}</span></td>
-            <td><button class="btn btn-danger btn-sm" data-delsig="${esc(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
-          : '<div class="empty">No signatures yet.</div>'}
+        ${signatures.length ? `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Game</th><th>Files</th><th>Hashes</th><th>Domains</th><th>Severity</th><th></th></tr></thead>
+          <tbody>${signatures.map((s) => `<tr><td><b>${H(s.name)}</b>${(s.features || []).length ? `<div>${(s.features || []).map((f) => `<span class="cat">${H(f)}</span>`).join(' ')}</div>` : ''}</td>
+            <td>${(s.games || []).length ? (s.games || []).map((g) => `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:6px">${gameIcon(g, 12)}${H(gameOf(g).name)}</span>`).join('') : '<span style="color:var(--dim)">All games</span>'}</td>
+            <td class="mono">${H((s.file_names || []).join(', '))}</td>
+            <td class="mono" style="font-size:11px">${(s.hashes || []).map((h) => `<div title="${H(h)}">${H(h.slice(0, 16))}…</div>`).join('') || '<span style="color:var(--dim)">—</span>'}</td>
+            <td class="mono" style="font-size:11.5px">${H((s.domains || []).join(', ')) || '<span style="color:var(--dim)">—</span>'}</td>
+            <td><span class="badge ${s.severity === 'high' ? 'ban' : s.severity === 'medium' ? 'kick' : 'off'}">${H(s.severity)}</span></td>
+            <td><button class="btn btn-danger btn-sm" data-delsig="${H(s.id)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+          : '<div class="empty">No signatures yet. Drop a cheat file above, or write one by hand.</div>'}
       </div>`;
+
+    // ── dropping files ──────────────────────────────────────────────────────────────────
+    const drop = view.querySelector('#sig-drop');
+    const input = view.querySelector('#sig-file');
+    const out = view.querySelector('#sig-drop-out');
+    if (!drop || !input || !out) return;
+
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { stop(e); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { stop(e); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', (e) => take(e.dataTransfer && e.dataTransfer.files));
+    drop.addEventListener('click', (e) => { if (!e.target.closest('button')) input.click(); });
+    input.addEventListener('change', () => take(input.files));
+
+    async function take(files) {
+      const list = [...(files || [])].slice(0, 20);
+      if (!list.length) return;
+      if (!window.HSFileCheck) { toast('The hashing script did not load — reload the page', true); return; }
+      out.innerHTML = `<p style="color:var(--muted);font-size:13px;margin:12px 0 0">Reading ${list.length} file${list.length > 1 ? 's' : ''}…</p>`;
+      const rows = [];
+      for (const f of list) {
+        try {
+          const r = await window.HSFileCheck.analyze(f, () => {}, signatures);
+          rows.push({ ok: true, file: f, r });
+        } catch (e) { rows.push({ ok: false, file: f, err: e.message || 'could not read this file' }); }
+      }
+      // The name is a guess from the file name - "eulen_loader.exe" -> "Eulen loader" - and it
+      // sits in an input so it can be corrected before anything is saved. Nothing is written
+      // to the list until the operator presses Add.
+      const guess = (n) => n.replace(/\.[a-z0-9]+$/i, '').replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim()
+        .replace(/^./, (c) => c.toUpperCase()).slice(0, 80);
+      out.innerHTML = rows.map((x, i) => x.ok ? `
+        <div class="sig-hit">
+          <div class="sig-hit-top">
+            <b>${H(x.file.name)}</b>
+            <span class="rp-tag ${x.r.verdict === 'cheat' ? 'red' : x.r.verdict === 'suspicious' ? 'orange' : ''}">${H(x.r.verdict)}</span>
+            <span style="color:var(--dim);font-size:12px">${(x.file.size / 1024).toFixed(0)} KB${x.r.knownAs ? ' · already in your list as ' + H(x.r.knownAs) : ''}</span>
+          </div>
+          <div class="mono sig-hit-hash">SHA-256 ${H(x.r.sha256 || '—')}</div>
+          <div class="mono sig-hit-hash">MD5 ${H(x.r.md5 || '—')} · SHA-1 ${H(x.r.sha1 || '—')}</div>
+          ${x.r.why && x.r.why.length ? `<div style="color:var(--muted);font-size:12.5px;margin-top:6px">${x.r.why.map(H).join(' · ')}</div>` : ''}
+          <div class="sig-hit-add">
+            <input class="input" data-dropname="${i}" value="${H(guess(x.file.name))}" placeholder="Cheat name">
+            <select class="input" data-dropgame="${i}"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
+            <button class="btn btn-primary btn-sm" data-dropadd="${i}" ${x.r.knownAs ? 'disabled' : ''}>${x.r.knownAs ? 'Already added' : 'Add as signature'}</button>
+          </div>
+        </div>` : `<div class="sig-hit"><b>${H(x.file.name)}</b><div style="color:#f87171;font-size:13px">${H(x.err)}</div></div>`).join('');
+
+      out.querySelectorAll('[data-dropadd]').forEach((btn) => btn.addEventListener('click', async () => {
+        const i = btn.dataset.dropadd;
+        const x = rows[i]; if (!x || !x.ok) return;
+        const name = (out.querySelector(`[data-dropname="${i}"]`) || {}).value;
+        if (!name || !name.trim()) { toast('Give it a name first', true); return; }
+        const g = (out.querySelector(`[data-dropgame="${i}"]`) || {}).value || '';
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          await api('/api/signatures', { method: 'POST', body: {
+            name: name.trim(), fileNames: x.file.name.toLowerCase(),
+            hashes: [x.r.sha256, x.r.sha1, x.r.md5].filter(Boolean).join(','),
+            features: (x.r.does || []).join(','), severity: 'high', games: g ? [g] : [],
+          } });
+          btn.textContent = 'Added';
+          toast('Signature added — every check from now on looks for it');
+        } catch (e) { btn.disabled = false; btn.textContent = 'Add as signature'; toast(e.message || 'Could not add it', true); }
+      }));
+    }
+
+    // ── import / export ─────────────────────────────────────────────────────────────────
+    const imp = view.querySelector('#sig-import');
+    if (imp) imp.addEventListener('change', async () => {
+      const f = imp.files && imp.files[0]; if (!f) return;
+      let text = '';
+      try { text = await f.text(); } catch { toast('Could not read that file', true); return; }
+      const bulk = parseSigText(text, f.name);
+      if (!bulk.length) { toast('Nothing usable in that file', true); return; }
+      try {
+        await api('/api/signatures', { method: 'POST', body: { bulk } });
+        toast(`Imported ${bulk.length} signature${bulk.length > 1 ? 's' : ''}`);
+        render();
+      } catch (e) { toast(e.message || 'Import failed', true); }
+    });
+  }
+
+  /**
+   * Reads a pasted or imported list. JSON keeps whatever shape it was exported in; anything
+   * else is read line by line, and each piece is recognised BY ITS SHAPE rather than by its
+   * column position - a 32-to-64 character hex run is a hash, something with a dot and no
+   * slash is a file name or a domain, the rest is the name. So a list copied out of a Discord
+   * message works as well as a tidy CSV.
+   */
+  function parseSigText(text, fileName = '') {
+    const t = String(text || '').trim();
+    if (!t) return [];
+    if (t[0] === '[' || t[0] === '{' || /\.json$/i.test(fileName)) {
+      try {
+        const j = JSON.parse(t);
+        const arr = Array.isArray(j) ? j : Array.isArray(j.signatures) ? j.signatures : [j];
+        return arr.filter((x) => x && x.name).slice(0, 500).map((x) => ({
+          name: String(x.name).slice(0, 80),
+          fileNames: x.fileNames || x.file_names || '',
+          hashes: x.hashes || '', domains: x.domains || '', features: x.features || '',
+          severity: x.severity || 'high', games: x.games || [],
+        }));
+      } catch { /* not JSON after all: fall through and read it as lines */ }
+    }
+    const out = [];
+    for (const line of t.split(/\r?\n/).slice(0, 500)) {
+      const parts = line.split(/[,;\t]+/).map((x) => x.trim()).filter(Boolean);
+      if (!parts.length) continue;
+      if (/^(name|cheat)\b/i.test(parts[0]) && /hash|file|domain/i.test(line)) continue;   // a CSV header
+      const hashes = [], files = [], domains = [], rest = [];
+      for (const p of parts) {
+        if (/^[a-f0-9]{32}$|^[a-f0-9]{40}$|^[a-f0-9]{64}$/i.test(p)) hashes.push(p.toLowerCase());
+        else if (/\.(exe|dll|sys|bat|cmd|jar|lua|asi|rpf|zip|rar|7z)$/i.test(p)) files.push(p.toLowerCase());
+        else if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(p) && !p.includes(' ')) domains.push(p.toLowerCase());
+        else rest.push(p);
+      }
+      const name = rest.shift() || files[0] || domains[0] || hashes[0];
+      if (!name || (!hashes.length && !files.length && !domains.length)) continue;
+      out.push({ name: name.slice(0, 80), fileNames: files.join(','), hashes: hashes.join(','),
+                 domains: domains.join(','), features: rest.join(','), severity: 'high', games: [] });
+    }
+    return out;
+  }
+
+  /** Hands the operator their own list back, in a file they can keep or give to someone else. */
+  function exportSignatures(rows, kind) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    let blob, name;
+    if (kind === 'csv') {
+      const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+      const lines = [['name', 'games', 'file_names', 'hashes', 'domains', 'features', 'severity'].join(',')];
+      for (const s of rows) lines.push([s.name, (s.games || []).join(' '), (s.file_names || []).join(' '),
+        (s.hashes || []).join(' '), (s.domains || []).join(' '), (s.features || []).join(' '), s.severity].map(q).join(','));
+      blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+      name = `heroshield-signatures-${stamp}.csv`;
+    } else {
+      // Exported in the same shape the import reads, so a backup restores exactly.
+      blob = new Blob([JSON.stringify({ signatures: rows.map((s) => ({
+        name: s.name, fileNames: s.file_names || [], hashes: s.hashes || [], domains: s.domains || [],
+        features: s.features || [], severity: s.severity, games: s.games || [],
+      })) }, null, 2)], { type: 'application/json' });
+      name = `heroshield-signatures-${stamp}.json`;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
   // ---------- permission duration: Duration (number) + Unit (hours … years / Lifetime) + live preview ----------
@@ -3388,10 +3600,29 @@
       } else if (t.dataset.addsig !== undefined) {
         const name = $('#sig-name').value.trim();
         const fileNames = $('#sig-files').value.trim();
-        if (!name || !fileNames) { toast('Name and file names required', true); return; }
+        const hashes = ($('#sig-hashes')?.value || '').trim();
+        const domains = ($('#sig-domains')?.value || '').trim();
+        // A name on its own matches nothing - the scanner looks for files, hashes and domains,
+        // not for the label. Refusing here is kinder than saving a signature that can never fire.
+        if (!name) { toast('Give the cheat a name', true); return; }
+        if (!fileNames && !hashes && !domains) { toast('Add at least a file name, a hash or a domain - a name alone matches nothing', true); return; }
         const sg = $('#sig-game')?.value || '';
-        await api('/api/signatures', { method: 'POST', body: { name, fileNames, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
+        await api('/api/signatures', { method: 'POST', body: { name, fileNames, hashes, domains, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
         toast('Signature added');
+        render();
+      } else if (t.dataset.sigpick !== undefined) {
+        $('#sig-file')?.click();
+      } else if (t.dataset.sigimport !== undefined) {
+        $('#sig-import')?.click();
+      } else if (t.dataset.sigexport) {
+        const { signatures } = await api('/api/signatures');
+        if (!signatures || !signatures.length) { toast('Nothing to export yet', true); return; }
+        exportSignatures(signatures, t.dataset.sigexport);
+      } else if (t.dataset.sigpaste !== undefined) {
+        const bulk = parseSigText($('#sig-paste')?.value || '');
+        if (!bulk.length) { toast('Nothing usable in that - each line needs a file name, a hash or a domain', true); return; }
+        await api('/api/signatures', { method: 'POST', body: { bulk } });
+        toast(`Added ${bulk.length} signature${bulk.length > 1 ? 's' : ''}`);
         render();
       } else if (t.dataset.delsig) {
         await api(`/api/signatures?id=${encodeURIComponent(t.dataset.delsig)}`, { method: 'DELETE' });
