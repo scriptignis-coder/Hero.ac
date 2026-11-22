@@ -2107,6 +2107,19 @@
         const warnServers = [
           ...cheatGuilds.map((g) => ({ id: String(g.id), name: g.name || 'Unknown server', icon: discordIcon(g), listed: true, where: 'In it right now' })),
           ...nameGuilds.map((g) => ({ id: String(g.id), name: g.name || 'Unknown server', icon: discordIcon(g), listed: false, where: 'In it right now' })),
+          // v81.4 - the ids Discord itself stores (scanner v4.16+).
+          //
+          // The cache only remembers a server the player opened recently, so a cheat shop he
+          // joined months ago and has been quietly sitting in left no trace at all - which is
+          // the exact player this tool exists for. Discord's own storage keeps those servers
+          // for years. The scanner sends every snowflake it holds, WITHOUT claiming to know
+          // what any of them is, and the only question asked of them is this one: is it in
+          // your cheat-server list? An id that matches nothing is never shown or named.
+          ...L('DiscordIdsSeen').map(String).filter((id) => cheatIds.has(id)).map((id) => {
+            const c = cheatIds.get(id);
+            return { id, name: c.name || 'Cheat server', icon: c.icon ? gIcon(id, c.icon) : '', listed: true,
+              where: 'Found in Discord\'s own storage on this PC — he is in it, or was and the client still holds it' };
+          }),
           ...pastCheat.map((x) => ({ id: x.id, inv: x.inv, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
             where: 'Left it — the traces are still on the PC' + (x.last ? ' · last seen ' + fmtDate(x.last) : '') })),
           ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => ({ id: x.id, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
