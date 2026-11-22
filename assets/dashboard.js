@@ -1206,6 +1206,11 @@
       .sig-hit-hash { color:var(--dim); font-size:11.5px; word-break:break-all; line-height:1.6 }
       .sig-hit-add { display:flex; gap:9px; margin-top:11px; flex-wrap:wrap }
       .sig-hit-add .input { flex:1; min-width:150px }
+      .sig-problem { border-color:rgba(245,158,11,.35) !important }
+      .sig-problem-row { padding:9px 11px; border-radius:10px; background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.2); font-size:12.5px }
+      .sig-problem-row b { color:var(--text); font-size:13.5px; margin-right:8px }
+      .sig-problem-row > div { color:var(--muted); margin-top:5px; line-height:1.7 }
+      .sig-problem-row .mono { color:#ffc46b }
       .rp-learn { margin-left:10px; padding:2px 9px; border-radius:999px; font:600 11px var(--font); cursor:pointer;
         color:var(--accent,#4a8cf7); background:transparent; border:1px solid var(--accent,#4a8cf7); opacity:.75; white-space:nowrap }
       .rp-learn:hover { opacity:1; background:var(--accent-ring,rgba(74,140,247,.18)) }
@@ -2800,9 +2805,28 @@
   // Export is there because a list you cannot take with you is a list you are renting. JSON
   // round-trips exactly; CSV is for reading in Excel.
   async function renderSignatures(view) {
-    const { signatures } = await api('/api/signatures');
+    const { signatures, problems = [] } = await api('/api/signatures');
     const H = (s) => esc(s == null ? '' : String(s));
-    view.innerHTML = `
+    // v82.3 - the list polices itself. A rule the scanner refuses to use is shown here with the
+    // reason, and can be removed in one press, because the person who sees the false accusation
+    // on a report is rarely the person sitting on this page.
+    const dead = problems.filter((p) => !p.usable);
+    const partial = problems.filter((p) => p.usable);
+    const problemBanner = problems.length ? `<div class="card panel sig-problem" style="margin-bottom:18px">
+      <h3 style="color:#ffc46b">${dead.length ? dead.length + ' signature' + (dead.length > 1 ? 's are' : ' is') + ' not being used' : 'Some file names are not being used'}</h3>
+      <p style="color:var(--muted);font-size:13.5px;margin-bottom:12px">
+        The scanner will not match on a data file, a source file or an everyday program name — those names sit on
+        innocent machines too, and matching them is how a check starts accusing people of their own files.
+        ${dead.length ? 'These rules have nothing usable left, so they never fire. Remove them.' : ''}</p>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${problems.map((p) => `<div class="sig-problem-row">
+          <b>${H(p.name)}</b>${p.usable ? '<span class="rp-tag">partly used</span>' : '<span class="rp-tag red">never fires</span>'}
+          <div>${p.dropped.map((d) => `<span class="mono">${H(d.file)}</span> — ${H(d.why)}`).join('<br>')}</div>
+        </div>`).join('')}
+      </div>
+      ${dead.length ? `<button class="btn btn-danger btn-sm" style="margin-top:12px" data-sigclean>Remove the ${dead.length} that never fire</button>` : ''}
+    </div>` : '';
+    view.innerHTML = problemBanner + `
       <div class="card panel" style="margin-bottom:18px">
         <h3>Drop the cheat here</h3>
         <p style="color:var(--muted);font-size:14px;margin-bottom:12px">
@@ -3682,6 +3706,12 @@
           t.classList.add('done');
           toast(`"${name}" added — every scan from now on reports ${file} as a cheat`);
         } catch (e) { t.disabled = false; t.textContent = '+ signature'; toast(e.message || 'Could not add it', true); }
+      } else if (t.dataset.sigclean !== undefined) {
+        const { problems = [] } = await api('/api/signatures');
+        const dead = problems.filter((p) => !p.usable && p.id);
+        for (const p of dead) await api(`/api/signatures?id=${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+        toast(`Removed ${dead.length} signature${dead.length > 1 ? 's' : ''} that could never fire`);
+        render();
       } else if (t.dataset.sigpick !== undefined) {
         $('#sig-file')?.click();
       } else if (t.dataset.sigimport !== undefined) {

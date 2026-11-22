@@ -1,5 +1,6 @@
 import { wrap, send, requireAccess, readBody, sb, enc, str, httpError } from './_lib.js';
 import { GAMES } from './_games.js';
+import { auditList, fileNameProblem } from './_sig-guard.js';
 
 const toList = (v) => Array.isArray(v)
   ? v.map((x) => str(x, 120)).filter(Boolean)
@@ -11,7 +12,9 @@ export default wrap(async (req, res) => {
 
   if (req.method === 'GET') {
     const rows = await sb(`signatures?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.asc`);
-    return send(res, 200, { signatures: rows || [] });
+    // What in this list the scanner is refusing to use, and why - so the operator can see it
+    // and remove it instead of wondering why a rule never fires.
+    return send(res, 200, { signatures: rows || [], problems: auditList(rows || []) });
   }
 
   if (req.method === 'POST') {

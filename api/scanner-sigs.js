@@ -1,6 +1,7 @@
 // Public feed the scanner fetches by PIN: the owning account's signatures, mapped to
 // the shape the scanner expects (name, fileNames, features, domains, hashes, severity).
 import { wrap, send, sb, enc } from './_lib.js';
+import { guardList } from './_sig-guard.js';
 
 export default wrap(async (req, res) => {
   const pin = String(req.query.pin || '').trim().toUpperCase().slice(0, 12);
@@ -28,5 +29,8 @@ export default wrap(async (req, res) => {
     severity: s.severity || 'high',
     games: s.games || [],      // empty = every game; the scanner keeps only the PIN's game
   }));
-  send(res, 200, out);
+  // v82.3 - a bad row in the list must not become an accusation on a player's PC. Anything
+  // that cannot single out a cheat (data and source file names, everyday program names) is
+  // dropped here, on the way out, whatever is sitting in the database.
+  send(res, 200, guardList(out));
 });

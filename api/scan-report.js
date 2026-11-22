@@ -147,7 +147,21 @@ export default wrap(async (req, res) => {
   // Best-effort notification only; never block or invalidate the scanner report.
   if(rows[0].license_id){
     try {const owners=await sb(`scanner_licenses?id=eq.${enc(rows[0].license_id)}&select=owner_discord&limit=1`);
-      if(owners?.[0]?.owner_discord)await sendScanWebhook(owners[0].owner_discord,{game:report.Game,verdict,count:dets.length});
+      if (owners?.[0]?.owner_discord) {
+        // v82.3 - the card carries what staff need to act, not just that a scan happened.
+        const accIds = (report.DiscordAccountsSeen || []).map((x) => x.Id || x.id).filter(Boolean).slice(0, 4);
+        const top = (dets || []).slice(0, 5).map((d) => d.Signature || d.CheatName || d.File).filter(Boolean);
+        await sendScanWebhook(owners[0].owner_discord, {
+          game: report.Game, gameName: gameOf(report.Game)?.name, verdict, count: dets.length,
+          pin: rows[0].pin, url: `${process.env.PUBLIC_BASE_URL || 'https://www.heroshield.store'}/dashboard#pin=${encodeURIComponent(rows[0].pin)}`,
+          discord: accIds.map((id) => ({ id })),
+          steam: (report.SteamAccounts || []).slice(0, 4).map((x) => ({ id: x.Id || x.id || '', name: x.Name || x.name || '' })).filter((x) => x.id || x.name),
+          pcName: report.System?.PcName || report.System?.MachineName || null,
+          os: report.System?.Os || null,
+          country: report.Net?.country || null,
+          top,
+        });
+      }
     }catch(e){console.error('Scan notification failed:',e.message);}
   }
   return send(res, 200, { ok: true });
