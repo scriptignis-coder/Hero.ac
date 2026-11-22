@@ -1,7 +1,7 @@
 import {sendScanWebhook} from './_client-webhook.js';
 import { wrap, send, readBody, sb, enc, httpError } from './_lib.js';
 import { pcHistory, lookupBans } from './_pchistory.js';
-import { gameOf } from './_games.js';
+import { gameOf, GAMES } from './_games.js';
 
 // Receives the finished scan report from the HeRo Scanner (no session — the
 // player's PC posts it). Matches the PIN and stores the result on the row.
@@ -152,8 +152,13 @@ export default wrap(async (req, res) => {
         const accIds = (report.DiscordAccountsSeen || []).map((x) => x.Id || x.id).filter(Boolean).slice(0, 4);
         const top = (dets || []).slice(0, 5).map((d) => d.Signature || d.CheatName || d.File).filter(Boolean);
         await sendScanWebhook(owners[0].owner_discord, {
-          game: report.Game, gameName: gameOf(report.Game)?.name, verdict, count: dets.length,
-          pin: rows[0].pin, url: `${process.env.PUBLIC_BASE_URL || 'https://www.heroshield.store'}/dashboard#pin=${encodeURIComponent(rows[0].pin)}`,
+          // `rows[0].pin` was never selected from the table, so the card showed a dash where
+          // the PIN goes - the one value staff quote out loud. `pin` is the value that got us
+          // here. And gameOf() returns the KEY ("fivem"); GAMES is what turns it into "FiveM".
+          game: report.Game, gameName: GAMES[gameOf(report.Game)], verdict, count: dets.length,
+          pin, url: `${process.env.PUBLIC_BASE_URL || 'https://www.heroshield.store'}/dashboard#pin=${encodeURIComponent(pin)}`,
+          cleaningSigns: report.CleaningSigns || 0, evidenceRemoved: !!report.EvidenceRemoved,
+          reason: report.VerdictReason || '', scanner: report.ScannerVersion || '',
           discord: accIds.map((id) => ({ id })),
           steam: (report.SteamAccounts || []).slice(0, 4).map((x) => ({ id: x.Id || x.id || '', name: x.Name || x.name || '' })).filter((x) => x.id || x.name),
           pcName: report.System?.PcName || report.System?.MachineName || null,

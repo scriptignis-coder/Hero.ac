@@ -18,39 +18,77 @@ export function validDiscordUrl(s){try{const u=new URL(s);return u.protocol==='h
  */
 
 const COLORS = { cheating: 0xf43f5e, suspicious: 0xf59e0b, clean: 0x3ecf8e };
-const TITLES  = { cheating: 'Cheat found', suspicious: 'Needs a look', clean: 'Clean' };
+const TITLES = { cheating: 'Cheat found', suspicious: 'Needs a look', clean: 'Clean' };
+const MARKS  = { cheating: '🔴', suspicious: '🟠', clean: '🟢' };
 
 /** A Discord field, or nothing at all when there is nothing to say. */
 const field = (name, value, inline = false) =>
   (value === undefined || value === null || value === '' ? null : { name, value: String(value).slice(0, 1024), inline });
 
+/** Discord lays inline fields out three to a row; this keeps a short row from stretching. */
+const SPACER = { name: '​', value: '​', inline: true };
+
+/** A one-line code box, which is what makes a value read as a value and not as prose. */
+const box = (v) => '`' + String(v).replace(/`/g, '') + '`';
+
 export function buildScanEmbed(p) {
   const v = ['cheating', 'suspicious', 'clean'].includes(p.verdict) ? p.verdict : 'suspicious';
-  const accounts = (p.discord || []).slice(0, 4)
-    .map((a) => `${a.name ? a.name + ' ' : ''}\`${a.id}\``).join('\n');
-  const steam = (p.steam || []).slice(0, 4)
-    .map((a) => `${a.name ? a.name + ' — ' : ''}\`${a.id}\``).join('\n');
+
+  // The same cheat is found through several routes - the file, its name, its signature - and
+  // the card was printing "SolaraV3" three times over. Staff need the list of THINGS, not the
+  // list of hits: duplicates are counted, not repeated.
+  const seen = new Map();
+  for (const t of p.top || []) {
+    const k = String(t).trim();
+    if (!k) continue;
+    seen.set(k, (seen.get(k) || 0) + 1);
+  }
+  const found = [...seen.entries()].slice(0, 6)
+    .map(([name, n]) => `\`${name}\`${n > 1 ? ` ×${n}` : ''}`).join('\n');
+
+  const accounts = (p.discord || []).slice(0, 4).map((a) => (a.name ? `**${a.name}** ${box(a.id)}` : box(a.id))).join('\n');
+  const steam    = (p.steam || []).slice(0, 4).map((a) => (a.name ? `**${a.name}** ${box(a.id)}` : box(a.id))).join('\n');
+
+  // Row 1 is the three things staff read first, always in the same place.
+  const row1 = [
+    field('PIN', box(p.pin || 'unknown'), true),
+    field('Game', p.gameName || p.game || '—', true),
+    field('Findings', box(p.count ? `${p.count} detection${p.count === 1 ? '' : 's'}` : 'none'), true),
+  ].filter(Boolean);
+
+  const row2 = [
+    field('PC', p.pcName ? box(p.pcName) : null, true),
+    field('Windows', p.os || null, true),
+    field('Connected from', p.country || null, true),
+  ].filter(Boolean);
+  // Two inline fields on their own sit stretched across the card; a blank third squares them up.
+  if (row2.length === 2) row2.push(SPACER);
 
   const fields = [
-    field('PIN', '```' + (p.pin || '—') + '```', true),
-    field('Result', '```' + (TITLES[v] + (p.count ? ` · ${p.count}` : '')) + '```', true),
-    field('Game', p.gameName || p.game, true),
-    field('Discord', accounts ? accounts : null),
-    field('Steam', steam ? steam : null),
-    field('PC', p.pcName ? `\`${p.pcName}\`${p.os ? ' · ' + p.os : ''}` : null, true),
-    field('Connected from', p.country || null, true),
-    // The top few findings, so a verdict is never just a colour. Staff can act on a name.
-    field(p.top && p.top.length ? 'Found' : null, p.top && p.top.length ? p.top.slice(0, 5).map((t) => '• ' + t).join('\n') : null),
+    ...row1,
+    ...(row1.length === 2 ? [SPACER] : []),
+    ...row2,
+    field(found ? 'What was found' : null, found),
+    // The erased histories are a headline, not a footnote: a clean-looking scan on a wiped PC
+    // is the one case where the number means more than the verdict.
+    field(p.evidenceRemoved ? '⚠ Histories erased' : null,
+          p.evidenceRemoved ? `${p.cleaningSigns} of the places Windows records what ran had been emptied before this check.` : null),
+    field(accounts ? 'Discord' : null, accounts, true),
+    field(steam ? 'Steam' : null, steam, true),
   ].filter(Boolean);
 
   const embed = {
-    title: TITLES[v],
+    author: { name: `${MARKS[v]}  ${TITLES[v]}` },
     color: COLORS[v],
+    description: p.reason ? `_${String(p.reason).slice(0, 300)}_` : undefined,
     fields,
     timestamp: new Date().toISOString(),
-    footer: { text: 'HeRo Shield · heroshield.store' },
+    footer: { text: p.scanner ? `HeRo Shield · scanner v${p.scanner}` : 'HeRo Shield' },
   };
-  if (p.url) embed.description = `**[Open the full report](${p.url})**`;
+  if (p.url) {
+    embed.title = 'Open the full report  →';
+    embed.url = p.url;
+  }
   if (p.logo) embed.thumbnail = { url: p.logo };
   if (p.banner) embed.image = { url: p.banner };
   return embed;

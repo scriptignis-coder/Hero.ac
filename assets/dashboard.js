@@ -1206,6 +1206,12 @@
       .sig-hit-hash { color:var(--dim); font-size:11.5px; word-break:break-all; line-height:1.6 }
       .sig-hit-add { display:flex; gap:9px; margin-top:11px; flex-wrap:wrap }
       .sig-hit-add .input { flex:1; min-width:150px }
+      .rp-cleaned { margin:0 0 16px; padding:15px 17px; border-radius:13px;
+        background:rgba(244,63,94,.07); border:1px solid rgba(244,63,94,.32); border-left:3px solid #f43f5e }
+      .rp-cleaned b { display:block; color:#ff8fa3; font-size:14.5px; margin-bottom:7px }
+      .rp-cleaned p { color:var(--muted); font-size:13px; line-height:1.65; margin:0 0 8px }
+      .rp-cleaned-list { color:#ffc46b !important; font-size:12.5px !important }
+      .rp-cleaned-foot { color:var(--dim) !important; font-size:12px !important; margin-bottom:0 !important }
       .sig-problem { border-color:rgba(245,158,11,.35) !important }
       .sig-problem-row { padding:9px 11px; border-radius:10px; background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.2); font-size:12.5px }
       .sig-problem-row b { color:var(--text); font-size:13.5px; margin-right:8px }
@@ -1687,9 +1693,19 @@
       browserhistory: () => browserPane(browserHistory, 'Browser Search History'),
       browserdownloads: () => browserPane(browserDownloads, 'Browser Downloads'),
       overview: () => `
+        ${R('EvidenceRemoved') ? `<div class="rp-cleaned">
+          <b>The histories on this PC had been erased before the check</b>
+          <p>${esc(R('VerdictReason') || '')}</p>
+          <p class="rp-cleaned-list">${warns.filter((w) => (F(w, 'Category') || '').toLowerCase() === 'cleaning')
+            .map((w) => '• ' + esc(F(w, 'Title'))).join('<br>')}</p>
+          <p class="rp-cleaned-foot">Windows keeps what ran in several separate places. One of them being empty is ordinary — a fresh install, a tune-up tool, a small disk.
+            ${R('CleaningSigns')} of them being empty on the same PC is a decision, and it is the reason this scan cannot call the PC clean.
+            It is not proof of a cheat and must not be reported as one. Ask him what he ran before the check.</p>
+        </div>` : ''}
         <div class="rp-stats">
           ${[['Detects', dets.length, dets.length ? '#fb7185' : ''], ['Warnings', warns.length, warns.length ? '#fbbf24' : ''],
-             ['Suspicious', susp.length, ''], ['Integrity', `${passed}/${integrity.length}`, passed === integrity.length ? '#34d399' : ''],
+             ['Suspicious', susp.length, ''], ['Erased histories', R('CleaningSigns') || 0, R('EvidenceRemoved') ? '#fb7185' : R('CleaningSigns') ? '#fbbf24' : ''],
+             ['Integrity', `${passed}/${integrity.length}`, passed === integrity.length ? '#34d399' : ''],
              ['Cheat servers', dc ? cheatGuilds.length : '–', cheatGuilds.length ? '#fb7185' : ''], ['Files scanned', fmtNum(R('FilesScanned')), ''],
              ['Scan time', (R('DurationSeconds') || 0) + 's', ''], ['Scanner', 'v' + (R('ScannerVersion') || '?'), '']]
             .map(([k, v, c]) => `<div class="rp-stat" style="${c ? `--c:${c}` : ''}"><b>${esc(v)}</b><span>${k}</span></div>`).join('')}
