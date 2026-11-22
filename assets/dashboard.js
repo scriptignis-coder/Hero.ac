@@ -2129,7 +2129,7 @@
           // your cheat-server list? An id that matches nothing is never shown or named.
           ...L('DiscordIdsSeen').map(String).filter((id) => cheatIds.has(id)).map((id) => {
             const c = cheatIds.get(id);
-            return { id, name: c.name || 'Cheat server', icon: c.icon ? gIcon(id, c.icon) : '', listed: true,
+            return { id, name: c.name || 'Cheat server', icon: c.icon ? gIcon(id, c.icon) : '', listed: true, builtin: !!c.builtin,
               where: 'Found in Discord\'s own storage on this PC — he is in it, or was and the client still holds it' };
           }),
           ...pastCheat.map((x) => ({ id: x.id, inv: x.inv, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
@@ -2217,13 +2217,13 @@
             <div class="hs-srv-why">${esc(s.where)}</div>
             <div class="mono hs-srv-id">${esc(s.id || (s.inv ? 'discord.gg/' + s.inv : ''))}</div>
           </div>
-          <span class="rp-tag">${s.listed ? 'ON YOUR LIST' : 'NAME LOOKS LIKE A CHEAT'}</span>
+          <span class="rp-tag">${s.builtin ? 'KNOWN CHEAT SHOP' : s.listed ? 'ON YOUR LIST' : 'NAME LOOKS LIKE A CHEAT'}</span>
         </div>`;
         const warnPane = `<div class="hs-pane ${warnServers.length ? 'warn' : ''}">
           <div class="hs-pane-h">Warning — Discord servers<span>${warnServers.length}</span></div>
           ${warnServers.length
             ? `<div style="display:flex;flex-direction:column;gap:8px">${warnServers.map(srvRow).join('')}</div>`
-              + `<p class="rp-txt" style="color:var(--dim);margin:10px 0 0">Red = a server in your own cheat-server list. Orange = the name alone looks like a cheat shop — read it before you act on it. Leaving a server does not erase it: Discord and the browsers keep the icons, invite pages and channel links on the PC.</p>`
+              + `<p class="rp-txt" style="color:var(--dim);margin:10px 0 0">Red = a known cheat shop that ships with HeRo Shield, or one in your own list. Orange = the name alone looks like a cheat shop — read it before you act on it. Leaving a server does not erase it: Discord and the browsers keep the icons, invite pages and channel links on the PC.</p>`
             : `<p style="color:var(--dim);font-size:12.5px;margin:0">${L('DiscordTraces').length || history.length
                 ? 'No cheat server found — not in one now, and none in what the PC remembers.'
                 : 'No Discord traces on this PC (cache cleared, or an older scanner) and no earlier check.'}</p>`}

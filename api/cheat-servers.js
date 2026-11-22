@@ -1,4 +1,5 @@
 import { wrap, send, readBody, sb, enc, str, httpError, requireAccess } from './_lib.js';
+import { builtinCheatServers } from './_builtin-cheat-servers.js';
 
 // Watch-list of cheat Discord servers. Add them by invite link — Discord's public
 // invite API gives the server ID, name and icon (no bot needed).
@@ -24,7 +25,13 @@ export default wrap(async (req, res) => {
 
   if (req.method === 'GET') {
     const rows = await sb(`cheat_servers?owner_discord=eq.${enc(user.id)}&select=*&order=created_at.desc`);
-    return send(res, 200, { servers: rows || [] });
+    // v82 - the shipped list, merged in so a new operator catches the known shops on day one
+    // without adding anything. The operator's own row wins on a collision: he may have given
+    // the server his own label, and his list is his.
+    const mine = rows || [];
+    const have = new Set(mine.map((r) => String(r.guild_id)));
+    const builtin = (await builtinCheatServers().catch(() => [])).filter((b) => !have.has(b.guild_id));
+    return send(res, 200, { servers: [...mine, ...builtin], builtinCount: builtin.length });
   }
 
   // body: { links: "discord.gg/abc\ndiscord.gg/xyz" }  or  { guildId, name } for a server ID you already know
