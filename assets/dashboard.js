@@ -1206,6 +1206,11 @@
       .sig-hit-hash { color:var(--dim); font-size:11.5px; word-break:break-all; line-height:1.6 }
       .sig-hit-add { display:flex; gap:9px; margin-top:11px; flex-wrap:wrap }
       .sig-hit-add .input { flex:1; min-width:150px }
+      .rp-learn { margin-left:10px; padding:2px 9px; border-radius:999px; font:600 11px var(--font); cursor:pointer;
+        color:var(--accent,#4a8cf7); background:transparent; border:1px solid var(--accent,#4a8cf7); opacity:.75; white-space:nowrap }
+      .rp-learn:hover { opacity:1; background:var(--accent-ring,rgba(74,140,247,.18)) }
+      .rp-learn.done { color:#34d399; border-color:#34d399; opacity:1; cursor:default }
+      .rp-learn:disabled { cursor:default }
       .sig-warn { margin-top:10px; padding:10px 12px; border-radius:10px; font-size:12.5px; line-height:1.6;
         color:#ffc46b; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.3) }
       /* v81 - PC & accounts: the map and the two panels beside it. Static only: no
@@ -1576,6 +1581,31 @@
     const card = (c, icon, title, tag, inner = '') => `<div class="rp-card ${c}"><div class="rp-top"><div class="rp-ic">${icon}</div>
         <div class="rp-title">${title}</div>${tag ? `<span class="rp-tag">${tag}</span>` : ''}</div>${inner}</div>`;
     const rowL = (c, text, right = '') => `<div class="rp-row ${c}"><span>${text}</span>${right ? `<span class="r">${right}</span>` : ''}</div>`;
+
+    /**
+     * v82.2 — "I know this one. Catch it next time."
+     *
+     * A suspicious row is the scanner saying it cannot decide. The operator usually can: he has
+     * seen that loader before and knows the shop it comes from. Until now that knowledge went
+     * nowhere — the same file came back as "suspicious" on the next player, and the one after.
+     *
+     * This button turns the row into a signature, so from the next scan on the same file name
+     * lands in Detects instead of Suspicious.
+     *
+     * It only appears where there is a real file name to learn. A row about a scheduled task or
+     * a registry key has nothing to add, and a button that saves rubbish is worse than no button.
+     */
+    const fileOf = (p) => String(p || '').split(/[\\/]/).pop().trim();
+    const learnable = (p) => /\.(exe|dll|sys|asi|jar|ahk|lua|bat|cmd|ps1)$/i.test(fileOf(p));
+    const addSigBtn = (path, why = '') => {
+      const f = fileOf(path);
+      if (!learnable(path)) return '';
+      // The suggested name is the file's own stem, cleaned up — the operator can still rename it
+      // afterwards on the Signatures page, and nothing is saved until this is pressed.
+      const guess = f.replace(/\.[a-z0-9]+$/i, '').replace(/[._-]+/g, ' ').trim().replace(/^./, (c) => c.toUpperCase());
+      return `<button class="rp-learn" data-learn="${esc(f)}" data-learnname="${esc(guess.slice(0, 80))}" data-learnwhy="${esc(String(why).slice(0, 120))}"
+        title="Add ${esc(f)} to your signatures — every scan from now on reports it as a cheat">+ signature</button>`;
+    };
     const grid = (items, empty) => (items.length ? `<div class="rp-grid">${items.join('')}</div>` : `<div class="rp-empty">${empty}</div>`);
     const rows = (items, empty) => (items.length ? `<div class="rp-rows">${items.join('')}</div>` : `<div class="rp-empty">${empty}</div>`);
     const head = (title, n, sub = '') => `<div class="rp-head">${title} <span class="cnt">${n !== '' ? n + ' entries' : ''}</span></div>${sub ? `<p style="color:var(--dim);font-size:12.5px;margin:-8px 0 14px">${sub}</p>` : ''}`;
@@ -1694,10 +1724,12 @@
           `<div class="rp-txt">${esc(F(w, 'Detail'))}</div>`)), 'No warnings.'),
 
       suspicious: () => head('Suspicious Logs', susp.length, 'Not proof on their own — files worth a look.')
-        + rows(susp.filter((x) => match(F(x, 'Kind'), F(x, 'Path'))).map((x) => rowL('yellow', esc(F(x, 'Path')), esc(F(x, 'Kind')))), 'Nothing suspicious.'),
+        + rows(susp.filter((x) => match(F(x, 'Kind'), F(x, 'Path')))
+            .map((x) => rowL('yellow', esc(F(x, 'Path')), esc(F(x, 'Kind')) + addSigBtn(F(x, 'Path'), F(x, 'Kind')))), 'Nothing suspicious.'),
 
       entropy: () => head('Entropy', entropy.length, 'Programs whose content is packed / encrypted (entropy > 7.2 of 8) and unsigned — cheats do this to hide their strings.')
-        + rows(fl(entropy, 'Path', 'Kind').map((x) => rowL('purple', esc(F(x, 'Path')), esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')))), 'No packed programs found.'),
+        + rows(fl(entropy, 'Path', 'Kind').map((x) => rowL('purple', esc(F(x, 'Path')),
+            esc((F(x, 'Kind') || '').replace(/\s*\(.*/, '')) + addSigBtn(F(x, 'Path'), 'Packed / encrypted'))), 'No packed programs found.'),
 
       fivem: () => {
         const lvC = (x) => (F(x, 'Level') === 2 ? 'red' : F(x, 'Level') === 1 ? 'orange' : 'green');
@@ -3635,6 +3667,21 @@
         await api('/api/signatures', { method: 'POST', body: { name, fileNames, hashes, domains, features: $('#sig-feats').value.trim(), severity: $('#sig-sev').value, games: sg ? [sg] : [] } });
         toast('Signature added');
         render();
+      } else if (t.dataset.learn) {
+        // Learn this file. One press, no form: the operator is in the middle of a screenshare
+        // and the Signatures page is where he edits it later if the name needs changing.
+        const file = t.dataset.learn;
+        const name = t.dataset.learnname || file;
+        t.disabled = true; t.textContent = 'adding…';
+        try {
+          await api('/api/signatures', { method: 'POST', body: {
+            name, fileNames: file.toLowerCase(),
+            features: t.dataset.learnwhy ? [t.dataset.learnwhy] : [], severity: 'high', games: [],
+          } });
+          t.textContent = '✓ in signatures';
+          t.classList.add('done');
+          toast(`"${name}" added — every scan from now on reports ${file} as a cheat`);
+        } catch (e) { t.disabled = false; t.textContent = '+ signature'; toast(e.message || 'Could not add it', true); }
       } else if (t.dataset.sigpick !== undefined) {
         $('#sig-file')?.click();
       } else if (t.dataset.sigimport !== undefined) {
