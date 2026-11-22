@@ -1206,6 +1206,8 @@
       .sig-hit-hash { color:var(--dim); font-size:11.5px; word-break:break-all; line-height:1.6 }
       .sig-hit-add { display:flex; gap:9px; margin-top:11px; flex-wrap:wrap }
       .sig-hit-add .input { flex:1; min-width:150px }
+      .sig-warn { margin-top:10px; padding:10px 12px; border-radius:10px; font-size:12.5px; line-height:1.6;
+        color:#ffc46b; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.3) }
       /* v81 - PC & accounts: the map and the two panels beside it. Static only: no
          backdrop-filter, no blur, no animated gradient, so a scroll never repaints. */
       .hs-acc-wrap { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start }
@@ -2130,12 +2132,18 @@
           ...L('DiscordIdsSeen').map(String).filter((id) => cheatIds.has(id)).map((id) => {
             const c = cheatIds.get(id);
             return { id, name: c.name || 'Cheat server', icon: c.icon ? gIcon(id, c.icon) : '', listed: true, builtin: !!c.builtin,
-              where: 'Found in Discord\'s own storage on this PC — he is in it, or was and the client still holds it' };
+              // Honest wording. Discord stores the ID when the server is JOINED and also when
+              // an invite is merely opened, and the storage does not say which. Writing "he is
+              // in it" turns a strong clue into a claim the data does not support - and the
+              // first person it misled was the operator looking at his own PC.
+              where: 'Its ID is in Discord\'s storage on this PC — the server was joined, or its invite was opened' };
           }),
           ...pastCheat.map((x) => ({ id: x.id, inv: x.inv, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
-            where: 'Left it — the traces are still on the PC' + (x.last ? ' · last seen ' + fmtDate(x.last) : '') })),
+            // The cache proves a page or an icon was loaded, not that he joined and left. That
+            // is still worth showing, but as what it is.
+            where: 'Its page or icon is in the cache on this PC' + (x.last ? ' · last loaded ' + fmtDate(x.last) : '') })),
           ...leftCheat.filter((x) => !pastCheat.some((p) => p.id === x.id)).map((x) => ({ id: x.id, name: x.name || 'Unknown server', icon: gIcon(x.id, x.icon), listed: !!x.listed,
-            where: `Still in it at his check of ${fmtDate(x.at)} (PIN ${x.pin})` })),
+            where: `Seen on his PC at the check of ${fmtDate(x.at)} (PIN ${x.pin})` })),
         ].filter((s) => { const k = s.id || 'inv:' + (s.inv || ''); if (!k || warnSeen.has(k)) return !!k && false; warnSeen.add(k); return true; })
          .sort((a, b) => (b.listed ? 1 : 0) - (a.listed ? 1 : 0));
 
@@ -2196,6 +2204,16 @@
               The names and pictures could not be loaded: the site could not ask Discord who these IDs are.
               Set <b class="mono">DISCORD_BOT_TOKEN</b> on the server, and make sure <b class="mono">/api/discord-profiles</b> is deployed.
               The IDs below are what the scanner read off the PC — they are correct with or without the bot.</p>` : ''}
+          ${allIds.length > accs.length ? `<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--dim);font-size:11.5px">
+              Why ${allIds.length - accs.length} ID${allIds.length - accs.length > 1 ? 's are' : ' is'} not shown</summary>
+              <div class="mono" style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.9">
+                ${allIds.filter((a) => !accs.some((k) => k.id === a.id)).map((a) => {
+                  const p = known(a) || {};
+                  const why = p.bot ? 'a Discord bot' : p.found === false ? 'Discord has no such user — a server, a channel or a deleted account'
+                            : p.found === null ? 'could not ask Discord' : 'hidden';
+                  return `${esc(a.id)} · ${esc(a.source || '')} — ${esc(why)}`;
+                }).join('<br>')}
+              </div></details>` : ''}
           ${bots.length ? `<p style="color:var(--faint,var(--dim));font-size:11.5px;margin:10px 0 0">
               ${bots.length} Discord bot${bots.length > 1 ? 's' : ''} (${esc(bots.map((b) => (known(b) || {}).display || b.id).slice(0, 4).join(', '))}${bots.length > 4 ? '…' : ''})
               also left ${bots.length > 1 ? 'their ids' : 'its id'} in the cache. A bot is not an account — not shown.</p>` : ''}
@@ -2223,7 +2241,7 @@
           <div class="hs-pane-h">Warning — Discord servers<span>${warnServers.length}</span></div>
           ${warnServers.length
             ? `<div style="display:flex;flex-direction:column;gap:8px">${warnServers.map(srvRow).join('')}</div>`
-              + `<p class="rp-txt" style="color:var(--dim);margin:10px 0 0">Red = a known cheat shop that ships with HeRo Shield, or one in your own list. Orange = the name alone looks like a cheat shop — read it before you act on it. Leaving a server does not erase it: Discord and the browsers keep the icons, invite pages and channel links on the PC.</p>`
+              + `<p class="rp-txt" style="color:var(--dim);margin:10px 0 0">Red = a known cheat shop that ships with HeRo Shield, or one in your own list. Orange = the name alone looks like a cheat shop — read it before you act on it. None of these prove he is a member right now — Discord keeps the ID whether the server was joined or the invite was only opened, and keeps it after leaving. What they prove is that this PC met the server. Ask him.</p>`
             : `<p style="color:var(--dim);font-size:12.5px;margin:0">${L('DiscordTraces').length || history.length
                 ? 'No cheat server found — not in one now, and none in what the PC remembers.'
                 : 'No Discord traces on this PC (cache cleared, or an older scanner) and no earlier check.'}</p>`}
@@ -2858,6 +2876,13 @@
             <input class="input" data-dropname="${i}" value="${H(guess(x.file.name))}" placeholder="Cheat name">
             <select class="input" data-dropgame="${i}"><option value="">All games</option>${GAMES.map((g) => `<option value="${g.k}">${g.name} only</option>`).join('')}</select>
             <button class="btn btn-primary btn-sm" data-dropadd="${i}" ${x.r.knownAs ? 'disabled' : ''}>${x.r.knownAs ? 'Already added' : 'Add as signature'}</button>
+          </div>
+          ${!/\.(exe|dll|sys|asi|jar|ahk)$/i.test(x.file.name) ? `<div class="sig-warn">
+            This is not a program — it is a <b>${H((x.file.name.split('.').pop() || '').toLowerCase())}</b> file.
+            Adding it makes the scanner report <b>every file with this name</b> as a cheat, on every PC it checks.
+            A file called <span class="mono">${H(x.file.name)}</span> exists on plenty of innocent machines, including your own.
+            Add it only if you are sure that name belongs to the cheat and to nothing else.</div>` : ''}
+          <div hidden>
           </div>
         </div>` : `<div class="sig-hit"><b>${H(x.file.name)}</b><div style="color:#f87171;font-size:13px">${H(x.err)}</div></div>`).join('');
 
